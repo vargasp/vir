@@ -73,6 +73,30 @@ def pts_dist(Pts):
     return np.linalg.norm(Pts[...,0,:] - Pts[...,1,:], axis=-1)
 
 
+def line_pt_dist(L, p0):
+    """
+    Calculates the closest distance between a line and apoint
+    
+    Parameters
+    ----------
+    L : (2,3) or (...,2,3) numpy ndarray
+        The coefficients of the parametric lines
+ 
+    Pp0 : (3) numpy ndarray
+        The coordinates of the point
+   
+    Returns
+    -------
+    float or (...) numpy ndarray
+        The returned distance(s) between the point and lines(s) 
+    """
+
+    v0 = L[...,0,:]
+    v1 = L[...,1,:]
+
+    return np.linalg.norm(np.cross(v1, v0 - p0),axis=-1)/np.linalg.norm(v1,axis=-1)
+
+
 def parametric_line(p0,p1):
     """
     Calculates the parametric coefficients of a line from 2 points 
