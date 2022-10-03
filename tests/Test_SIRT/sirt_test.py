@@ -84,7 +84,7 @@ def square_geom_st(BinsX, distY, Angs, sides=4):
     return srcs, trgs
 
 
-def map_sino(srcs,trgs,dAng,dBin):
+def map_sino(srcs,trgs,detBins,angBins):
     p0 = np.array([0,0,0])
     L = ag.parametric_line(srcs,trgs)
 
@@ -95,38 +95,35 @@ def map_sino(srcs,trgs,dAng,dBin):
 
     d[n] = d[n]*-1
 
-
-    detBins = vir.boundspace(srcs.shape[0],c=0.0,d=dBin)
-    angBins = vir.boundspace(srcs.shape[1],c=np.pi,d=dAng)
     theta = np.arctan2((trgs[...,1] - srcs[...,1]),(trgs[...,0] - srcs[...,0]))
-
     theta = np.where(theta<0 , 2.0*np.pi+theta, theta)
-
-    print(theta.min(), theta.max())
+    print(d.size)
     return np.histogram2d(d.flatten(),theta.flatten(), bins = [detBins,angBins])[0]
 
 
 #Sheep Lgan Cicular
-nPix = 250
+nPix = 360
 nPixels = (nPix,nPix,1)
-dPix = 1.
-nDets = 800
+dPix = 1.0
+nDets = nPix
 dDet = 1.0
-nTheta = 360
+nTheta = nDets
 det_lets = 1
 src_lets = 1
 
 gamma = 1
 
 Dets = vir.censpace(nDets,c=0,d=dDet)
-DetsDist = 125
+DetsDist = nPix*dPix/2.0
 
-dTheta = 2*np.pi/nTheta
-Thetas = vir.censpace(nTheta,d=dTheta,c=np.pi)
-srcs, trgs = square_geom_st(Dets, DetsDist, Thetas, sides=4)
+dTheta = np.pi/nTheta
+Thetas = vir.censpace(nTheta,d=dTheta,c=np.pi/2.)
+srcs, trgs = square_geom_st(Dets, DetsDist, Thetas, sides=2)
 
-s_map = map_sino(srcs, trgs, dTheta ,dDet).T
-vt.imshow(s_map, vmax=15,xlim=(-125,125),ylim=(0,360))
+detBins = vir.boundspace(nDets,c=0.0,d=dDet)
+angBins = vir.boundspace(nTheta*2,c=np.pi,d=dTheta)
+s_map = map_sino(srcs, trgs, detBins ,angBins).T
+vt.imshow(s_map, vmax=10,xlim=(-125,125),ylim=(0,360))
 
 
 
