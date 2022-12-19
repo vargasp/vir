@@ -29,7 +29,7 @@ def file_path(fname):
      
     return os.path.join(home_dir,*dirs)
 
-
+"""
 
 def file_path_box(fname):
     
@@ -48,3 +48,4 @@ fname = '/Users/vargasp/Box/ktyt\params_arr.npy'
 print(file_path(fname))
 
 
+"""
