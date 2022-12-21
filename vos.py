@@ -13,7 +13,7 @@ import os
 
 def file_path(fname):
     home_dir = os.path.expanduser('~')
-    work_dir = os.getcwd()
+    #work_dir = os.getcwd()
     
     #If fname correctly starts with home_dir assume fname is a correctly setup
     if fname.find(home_dir) == 0:
