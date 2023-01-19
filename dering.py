@@ -41,7 +41,7 @@ def polar_to_cart(polar_data, nX, nY, theta_step=1, range_step=1,order=3):
 
     # The data is mapped to the new coordinates
     # Values outside range are substituted with nans
-    cart_data = map_coordinates(polar_data, coords, order=order, mode='constant', cval=np.nan)
+    cart_data = map_coordinates(polar_data, coords, order=order, mode='constant', cval=0.0)
 
     # The data is reshaped and returned
     return(cart_data.reshape(nY, nX))
@@ -81,6 +81,8 @@ def polar_filter(img, kernel_max, axis):
 def dering(img,threshold_min=None,threshold_max=None,threshold_art=30,\
            azimuthal_kernel=11,radial_kernel=21, return_art=False):
 
+    img = img.astype(float)
+    
     nX, nY = img.shape
     
     #Lower threshold for image segmentation
@@ -96,7 +98,7 @@ def dering(img,threshold_min=None,threshold_max=None,threshold_art=30,\
 
     #Image transformed into polar coordinates
     nRadii = int(np.ceil(np.sqrt((nX/2)**2 + (nY/2)**2)))
-    nThetas = 360
+    nThetas = 1440
     pImg = warp_polar(tImg, output_shape=[nThetas,nRadii])
 
     #Radial median filtering in polar coordinates
@@ -104,13 +106,13 @@ def dering(img,threshold_min=None,threshold_max=None,threshold_art=30,\
     
     #Subtract median imge to calculate artifactimge.
     #Thresholded artifact image
-    fImg = (pImg - fImg).clip(0,threshold_art)
+    fImg = (pImg - fImg).clip(-1000,threshold_art)
 
     #Azimuthal filtering in polar coordinates
     dImg = medfilt(fImg, [azimuthal_kernel,1])
 
     #Artifact Image transformed into cartesian coordinates
-    ring_art = polar_to_cart(dImg,nX,nY)
+    ring_art = polar_to_cart(dImg,nX,nY, theta_step= 360.0/nThetas)
 
 
 
