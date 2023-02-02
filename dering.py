@@ -78,23 +78,24 @@ def polar_filter(img, kernel_max, axis):
     return lf_img
 
 
-def dering(img,threshold_min=None,threshold_max=None,threshold_art=30,\
-           azimuthal_kernel=11,radial_kernel=21, return_art=False):
+def dering(img,thresh_min=None,thresh_max=None,thresh_art_max=30,\
+           thresh_art_min=0, azimuthal_kernel=11,radial_kernel=21, return_art=False):
 
     img = img.astype(float)
     
     nX, nY = img.shape
     
     #Lower threshold for image segmentation
-    if threshold_min is None:
-        threshold_min = img.min()
+    if thresh_min is None:
+        thresh_min = img.min()
 
     #Upper threshold for image segmentation
-    if threshold_max is None:
-        threshold_max = img.max()
+    if thresh_max is None:
+        thresh_max = img.max()
+
 
     #Thresholded image
-    tImg = img.clip(threshold_min,threshold_max)
+    tImg = img.clip(thresh_min,thresh_max)
 
     #Image transformed into polar coordinates
     nRadii = int(np.ceil(np.sqrt((nX/2)**2 + (nY/2)**2)))
@@ -102,14 +103,17 @@ def dering(img,threshold_min=None,threshold_max=None,threshold_art=30,\
     pImg = warp_polar(tImg, output_shape=[nThetas,nRadii])
 
     #Radial median filtering in polar coordinates
-    fImg = medfilt(pImg, [1,radial_kernel])
+    fImg = polar_filter(pImg, radial_kernel, 1)
+
+    #fImg = medfilt(pImg, [1,radial_kernel])
     
     #Subtract median imge to calculate artifactimge.
     #Thresholded artifact image
-    fImg = (pImg - fImg).clip(-1000,threshold_art)
+    fImg = (pImg - fImg).clip(thresh_art_min,thresh_art_max)
 
     #Azimuthal filtering in polar coordinates
-    dImg = medfilt(fImg, [azimuthal_kernel,1])
+    #dImg = medfilt(fImg, [azimuthal_kernel,1])
+    dImg = polar_filter(fImg, azimuthal_kernel, 0)
 
     #Artifact Image transformed into cartesian coordinates
     ring_art = polar_to_cart(dImg,nX,nY, theta_step= 360.0/nThetas)
