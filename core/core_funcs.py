@@ -350,9 +350,11 @@ class Geom:
     nAngles : int
         The number of projection angles in one 2*pi rotation.
     dZ : float
-        The z distance translated between projection angles
+        The z distance translated between projection angles in units of the
+        detector height
     Z : np.array
-        The Z coordinates of the source with respect to the center of the phantom
+        The Z coordinates of the source with respect to the center of the
+        phantom in units of detector height
     
     Methods
     -------
@@ -418,7 +420,6 @@ class Geom:
         else:
             self.geom = "Parallel beam"
         
-        #FIXME: pitch and detector size
         #Trajectory Parameters
         self.dZ = self.pitch / self.nAngles
         self.Z = censpace(self.nViews, self.dZ)

@@ -2,6 +2,7 @@ import numpy as np
 import time
 from multiprocessing import Pool, RawArray, Array
 
+
 # A global dictionary storing the variables passed from the initializer.
 var_dict = {}
 
@@ -66,7 +67,47 @@ def mp_lock(data):
     # Should print the same results.
     print('Results (numpy):\n', np.sum(X_np, 1))
 
+ 
+
+# A global dictionary storing the variables passed from the initializer.
+var_dicts = {}
+
+
+def workers_func(i):
+    # Simply computes the sum of the i-th row of the input matrix X
+    X_np = np.frombuffer(var_dicts['X']).reshape(var_dicts['X'].shape)
+    time.sleep(.1) # Some heavy computations
+    return np.asscalar(np.sum(X_np[i,:]))
+
+
+def init_workers(X, Y):
+    # Using a dictionary is not strictly necessary. You can also
+    # use global variables.
+    var_dicts['X'] = X
+    var_dicts['Y'] = Y
+
+
+#Read-only Array and unsahred additional args
+def mp_unlock_args(data_arrays):
     
+    # Create an aaray of shared arrays of double precision without a lock.
+    for i, data in enumerate(data_arrays):
+        X = RawArray('d', data.size)
+ 
+    # Wrap X as an numpy array so we can easily manipulates its data.
+    X_np = np.frombuffer(X).reshape(data.shape)
     
+    # Copy data to shared array.
+    np.copyto(X_np, data)
     
-    
+    Y = 1
+    # Start the process pool and do the computation.
+    with Pool(processes=4, initializer=init_workers, initargs=(X, Y)) as pool:
+        result = pool.map(workers_func, range(data.shape[0]))
+        print('Results (pool):\n', np.array(result))
+        
+    # Should print the same results.
+    print('Results (numpy):\n', np.sum(X_np, 1))
+     
+ 
+ 
