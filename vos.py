@@ -11,7 +11,7 @@ Created on Thu Dec  8 16:23:54 2022
 import os
 
 
-def file_path(fname):
+def file_path(fname,home=True):
     home_dir = os.path.expanduser('~')
     work_dir = os.getcwd()
     
@@ -26,8 +26,12 @@ def file_path(fname):
         dirs = fname.split('/')
     else:
         dirs = list(fname)
-     
-    return os.path.join(home_dir,*dirs)
+    
+    if home:
+        return os.path.join(home_dir,*dirs)
+    else:
+        return os.path.join('/',*dirs)
+        
 
 """
 
