@@ -548,10 +548,19 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
     #first and last grid lines. Assigns 0s to calculations where dividing by 0 
     
     #Updated method to compute perpindicular bounds of arrays that do not 
-    #intersect the grid 
+    #intersect the grid
+    
+    """
     with np.errstate(divide='ignore', invalid='ignore'):
-        alpha0 = np.where(dST == 0.0, (p0-trg) / epsilon, (p0-trg) / dST)
-        alphaN = np.where(dST == 0.0, (pN-trg) / epsilon, (pN-trg) / dST)
+        alpha0 = np.where(np.abs(dST) < epsilon, (p0-trg) / epsilon, (p0-trg) / dST)
+        alphaN = np.where(np.abs(dST) < epsilon, (pN-trg) / epsilon, (pN-trg) / dST)
+    """
+    dST[np.abs(dST) < epsilon] = epsilon
+    
+    alpha0 = (p0-trg) / dST
+    alphaN = (pN-trg) / dST
+    
+    print(alpha0, alphaN, dST)
     
     
     #Calculate alpha_min and alpah max, which is either the parametric value of
@@ -605,6 +614,11 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
             x_ind = ((trg[idxX] + mAlpha*dST[idxX] - g.Xb[0])/g.dX + epsilonR).astype(int)
             y_ind = ((trg[idxY] + mAlpha*dST[idxY] - g.Yb[0])/g.dY + epsilonR).astype(int)
             z_ind = ((trg[idxZ] + mAlpha*dST[idxZ] - g.Zb[0])/g.dZ + epsilonR).astype(int)
+           
+            
+            print(alpha_bounds[ray_idx + (1,)])
+            print(alpha_bounds[ray_idx + (0,)])
+            print(y_ind, trg[idxY], mAlpha, dST[idxY], g.Yb[0], g.dY, epsilonR)
            
             length = (distance[ray_idx]*dAlpha).astype(np.float32)
 
