@@ -511,7 +511,8 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
     
     #Machine precision
     epsilon = np.finfo(float).eps
-    epsilonR = np.sqrt(epsilon) #Propogated error
+    epsilon = 1e-8
+    #epsilonR = np.sqrt(epsilon) #Propogated error
    
     #Creates the grid of voxels
     g = vir.Grid3d(nPixels=nPixels,dPixels=dPixels,origin=origin)
@@ -559,10 +560,7 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
     
     alpha0 = (p0-trg) / dST
     alphaN = (pN-trg) / dST
-    
-    print(alpha0, alphaN, dST)
-    
-    
+        
     #Calculate alpha_min and alpah max, which is either the parametric value of
     #the intersection where the line of interest enters or leaves the grid, or
     #0.0 if the trg is inside the grid.
@@ -611,14 +609,9 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
             dAlpha = Alpha[1:] - Alpha[:-1]
             mAlpha = 0.5 * (Alpha[1:] + Alpha[:-1])
             
-            x_ind = ((trg[idxX] + mAlpha*dST[idxX] - g.Xb[0])/g.dX + epsilonR).astype(int)
-            y_ind = ((trg[idxY] + mAlpha*dST[idxY] - g.Yb[0])/g.dY + epsilonR).astype(int)
-            z_ind = ((trg[idxZ] + mAlpha*dST[idxZ] - g.Zb[0])/g.dZ + epsilonR).astype(int)
-           
-            
-            print(alpha_bounds[ray_idx + (1,)])
-            print(alpha_bounds[ray_idx + (0,)])
-            print(y_ind, trg[idxY], mAlpha, dST[idxY], g.Yb[0], g.dY, epsilonR)
+            x_ind = ((trg[idxX] + mAlpha*dST[idxX] - g.Xb[0])/g.dX).astype(int)
+            y_ind = ((trg[idxY] + mAlpha*dST[idxY] - g.Yb[0])/g.dY).astype(int)
+            z_ind = ((trg[idxZ] + mAlpha*dST[idxZ] - g.Zb[0])/g.dZ).astype(int)
            
             length = (distance[ray_idx]*dAlpha).astype(np.float32)
 
