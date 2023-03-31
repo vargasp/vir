@@ -16,7 +16,7 @@ import vir.mpct as mpct
 import vir.siddon as sd
 import ctypes
 
-#proj_so = ctypes.CDLL(__file__.rsplit("/",1)[0] + "/projection_c.so")
+proj_so = ctypes.CDLL(__file__.rsplit("/",1)[0] + "/projection_c.so")
 
 
 #C Files
