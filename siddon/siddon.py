@@ -493,7 +493,7 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
     cPixels : float or (3) array_like
         The center location in the X, Y, and Z dimensions. Default is 0.0
     ravel : bool, optional
-        Stores the pixel values as either a raveled flattened array or as 3
+        Stores the pixel values as either a raveled array or as 3
         dimensional array
     flat : bool, optional
         Stores the data in two np.arrays with raveled pixel indices and
@@ -510,9 +510,7 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
     
     
     #Machine precision
-    epsilon = np.finfo(float).eps
     epsilon = 1e-8
-    #epsilonR = np.sqrt(epsilon) #Propogated error
    
     #Creates the grid of voxels
     g = vir.Grid3d(nPixels=nPixels,dPixels=dPixels,origin=origin)
@@ -526,7 +524,7 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
     if src.ndim == 1:
         src = src[np.newaxis,:]
 
-    #Number of ray
+    #Number of rays
     nRays = np.empty(np.shape(trg)[:-1], dtype=object)
 
     #Creates flat arrays if required. Numpy array memory is overallocated and
@@ -545,19 +543,11 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
     dST  = src - trg #(nRays, 3)
     distance = np.linalg.norm(dST, axis=-1) #(nRays)
 
-    #Calculate the parametric values of the intersections of the ray with the 
-    #first and last grid lines. Assigns 0s to calculations where dividing by 0 
-    
-    #Updated method to compute perpindicular bounds of arrays that do not 
-    #intersect the grid
-    
-    """
-    with np.errstate(divide='ignore', invalid='ignore'):
-        alpha0 = np.where(np.abs(dST) < epsilon, (p0-trg) / epsilon, (p0-trg) / dST)
-        alphaN = np.where(np.abs(dST) < epsilon, (pN-trg) / epsilon, (pN-trg) / dST)
-    """
+    #Updated method to handle rays paralell to the axis grids
     dST[np.abs(dST) < epsilon] = epsilon
-    
+
+    #Calculate the parametric values of the intersections of the ray with the 
+    #first and last grid lines.
     alpha0 = (p0-trg) / dST
     alphaN = (pN-trg) / dST
         
@@ -577,6 +567,7 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
     alpha_max = np.min(m_max, axis=-1)
     alpha_bounds = np.stack([alpha_min,alpha_max], axis = -1)
 
+    #Calculates the idices bounds
     i0 = np.where(dST > 0.0, \
                   np.floor(g.nPixels+1 - (pN-alpha_min[...,np.newaxis]*dST - trg)/g.dPixels).astype(int),\
                   np.floor(g.nPixels+1 - (pN-alpha_max[...,np.newaxis]*dST - trg)/g.dPixels).astype(int))
@@ -615,6 +606,8 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
            
             length = (distance[ray_idx]*dAlpha).astype(np.float32)
 
+            #Stores the index and intersection length in flat, raveled, or
+            #unraveled form
             if flat == True:
                 fN = f0 + length.size
                 flat_ind[f0:fN] = np.ravel_multi_index((x_ind,y_ind,z_ind),g.nPixels)
