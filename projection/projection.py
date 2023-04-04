@@ -16,7 +16,11 @@ import vir.mpct as mpct
 import vir.siddon as sd
 import ctypes
 
-proj_so = ctypes.CDLL(__file__.rsplit("/",1)[0] + "/projection_c.so")
+try:
+    proj_so = ctypes.CDLL(__file__.rsplit("/",1)[0] + "/projection_c.so")
+except:
+    print("Warning. Projection shared object libray not present.")
+
 
 
 #C Files
