@@ -606,10 +606,17 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
            
             length = (distance[ray_idx]*dAlpha).astype(np.float32)
 
+            #TEMP FIX
+            x_ind = x_ind.clip(0,249)
+            y_ind = y_ind.clip(0,499)
+            z_ind = z_ind.clip(0,159)
+
+
             #Stores the index and intersection length in flat, raveled, or
             #unraveled form
             if flat == True:
                 fN = f0 + length.size
+                
                 flat_ind[f0:fN] = np.ravel_multi_index((x_ind,y_ind,z_ind),g.nPixels)
                 flat_len[f0:fN] = length
                 f0 += length.size
