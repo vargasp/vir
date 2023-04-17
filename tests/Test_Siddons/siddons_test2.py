@@ -35,8 +35,8 @@ def plot_params(nPix, dPix, src, trg):
 nPix = (12,10,1)
 dPix = (.8, 1,1)
 
-src = np.array((-2.5, .25,0))
-trg = np.array((2,1.25, 0))
+src = np.array((-6.5, .25,0))
+trg = np.array((6.5,1.25, 0))
 
 
 sdlist = sd.siddons(trg, src, nPixels=nPix, dPixels=dPix)
@@ -85,6 +85,22 @@ b = sdarray
 x0,xN,y0,yN,xS,yS = plot_params(nPix, dPix, src, trg)
 plt.imshow(sdarray[:,:,0].T, extent=(x0,xN,y0,yN), origin='lower')
 plt.show()
+
+
+
+
+src = np.array([-141.38,0.49, 0.49])
+trg = np.array([120., 176.66012, 176.66012])
+sdlist = sd.siddons(trg, src, nPixels=(250,500,160), dPixels=.96, origin=(0, 0, 76.8),flat = True, ravel= True)
+
+
+
+sd.siddons(Srcs, Trgs, nPixels=nPixelsG, dPixels=dPixel, origin=origin,\
+            flat = True, ravel= True)
+
+
+
+
 
 
 

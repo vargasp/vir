@@ -511,7 +511,8 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
     
     #Machine precision
     epsilon = 1e-8
-   
+    decimal_round = int(-np.log(epsilon))
+    
     #Creates the grid of voxels
     g = vir.Grid3d(nPixels=nPixels,dPixels=dPixels,origin=origin)
 
@@ -575,6 +576,7 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
                   np.ceil((trg + alpha_max[...,np.newaxis]*dST - p0)/g.dPixels).astype(int),\
                   np.ceil((trg + alpha_min[...,np.newaxis]*dST - p0)/g.dPixels).astype(int))
 
+
     #Loops through the rays intersecting the source and target
     for ray_idx, ray in np.ndenumerate(nRays):
         
@@ -594,7 +596,7 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
             #Merges and sorts alphas
             #Alpha = np.sort(np.concatenate([alpha_bounds[ray,:], X_alpha, Y_alpha, Z_alpha]), kind='mergesort')
             #Rounding function was added to elimintae duplicate alphas introduced by machine precision
-            Alpha = np.unique(np.round(np.concatenate([alpha_bounds[ray_idx], X_alpha, Y_alpha, Z_alpha]),decimals=12))
+            Alpha = np.unique(np.round(np.concatenate([alpha_bounds[ray_idx], X_alpha, Y_alpha, Z_alpha]),decimals=decimal_round))
 
             #Loops through the alphas and calculates pixel length and pixel index
             dAlpha = Alpha[1:] - Alpha[:-1]
@@ -605,13 +607,6 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
             z_ind = ((trg[idxZ] + mAlpha*dST[idxZ] - g.Zb[0])/g.dZ).astype(int)
            
             length = (distance[ray_idx]*dAlpha).astype(np.float32)
-
-            #TEMP FIX
-            x_ind = x_ind.clip(0,249)
-            y_ind = y_ind.clip(0,499)
-            z_ind = z_ind.clip(0,159)
-
-
             #Stores the index and intersection length in flat, raveled, or
             #unraveled form
             if flat == True:
