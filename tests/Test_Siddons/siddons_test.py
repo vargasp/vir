@@ -18,10 +18,6 @@ import time
 
 
 
-
-
-
-
 nPix = (4,4,1)
 dPix = 1.0
 
@@ -44,7 +40,7 @@ trg = (2, -2, 0.0)
 print(sd.siddons(trg, src, nPixels=nPix, dPixels=dPix))
 
 
-
+srcs[-10,]
 
 
 
@@ -95,25 +91,39 @@ src_lets = 1
 d = vir.Detector1d(nDets=nDets,dDet=dDet, det_lets=det_lets)
 
 Thetas = np.linspace(0,2*np.pi,nTheta)
-srcs, trgs = sd.circular_geom_st(d.Dets, Thetas, 10)
-a = sd.siddons(srcs,trgs,nPixels, dPix)
+srcs, trgs = sd.circular_geom_st(d.Dets, Thetas,geom="par")
 
 
 a = sd.siddons(srcs,trgs,nPixels, dPix, flat=True)
 b = sd.siddons(srcs,trgs,nPixels, dPix, ravel=True)
 c = sd.siddons(srcs,trgs,nPixels, dPix, ravel=False)
+h = sd.list2array(a, nPixels, flat=True)
+i = sd.list2array(b, nPixels, ravel=True)
+j = sd.list2array(c, nPixels, ravel=False)
+
+print((h - i)[:,:,0])
+print((h - j)[:,:,0])
+
+
 d = sd.list_flatten(b,nPixels, ravel=True)
 e = sd.list_flatten(c,nPixels, ravel=False)
-f = sd.list_ravel(c,nPixels)
-g = sd.list_unravel(b,nPixels)
+h = sd.list2array(a, nPixels, flat=True)
+i = sd.list2array(d, nPixels, flat=True)
+j = sd.list2array(e, nPixels, flat=True)
 
-h = sd.list2array(a, nPixels, flat=True, nRays=nTheta*nDets)
-i = sd.list2array(b, nPixels, ravel=True, nRays=nTheta*nDets)
-j = sd.list2array(c, nPixels, ravel=False, nRays=nTheta*nDets)
+print((h - i)[:,:,0])
+print((h - j)[:,:,0])
 
-h = sd.list_ave(a, flat=True, nPixels=nPixels, nRays=nTheta*nDets)
-i = sd.list_ave(b, ravel=True, nPixels=nPixels, nRays=nTheta*nDets)
-j = sd.list_ave(c, ravel=False, nPixels=nPixels, nRays=nTheta*nDets)
+
+d = sd.list_unravel(b,nPixels)
+e = sd.list_ravel(c,nPixels)
+h = sd.list2array(a, nPixels, flat=True)
+i = sd.list2array(d, nPixels, ravel=False)
+j = sd.list2array(e, nPixels, ravel=True)
+
+print((h - i)[:,:,0])
+print((h - j)[:,:,0])
+
 
 
 

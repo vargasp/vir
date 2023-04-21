@@ -65,7 +65,7 @@ def list_ctypes_object(sdlist, flat=True):
 
 def list_del_ind(sdlist, X_ind, Y_ind, Z_ind, ravel=False):
     """
-    Remomves sdlist ray elements that are not included in the arguement
+    Remomves sdlist ray elements that are not included in the argument
     paramters. Reduces the size efficeint processing of local areas
     
     Parameters
@@ -145,10 +145,40 @@ def list_index_shift(sdlist, shift, ravel=False):
     return sdlist
 
 
-def list2array(sdlist, nPixels, ravel=False, flat=False, nRays=None, ave=True):
+def list2array_iter_ray(ray, array, ravel=False):
     """
-    Converts a siddons array of lists into a Nd array of the summation or
-    average intersctions from each voxel
+    Sums a single ray of a siddons array of lists to a 3d array
+    
+    Parameters
+    ----------
+    ray : (4) or (2) (nElem) numpy arrays
+        A list containing 4 or 2 np.arrays of voxel indices and intersection
+        lengths all with size of nElems         
+    array : (X,Y,Z) numpy array
+        a 3d array of summations intersection lengths 
+    ravel : bool
+        Flag indicating if the sdlist is raveled or unraveled. Default is ravel
+
+    Returns
+    -------
+    [(X,Y,Z) numpy array
+        the returned 3d array of summations interscetion of a ray
+    """
+    #Loops through the flat array incrementing the intersection length
+    #The loop is required due to python indexing will NOT increment
+    #duplicate indices
+    for i in range(ray[0].size):
+        if ravel:
+            array.flat[ray[0][i]] += ray[1][i]
+        else:
+            array[ray[0][i],ray[1][i],ray[2][i]] += ray[3][i]
+    
+    
+
+def list2array(sdlist, nPixels, ravel=False, flat=False):
+    """
+    Converts a siddons array of lists into a 3d array of the summation of the
+    intersctions lengths associated with each voxel
     
     Parameters
     ----------
@@ -158,51 +188,32 @@ def list2array(sdlist, nPixels, ravel=False, flat=False, nRays=None, ave=True):
         indexes and intersection lengths from siddons 
     nPixels : (3) array_like
         The number of voxels in the X, Y, and Z dimensions
-    ravel : bool
-        Flag indicating if the sdlist is raveled or unraveled. Default is ravel
-    ave : bool
-        Flag to return ither intersection lenghts summations or averages.
-        Defult is average
-
+    ravel : bool, optional
+        Stores the pixel values as either a raveled array index array (a
+        single integer value representing all three dimesions) or an unraveled
+        array index (3 arrays corresponding to the X, Y, and Z indices)
+        dimensional array. Default is unravled
+        
     Returns
     -------
     [(X,Y,Z) numpy array
-        the returned 3d array of summations or average interscetion lengts of 
-        a sdlist
+        the returned 3d array of summations intersection lengts of a sdlist
     """
+    
+    #Defines the intersction lenght array
     iter_array = np.zeros(nPixels, dtype=np.float32)
     
     
     if flat == True:
-        for i in range(sdlist[0].size):
-            iter_array.flat[sdlist[0][i]] += sdlist[1][i]
-        
-        iter_array /= nRays
-        
-        return iter_array
+        list2array_iter_ray(sdlist, iter_array, ravel=True)
             
-        
-    cnt_array = np.zeros(nPixels, dtype=int)
-    
-    #Loops through all rays in the list
-    for ray_idx, ray in np.ndenumerate(sdlist):
-        if ray != None:
-            if ravel == True:
-                for i in range(len(ray[0])):
-                    iter_array.flat[ray[0][i]] += ray[1][i]
-                    cnt_array.flat[ray[0][i]] += 1
+    else:
+        #Loops through all rays in the list
+        for ray_idx, ray in np.ndenumerate(sdlist):
+            if ray != None:
+                list2array_iter_ray(ray, iter_array, ravel=ravel)
 
 
-
-            else:
-                for i in range(len(ray[0])):
-                    iter_array[ray[0][i],ray[1][i],ray[2][i]] += ray[3][i]
-                    cnt_array[ray[0][i],ray[1][i],ray[2][i]] += 1
-
-    #Averagers the array
-    if ave:
-        iter_array[cnt_array > 0] /= cnt_array[cnt_array > 0]
-    
     return iter_array
 
 
@@ -273,6 +284,21 @@ def list_ave(sdlist, ravel=False, flat=False, nPixels=None, nRays=None, axis=Non
     return sdlist_ave
 
 
+def ray_index_shift(ray, shift):   
+    return [ray[0]+shift[0],ray[1]+shift[1],ray[2]+shift[2],ray[3]]
+
+def ray_boundary(ray,nPixels):
+    
+    Xidx = np.logical_and(ray[0]>=0, ray[0]<nPixels[0])
+    Yidx = np.logical_and(ray[1]>=0, ray[1]<nPixels[1])
+    Zidx = np.logical_and(ray[2]>=0, ray[2]<nPixels[2])
+    
+    idx = np.logical_and(Xidx, np.logical_and(Zidx, Yidx))
+
+    return [ray[0][idx],ray[1][idx],ray[2][idx],ray[3][idx]]
+
+
+
 def rays_ave(sdlist, ravel=False, flat=False, nPixels=None, nRays=None):
     """
     Combines and averages the intersection lengths and pixel indices over
@@ -330,43 +356,10 @@ def rays_ave(sdlist, ravel=False, flat=False, nPixels=None, nRays=None):
         return ray_unravel([flat_ind, flat_len2], nPixels)
 
 
-def list_flatten(sdlist,nPixels, ravel=False):
-
-    f0 = 0
-    flat_len = np.zeros(6*sdlist.size*np.max(nPixels),dtype=np.float32)
-    flat_ind = np.zeros(6*sdlist.size*np.max(nPixels),dtype=int)
-
-    for ray_idx, ray in np.ndenumerate(sdlist):
-        if ray != None:
-            
-            if ravel == False:
-                ray = ray_ravel(ray,nPixels)
-                
-                
-            fN = f0 + ray[0].size
-            flat_ind[f0:fN] = ray[0]
-            flat_len[f0:fN] = ray[1]
-            f0 = fN
-                
-    return flat_ind[flat_len>0], flat_len[flat_len>0]
 
 
-def list_ravel(sdlist,nPixels):
-
-    for ray_idx, ray in np.ndenumerate(sdlist):
-        if ray != None:
-            sdlist[ray_idx] = ray_ravel(ray,nPixels)
-            
-    return sdlist
 
 
-def list_unravel(sdlist,nPixels):
-
-    for ray_idx, ray in np.ndenumerate(sdlist):
-        if ray != None:
-            sdlist[ray_idx] = ray_unravel(ray,nPixels)
-            
-    return sdlist
             
 
 
@@ -416,22 +409,124 @@ def ray_flip(ray,x=None,y=None,z=None,ravel=False,nPixels=None):
         return ray
 
 
-def ray_ravel(ray,nPixels):
+
+
+def list_flatten(sdlist,nPixels,ravel=False):
     """
-    Ravels a single ray in an object array created by Siddons.
+    Flattens an unraveled or raveld object array created by Siddons. Stores the
+    data in two np.arrays with raveled pixel indices and intersection lengths.
 
     Parameters
     ----------
-    ray : (4) (nElem) numpy arrays
-        The list of raveled indices 
+    sdlist : (...) numpy ndarray of objects
+        The returned array of siddons with a 4 arrays of the unraveled voxel
+        indices and intersection lengths
     nPixels : (3) array_like
-        The number of voxels in the X, Y, and Z dimensions
+        The number of voxels in the X, Y, and Z dimensions associated with the
+        object array
+    ravel : bool, optional
+        Stores the pixel values as either a raveled array index array (a
+        single integer value representing all three dimesions) or an unraveled
+        array index (3 arrays corresponding to the X, Y, and Z indices)
+        dimensional array. Default is unravled
 
     Returns
     -------
     [(nElem) numpy array, (nElem) numpy array]
-        the returned array is of shape (...) with 2 lists of the raveled
-        pixel indices and intersection length
+        Flattens an unraveled or raveld object array created by Siddons.
+    """
+    
+    f0 = 0
+    flat_len = np.zeros(6*sdlist.size*np.max(nPixels),dtype=np.float32)
+    flat_ind = np.zeros(6*sdlist.size*np.max(nPixels),dtype=int)
+
+    for ray_idx, ray in np.ndenumerate(sdlist):
+        if ray != None:
+            
+            if ravel == False:
+                ray = ray_ravel(ray,nPixels)
+                
+                
+            fN = f0 + ray[0].size
+            flat_ind[f0:fN] = ray[0]
+            flat_len[f0:fN] = ray[1]
+            f0 = fN
+                
+    return flat_ind[:fN], flat_len[:fN]
+
+
+def list_ravel(sdlist,nPixels):
+    """
+    Ravels an unraveled object array created by Siddons. This function will
+    not create copied matrix, but chages it in place.
+
+    Parameters
+    ----------
+    sdlist : (...) numpy ndarray of objects
+        The returned array of siddons with a 4 arrays of the unraveled voxel
+        indices and intersection lengths
+    nPixels : (3) array_like
+        The number of voxels in the X, Y, and Z dimensions associated with the
+        object array
+
+    Returns
+    -------
+    [(nElem) numpy array, (nElem) numpy array]
+        the returned array is of shape (...) with 2 arrays of the raveled voxle
+        index and intersection lengths of the ray.
+    """
+    for ray_idx, ray in np.ndenumerate(sdlist):
+        if ray != None:
+            sdlist[ray_idx] = ray_ravel(ray,nPixels)
+            
+    return sdlist
+
+
+def list_unravel(sdlist,nPixels):
+    """
+    Unravels a raveled object array created by Siddons. This function will
+    not create copied matrix, but chages it in place.
+
+    Parameters
+    ----------
+    sdlist : (...) numpy ndarray of objects
+        The returned array of siddons with a 2 arrays of raveled voxel
+        indices and intersection lengths
+    nPixels : (3) array_like
+        The number of voxels in the X, Y, and Z dimensions associated with the
+        object array
+
+    Returns
+    -------
+    [(nElem) numpy array, (nElem) numpy array]
+        the returned array is of shape (...) with 4 arrays of the unraveled voxle
+        indices and intersection lengths of the ray.
+    """
+    for ray_idx, ray in np.ndenumerate(sdlist):
+        if ray != None:
+            sdlist[ray_idx] = ray_unravel(ray,nPixels)
+            
+    return sdlist
+
+
+def ray_ravel(ray,nPixels):
+    """
+    Ravels a single unraveled ray in an object array created by Siddons.
+
+    Parameters
+    ----------
+    ray : (4) (nElem) numpy arrays
+        A list contating 3 np.arrays of unraveled voxel indices and an np.array
+        of intersection lengths all with size of nElems 
+    nPixels : (3) array_like
+        The number of voxels in the X, Y, and Z dimensions associated with the
+        object array
+
+    Returns
+    -------
+    [(nElem) numpy array, (nElem) numpy array]
+        returns a list with 2 numpy arrays of raveled voxel index and
+        coinciding intersection lengths with sizes of nElems
     """
     return [np.ravel_multi_index((ray[0],ray[1],ray[2]),nPixels),ray[3]]
 
@@ -443,7 +538,8 @@ def ray_unravel(ray,nPixels):
     Parameters
     ----------
     ray : (2) (nElem) numpy arrays
-        The list of raveled indices 
+        A list containing an np.array of raveled voxel indices and an np.array
+        of intersection lengths all with size of nElems 
     nPixels : (3) array_like
         The number of voxels in the X, Y, and Z dimensions
 
@@ -455,19 +551,6 @@ def ray_unravel(ray,nPixels):
     """
 
     return list(np.unravel_index(ray[0], nPixels) + (ray[1],))
-
-def ray_index_shift(ray, shift):   
-    return [ray[0]+shift[0],ray[1]+shift[1],ray[2]+shift[2],ray[3]]
-
-def ray_boundary(ray,nPixels):
-    
-    Xidx = np.logical_and(ray[0]>=0, ray[0]<nPixels[0])
-    Yidx = np.logical_and(ray[1]>=0, ray[1]<nPixels[1])
-    Zidx = np.logical_and(ray[2]>=0, ray[2]<nPixels[2])
-    
-    idx = np.logical_and(Xidx, np.logical_and(Zidx, Yidx))
-
-    return [ray[0][idx],ray[1][idx],ray[2][idx],ray[3][idx]]
 
 
 def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
@@ -493,13 +576,16 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
     cPixels : float or (3) array_like
         The center location in the X, Y, and Z dimensions. Default is 0.0
     ravel : bool, optional
-        Stores the pixel values as either a raveled array or as 3
-        dimensional array
+        Stores the pixel values as either a raveled array index array (a
+        single integer value representing all three dimesions) or an unraveled
+        array index (3 arrays corresponding to the X, Y, and Z indices)
+        dimensional array. Default is unravled
     flat : bool, optional
         Stores the data in two np.arrays with raveled pixel indices and
-        intersection lengths. Loses spatial encoding implictin in trg and src
-        structure, but improves performance for averaging across multiple
-        rays to calcualte solid angles
+        intersection lengths. This format loses spatial encoding implict in trg
+        and srcs arrays, but improves performance in accessing indices and 
+        intersection lengths. Applicable in averaging across multiple rays to
+        calculate solid angles
 
     Returns
     -------
