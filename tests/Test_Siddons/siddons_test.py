@@ -124,6 +124,8 @@ j = sd.list2array(e, nPixels, ravel=True)
 print((h - i)[:,:,0])
 print((h - j)[:,:,0])
 
+a = sd.siddons(srcs,trgs,nPixels, dPix, flat=True)
+sd.list_ave(a, flat=True, ravel=True, nPixels=nPixels, nRays=32)
 
 
 

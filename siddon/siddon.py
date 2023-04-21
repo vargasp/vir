@@ -241,119 +241,7 @@ def list_count_elem(sdlist):
     return count
 
 
-def list_ave(sdlist, ravel=False, flat=False, nPixels=None, nRays=None, axis=None):
-    """
-    Combines and averages the intersection lengths and pixel indices over
-    multiple rays in in object array. 
-        
-    Parameters
-    ----------
-    sdlist : (...) numpy ndarray of objects
-        The returned array of siddons with a 2 or 4 lists of the raveled or 
-        unraveled pixel indices with intersection lengths
-    ravel : boolean
-        The The coefficients of the parametric lines
-    nPixels : (3) array_like
-        The number of voxels in the X, Y, and Z dimensions
-    axes : sclar or array_like
-        The axis or axes to average over   
-    
-    Returns
-    -------
-    Pts : (3) or (...,3) array_like
-        The coordinates of the intersection poins. If the line lies within the
-        plane inf for the coordinates are returned. If the line lies parallel
-        to, but no in the plane nan for the coordinates are returned. 
-    """   
-    
 
-    if axis == None:
-        return rays_ave(sdlist, ravel=ravel, flat=flat,\
-                        nPixels=nPixels, nRays=nRays)
-
-    #Creates the new shape based on axis averaging and moves averaged
-    #dimensions to the end
-    sdlist_ave = np.empty(np.delete(sdlist.shape, axis), dtype=object)
-    sdlist = np.moveaxis(sdlist, axis, np.arange(-1,-1*(np.array(axis).size+1),-1))
-   
-    #Loops through all rays in the list
-    for ray_idx, ray in np.ndenumerate(sdlist_ave):
-        sdlist_ave[ray_idx] = rays_ave(sdlist[ray_idx], ravel=ravel, flat=flat,\
-                        nPixels=nPixels, nRays=nRays)
-    
-    return sdlist_ave
-
-
-def ray_index_shift(ray, shift):   
-    return [ray[0]+shift[0],ray[1]+shift[1],ray[2]+shift[2],ray[3]]
-
-def ray_boundary(ray,nPixels):
-    
-    Xidx = np.logical_and(ray[0]>=0, ray[0]<nPixels[0])
-    Yidx = np.logical_and(ray[1]>=0, ray[1]<nPixels[1])
-    Zidx = np.logical_and(ray[2]>=0, ray[2]<nPixels[2])
-    
-    idx = np.logical_and(Xidx, np.logical_and(Zidx, Yidx))
-
-    return [ray[0][idx],ray[1][idx],ray[2][idx],ray[3][idx]]
-
-
-
-def rays_ave(sdlist, ravel=False, flat=False, nPixels=None, nRays=None):
-    """
-    Combines and averages the intersection lengths and pixel indices over
-    multiple rays in in object array. 
-        
-    Parameters
-    ----------
-    sdlist : (...) numpy ndarray of objects
-        The returned array of siddons with a 2 or 4 lists of the raveled or 
-        unraveled pixel indices with intersection lengths
-    nPixels : (3) array_like
-        The number of voxels in the X, Y, and Z dimensions
-    ravel : boolean
-        The The coefficients of the parametric lines
- 
-    Returns
-    -------
-    Pts : (3) or (...,3) array_like
-        The coordinates of the intersection poins. If the line lies within the
-        plane inf for the coordinates are returned. If the line lies parallel
-        to, but no in the plane nan for the coordinates are returned. 
-    """   
-    if ravel == False and nPixels == None:
-        raise ValueError('nPixels must be provided if ravel=False')
-
-    if flat == True and nRays == None:
-        raise ValueError('nRays must be provided if flat=True')
-
-    if flat == False and nPixels == None:
-        raise ValueError('nPixels must be provided if flat=False')
-
-    
-    if flat == True:
-        flat_ind, flat_len = sdlist
-    else: 
-        flat_ind, flat_len = list_flatten(sdlist, nPixels=nPixels,ravel=ravel)
-        
-    #Finds all of the unique elemets and thier positions
-    flat_ind, idx = np.unique(flat_ind, return_inverse=True)
-
-    #If no rays have values return None
-    if flat_ind.size == 0:
-        return None
-    
-    #Creates and calculates the average length per intersection
-    flat_len /= nRays
-    flat_len2 = np.zeros(flat_ind.size, dtype=np.float32)
-    for i, ix in enumerate(idx):
-        flat_len2[ix] += flat_len[i]
-
-    #Returns the list of indices and lengths in the orginal format
-    if ravel == True:
-        return [flat_ind, flat_len2]
-    else:
-        return ray_unravel([flat_ind, flat_len2], nPixels)
 
 
 
@@ -409,6 +297,127 @@ def ray_flip(ray,x=None,y=None,z=None,ravel=False,nPixels=None):
         return ray
 
 
+def ray_index_shift(ray, shift):   
+    return [ray[0]+shift[0],ray[1]+shift[1],ray[2]+shift[2],ray[3]]
+
+def ray_boundary(ray,nPixels):
+    
+    Xidx = np.logical_and(ray[0]>=0, ray[0]<nPixels[0])
+    Yidx = np.logical_and(ray[1]>=0, ray[1]<nPixels[1])
+    Zidx = np.logical_and(ray[2]>=0, ray[2]<nPixels[2])
+    
+    idx = np.logical_and(Xidx, np.logical_and(Zidx, Yidx))
+
+    return [ray[0][idx],ray[1][idx],ray[2][idx],ray[3][idx]]
+
+
+
+
+
+
+
+
+def list_ave(sdlist, ravel=False, flat=False, nPixels=None, nRays=None, axis=None):
+    """
+    Combines and averages the intersection lengths and pixel indices over
+    multiple rays in in object array. 
+        
+    Parameters
+    ----------
+    sdlist : (...) numpy ndarray of objects
+        The returned array of siddons with a 2 or 4 lists of the raveled or 
+        unraveled pixel indices with intersection lengths
+    ravel : boolean
+        The The coefficients of the parametric lines
+    nPixels : (3) array_like
+        The number of voxels in the X, Y, and Z dimensions
+    axis : sclar or array_like
+        The axis or axes to average over   
+    
+    Returns
+    -------
+    Pts : (3) or (...,3) array_like
+        The coordinates of the intersection poins. If the line lies within the
+        plane inf for the coordinates are returned. If the line lies parallel
+        to, but no in the plane nan for the coordinates are returned. 
+    """   
+    
+
+    if axis == None:
+        return rays_ave(sdlist, ravel=ravel, flat=flat,\
+                        nPixels=nPixels, nRays=nRays)
+
+    #Creates the new shape based on axis averaging and moves averaged
+    #dimensions to the end
+    sdlist_ave = np.empty(np.delete(sdlist.shape, axis), dtype=object)
+    sdlist = np.moveaxis(sdlist, axis, np.arange(-1,-1*(np.array(axis).size+1),-1))
+   
+    #Loops through all rays in the list
+    for ray_idx, ray in np.ndenumerate(sdlist_ave):
+        sdlist_ave[ray_idx] = rays_ave(sdlist[ray_idx], ravel=ravel, flat=flat,\
+                        nPixels=nPixels, nRays=nRays)
+    
+    return sdlist_ave
+
+
+def rays_ave(sdlist, ravel=False, flat=False, nPixels=None, nRays=None):
+    """
+    Combines and averages the intersection lengths and pixel indices over
+    multiple rays in in object array. 
+        
+    Parameters
+    ----------
+    sdlist : (...) numpy ndarray of objects
+        The returned array of siddons with a 2 or 4 lists of the raveled or 
+        unraveled pixel indices with intersection lengths
+    nPixels : (3) array_like
+        The number of voxels in the X, Y, and Z dimensions
+    ravel : boolean
+        The The coefficients of the parametric lines
+ 
+    Returns
+    -------
+    Pts : (3) or (...,3) array_like
+        The coordinates of the intersection poins. If the line lies within the
+        plane inf for the coordinates are returned. If the line lies parallel
+        to, but no in the plane nan for the coordinates are returned. 
+    """   
+    if ravel == False and nPixels == None:
+        raise ValueError('nPixels must be provided if ravel=False')
+
+    if flat == True and nRays == None:
+        raise ValueError('nRays must be provided if flat=True')
+
+    if flat == False and nPixels == None:
+        raise ValueError('nPixels must be provided if flat=False')
+
+    
+    if flat == True:
+        flat_ind, flat_len = sdlist
+    else: 
+        flat_ind, flat_len = list_flatten(sdlist, nPixels=nPixels,ravel=ravel)
+        
+    #Finds all of the unique elemets and thier positions
+    flat_ind, idx = np.unique(flat_ind, return_inverse=True)
+
+    print(flat_ind.size)
+    print(idx.size)
+
+    #If no rays have values return None
+    if flat_ind.size == 0:
+        return None
+    
+    #Creates and calculates the average length per intersection
+    flat_len /= nRays
+    flat_len2 = np.zeros(flat_ind.size, dtype=np.float32)
+    for i, ix in enumerate(idx):
+        flat_len2[ix] += flat_len[i]
+
+    #Returns the list of indices and lengths in the orginal format
+    if ravel == True:
+        return [flat_ind, flat_len2]
+    else:
+        return ray_unravel([flat_ind, flat_len2], nPixels)
 
 
 def list_flatten(sdlist,nPixels,ravel=False):
@@ -597,7 +606,7 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
     
     #Machine precision
     epsilon = 1e-8
-    decimal_round = int(-np.log(epsilon))
+    decimal_round = int(-np.log10(epsilon))
     
     #Creates the grid of voxels
     g = vir.Grid3d(nPixels=nPixels,dPixels=dPixels,origin=origin)
@@ -722,246 +731,6 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
 """
 !!! DEPRECATED FUNCTIONS !!!
 """
-
-
-def list_ave_old(sdlist, ravel=False, nPixels=None, axis=None):
-    """
-    Combines and averages the intersection lengths and pixel indices over
-    multiple rays in in object array. 
-        
-    Parameters
-    ----------
-    sdlist : (...) numpy ndarray of objects
-        The returned array of siddons with a 2 or 4 lists of the raveled or 
-        unraveled pixel indices with intersection lengths
-    ravel : boolean
-        The The coefficients of the parametric lines
-    nPixels : (3) array_like
-        The number of voxels in the X, Y, and Z dimensions
-    axes : sclar or array_like
-        The axis or axes to average over   
-    
-    Returns
-    -------
-    Pts : (3) or (...,3) array_like
-        The coordinates of the intersection poins. If the line lies within the
-        plane inf for the coordinates are returned. If the line lies parallel
-        to, but no in the plane nan for the coordinates are returned. 
-    """   
-    
-    
-    if ravel == False and nPixels == None:
-        raise ValueError('nPixels must be provided if ravel=False')
-        
-    if axis == None:
-        return ave_sdlist_old(sdlist, ravel=ravel, nPixels=nPixels)
-    
-    #Creates the new shape based on axis averaging and moves averaged
-    #dimensions to the end
-    sdlist_ave = np.empty(np.delete(sdlist.shape, axis), dtype=np.object)
-    sdlist = np.moveaxis(sdlist, axis, np.arange(-1,-1*(np.array(axis).size+1),-1))
-   
-    #Loops through all rays in the list
-    for ray_idx, ray in np.ndenumerate(sdlist_ave):
-        sdlist_ave[ray_idx] = ave_sdlist_old(sdlist[ray_idx], ravel=ravel, nPixels=nPixels)
-    
-    return sdlist_ave
-
-
-def ave_sdlist_old(sdlist, ravel=False, nPixels=None):
-    """
-    Combines and averages the intersection lengths and pixel indices over
-    multiple rays in in object array. 
-        
-    Parameters
-    ----------
-    sdlist : (...) numpy ndarray of objects
-        The returned array of siddons with a 2 or 4 lists of the raveled or 
-        unraveled pixel indices with intersection lengths
-    nPixels : (3) array_like
-        The number of voxels in the X, Y, and Z dimensions
-    ravel : boolean
-        The The coefficients of the parametric lines
- 
-    Returns
-    -------
-    Pts : (3) or (...,3) array_like
-        The coordinates of the intersection poins. If the line lies within the
-        plane inf for the coordinates are returned. If the line lies parallel
-        to, but no in the plane nan for the coordinates are returned. 
-    """   
-    if ravel == False and nPixels == None:
-        raise ValueError('nPixels must be provided if ravel=False')
-    
-    i_pix = np.array([], dtype=int)
-    i_len = np.array([], dtype=np.float32)
-
-
-    #Loops through all rays in the list
-    for ray_idx, ray in np.ndenumerate(sdlist):
-
-        #Concatenates all of the lists into a single list (ravels index if 
-        #unraveled to facilitate finding unique elements)
-        if ray != None:
-            if ravel == True:
-                i_pix = np.concatenate((i_pix, ray[0]))
-                i_len = np.concatenate((i_len, ray[1]))
-            else:
-                ray2 = ray_ravel(ray,nPixels)
-                i_pix = np.concatenate((i_pix, ray2[0]))
-                i_len = np.concatenate((i_len, ray2[1]))
-
-    #Finds all of the unique elemets and thier positions
-    i_pix, idx = np.unique(i_pix, return_inverse=True)
-    
-    #If no rays have values return None
-    if i_pix.size == 0:
-        return None
-    
-    #Creates and calculates the average length per intersection
-    i_len2 = np.zeros(i_pix.size, dtype=np.float32)
-    for i, ix in enumerate(idx):
-        i_len2[ix] += i_len[i] / sdlist.size
-
-    #Returns the list of indices and lengths in the orginal format
-    if ravel == True:
-        return [i_pix, i_len2]
-    else:
-        return ray_unravel([i_pix, i_len2],nPixels)
-
-def average_inter(inter_list,ave_axes=None):
-    max_ray = 16384
-
-    inter_list = np.squeeze(inter_list)
-
-    #Creates the new shape based on axis averaging and moves averaged
-    #dimensions to the end
-    new_shape = list(inter_list.shape)
-    if ave_axes != None:
-        for axis in ave_axes:
-            inter_list = np.moveaxis(inter_list, axis, -1)
-            new_shape.pop(axis)
-
-    new_shape = tuple(new_shape)
-    nDets = np.prod(inter_list.shape) / np.prod(new_shape)
-
-    #Defines the arrays based on ther list shape and max elements
-    inter_pix = np.zeros(new_shape + (max_ray,), dtype = int)
-    inter_len = np.zeros(new_shape + (max_ray,), dtype = float)
-   
-    #Loops through the new arrays filling them
-    for ray_idx, ray in np.ndenumerate(inter_pix[...,0]):
-        
-        if nDets == 1.0:
-            if inter_list[ray_idx] != None:
-                nElems = inter_list[ray_idx][0].size
-                inter_pix[ray_idx][:nElems] = inter_list[ray_idx][0]
-                inter_len[ray_idx][:nElems] = inter_list[ray_idx][1]
-        else:
-            i_pix = np.array([], dtype=int)
-            i_len = np.array([], dtype=float)
-            #Concatenates all of the lists in the lets matrix        
-            for det_idx, det in np.ndenumerate(inter_list[ray_idx]):
-                if det != None:
-                    i_pix = np.concatenate((i_pix, det[0]))
-                    i_len = np.concatenate((i_len, det[1]))
-
-            i_pix, idx =  np.unique(i_pix, return_inverse=True)
-            i_len /= nDets
-
-            inter_pix[ray_idx][:i_pix.size] = i_pix
-            for i, ix in enumerate(idx):
-                inter_len[ray_idx][ix] += i_len[i]
-
-    Elem_max = np.count_nonzero(inter_len,axis=-1).max()
-            
-    return inter_pix[...,:Elem_max], inter_len[...,:Elem_max]
-
-
-
-
-
-def siddons_list2arrays(inter_list,mask=False):
-    """
-    Converts the oject array of lists created in siddons2 to two ndarrys of 
-    pixel indices and intersection lenths 
-
-    Parameters
-    ----------
-    inter_list : (...) numpy ndarray of objects
-        the returned array is of shape (...) with 2 lists of the raveled pixel
-        index and intersection lengths of the ray from siddons2
-    mask : bool
-        Returns the arrays as np masked arrays.  Default is False
-
-    Returns
-    -------
-    ((...,nMaxElems), (...,nMaxElems) ) numpy int and float ndarray
-        the returned arrays are the 2 lists of the raveled pixel
-        index and intersection lengths of the ray between the src and trg 
-    """
-
-
-    #Calculats the largest number of elements in the lists    
-    max_ray = 0
-    for ray_idx, ray in np.ndenumerate(inter_list):
-       if ray is not None:
-          if len(ray[0]) > max_ray:
-              max_ray = len(ray[0])
-    
-    #Defines the arrays based on ther list shape and max elements
-    inter_pix = np.zeros(inter_list.shape + (max_ray,), dtype = int)
-    inter_len = np.zeros(inter_list.shape + (max_ray,), dtype = float)
-    mask_arr = np.ones(inter_list.shape + (max_ray,), dtype = bool)
-    
-    #Iterates through all of the lists    
-    for ray_idx, ray in np.ndenumerate(inter_list):
-       if ray is not None:
-           i_pix = ray[0]
-           i_len = ray[1]
-           nElem = i_pix.size
-
-           #FIXME
-           #There should be a more clever way of slicing this array
-           for elem in range(nElem):
-               inter_pix[ray_idx + (elem,)] = i_pix[elem]
-               inter_len[ray_idx + (elem,)] = i_len[elem]
-               mask_arr[ray_idx + (elem,)] = False      
-
-    #Retruns the arrays or masked arrays
-    if mask:
-        return (np.ma.array(inter_pix, mask=mask_arr),np.ma.array(inter_len, mask=mask_arr))
-    else:
-        return (inter_pix,inter_len)
-
-
-
-
-
-    
-    
-def unravel_list(inter_pix, inter_len, nPixels,length=True):
-    inter_pix2 = np.empty(inter_pix.shape[:-1], dtype=np.object)
-    nElems = np.count_nonzero(inter_len,axis=-1)
-    
-    #Iterates through all of the lists    
-    for ray_idx, elem in np.ndenumerate(nElems):
-
-        if elem == 0:
-            inter_pix2[ray_idx] = None
-        else:
-            idx = np.unravel_index(inter_pix[ray_idx][:elem], nPixels)
-            
-            if length == True:
-                idx = idx + (inter_len[ray_idx][:elem],)
-            
-            inter_pix2[ray_idx] = idx
-    
-    return inter_pix2
-
-
-
-
 
 def circular_geom_st(DetsY, Views, geom="par", src_iso=None, det_iso=None, DetsZ=None):
     """
