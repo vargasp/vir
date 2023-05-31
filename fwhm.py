@@ -7,17 +7,7 @@ This is a temporary script file.
 
 
 import numpy as np
-import matplotlib.pyplot as plt
-
 from scipy.ndimage import rotate
-
-def pad_vals(n, c):
-    if n % 2:
-        pad = int(2*(np.floor(n/2) - c))
-    else:
-        pad = int(2*((n-1)/2 - c))
-
-    return [max(pad,0), -min(pad,0)]
 
 
 def fwhm_edge_profile(y):
@@ -150,32 +140,96 @@ def fwhm_orth(img):
     else:
         raise ValueError("Img must be between 1 and 3 dimesions")
 
+def pad_vals(n, c):
+    if n % 2:
+        pad = int(2*(np.floor(n/2) - c))
+    else:
+        pad = int(2*((n-1)/2 - c))
 
-def fwhm_ang(img, angle):
-    nX, nY = img.shape
-    
-    cX, cY = np.unravel_index(np.argmax(img), img.shape)
-    
-    padX = pad_vals(nX, cX)
-    padY = pad_vals(nY, cY)
-    
-    img_pad = np.pad(img, [padX, padY])
-    cX, cY = np.unravel_index(np.argmax(img_pad), img_pad.shape)
-    
-    img_rot = rotate(img_pad, angle, reshape=False, order=1)
-    return fwhm_orth(img_rot)
-    
+    return [max(pad,0), -min(pad,0)]
 
 
-nX = 15
-nY = 15
-center = (8,7)
-
-x,y = np.indices((nX,nY))
+def pad_image(img):
     
-image = -np.sqrt((x - center[0])**2 + (y - center[1])**2)
-image -= image.min()
-image = image/image.max()
-print(fwhm_orth(image))
-print(fwhm_ang(image,90))
+    if img.ndim == 2:
+        nX, nY = img.shape
+    
+        cX, cY = np.unravel_index(np.argmax(img), img.shape)
+        
+        padX = pad_vals(nX, cX)
+        padY = pad_vals(nY, cY)
+        
+        return np.pad(img, [padX, padY])
 
+    elif img.ndim == 3:
+        nX, nY, nZ = img.shape
+    
+        cX, cY, cZ = np.unravel_index(np.argmax(img), img.shape)
+        
+        padX = pad_vals(nX, cX)
+        padY = pad_vals(nY, cY)
+        padZ = pad_vals(nZ, cZ)
+        
+        return np.pad(img, [padX, padY, padZ])
+    else:
+        raise ValueError("Img must be between 2 and 3 dimesions")
+
+
+def fwhm_ang(img, angles):
+    
+    img_pad = pad_image(img)
+    
+    if img_pad.ndim == 2:
+        angles = np.array(angles, ndmin=1)
+        cX, cY = np.unravel_index(np.argmax(img_pad), img_pad.shape)
+        
+        fwhms = np.zeros((angles.size, 2))
+        for i, angle in enumerate(angles):
+            img_rot = rotate(img_pad, angle, reshape=False, order=1)
+            fwhms[i,:] = fwhm_orth(img_rot)
+
+        return fwhms
+
+    elif img_pad.ndim == 3:
+        angles = np.array(angles, ndmin=2)
+        cX, cY, cZ = np.unravel_index(np.argmax(img_pad), img_pad.shape)
+        
+        fwhms = np.zeros((angles.shape[0], 3))
+        for i, angle in enumerate(angles):
+            img_rot = rotate(img_pad, angle[0], axes=(1,2), reshape=False, order=1)
+            img_rot = rotate(img_rot, angle[1], axes=(0,2), reshape=False, order=1)
+            img_rot = rotate(img_rot, angle[2], axes=(0,1), reshape=False, order=1)
+            fwhms[i, :] = fwhm_orth(img_rot)
+        
+        return fwhms.squeeze()
+
+
+
+def gaussian2d(A, mus, sigmas, theta=0, nX=128, nY=128):
+    
+    x_mu,y_mu = mus
+    x_sigma, y_sigma = sigmas
+    
+    x,y = np.indices((nX,nY))
+    
+    a = (np.cos(theta)**2 / (2*x_sigma**2) + np.sin(theta)**2 / (2*y_sigma**2))
+    b = (np.sin(2*theta)**2 / (2*x_sigma**2) - np.sin(2*theta)**2 / (2*y_sigma**2))
+    c = (np.sin(theta)**2 / (2*x_sigma**2) + np.cos(theta)**2 / (2*y_sigma**2))
+    
+    k =  A * np.exp(-a*(x - x_mu)**2 - b*(x - x_mu)*(y - y_mu) - c*(y - y_mu)**2)
+    
+    return k
+    
+
+
+def gaussian3d(A,mus,sigmas, nX=128, nY=128, nZ=128):
+    
+    x_mu, y_mu, z_mu = mus
+    x_sigma, y_sigma, z_sigma = sigmas
+    
+    x,y,z = np.indices((nX,nY,nZ))
+    
+    N = 1/ (x_sigma*y_sigma*z_sigma * (2*np.pi)**(3/2))
+    k =  A * np.exp(-(x - x_mu)**2/x_sigma**2 - (y - y_mu)**2/y_sigma**2 - (z - z_mu)**2/z_sigma**2)
+    
+    return k
