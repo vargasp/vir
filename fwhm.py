@@ -51,21 +51,27 @@ def fwhm_edge_profile(y):
     
     
     
-def fwhm_1d(profile):
+def fwhm_1d(profile, allow_multiple_max=True):
     """
     Calculates the full width half max of a psf in line profile. 
 
     Parameters
     ----------
     profile : numpy ndarray 
-        Line profile of a psf. The profile must have only one maximum value, be
-        monotonically increasing to the maximum, and monotonically decreasing
-        after the maximum.
+        Line profile of a psf. The profile must have adjacent maximum values,
+        be monotonically increasing to the maximum, and monotonically
+        decreasing after the maximum.
+        
+    allow_multiple_max : bool 
+        If True the profile can contain more than one maximum value. However,
+        all of these values must be adjacent pixels. Default is True
 
     Raises
     ------
     ValueError
-        Raises ValueError if more than one maximum values is in the profile.
+        Raises ValueError if more than one maximum values is in the profile, 
+        and allow_multiple_max is False
+        Raises ValueError if the profile is multimodal
 
     Returns
     -------
@@ -77,24 +83,41 @@ def fwhm_1d(profile):
     #Normalizes profile to a maximim of 1.0
     profile = profile/np.max(profile)
     
-    #Confirms only one maximim value exists
+    #Determines the number of maximim values
     if np.count_nonzero(profile == profile.max()) > 1:
-        raise ValueError("Profile contains more than one maximum value.")
-    
-    #Determines maximum index
-    c = np.argmax(profile)
+        
+        if allow_multiple_max:
+            
+            #Determines the maximum value indices
+            maxes = np.flatnonzero(profile == np.max(profile))
+            
+            #Confirms max values are adjacent
+            if np.all(np.diff(maxes) != 1):
+                raise ValueError("Profile is multimodal")
+            
+            #Determines maximum indices
+            cl = maxes[0]
+            cr = maxes[-1]
+
+        else:
+            raise ValueError("Profile contains more than one maximum value.")
+            
+    else:
+        #Determines maximum index for one maximum
+        cl = np.argmax(profile)
+        cr = cl
     
     #Calcualtes left side width at half max
-    l = fwhm_edge_profile(profile[:(c+1)])
+    l = fwhm_edge_profile(profile[:(cl+1)])
 
     #Calcualtes right side width at half max
-    r = fwhm_edge_profile(profile[c:][::-1])
+    r = fwhm_edge_profile(profile[cr:][::-1])
     
-    #Returns fwhm
-    return l+r
+    #Returns fwhm (left width + right width + width between maximum points)
+    return l+r + (cr - cl)
 
 
-def fwhm_orth(img):
+def fwhm_orth(img, allow_multiple_max=True):
     """
     Calculates the orthagonal full width half max values of a psf in an image.
 
@@ -102,6 +125,8 @@ def fwhm_orth(img):
     ----------
     img : (nX, nY) numpy ndarray 
         2d arrary with a PSF located at the maximum value pixel
+
+
 
     Raises
     ------
@@ -202,34 +227,3 @@ def fwhm_ang(img, angles):
             fwhms[i, :] = fwhm_orth(img_rot)
         
         return fwhms.squeeze()
-
-
-
-def gaussian2d(A, mus, sigmas, theta=0, nX=128, nY=128):
-    
-    x_mu,y_mu = mus
-    x_sigma, y_sigma = sigmas
-    
-    x,y = np.indices((nX,nY))
-    
-    a = (np.cos(theta)**2 / (2*x_sigma**2) + np.sin(theta)**2 / (2*y_sigma**2))
-    b = (np.sin(2*theta)**2 / (2*x_sigma**2) - np.sin(2*theta)**2 / (2*y_sigma**2))
-    c = (np.sin(theta)**2 / (2*x_sigma**2) + np.cos(theta)**2 / (2*y_sigma**2))
-    
-    k =  A * np.exp(-a*(x - x_mu)**2 - b*(x - x_mu)*(y - y_mu) - c*(y - y_mu)**2)
-    
-    return k
-    
-
-
-def gaussian3d(A,mus,sigmas, nX=128, nY=128, nZ=128):
-    
-    x_mu, y_mu, z_mu = mus
-    x_sigma, y_sigma, z_sigma = sigmas
-    
-    x,y,z = np.indices((nX,nY,nZ))
-    
-    N = 1/ (x_sigma*y_sigma*z_sigma * (2*np.pi)**(3/2))
-    k =  A * np.exp(-(x - x_mu)**2/x_sigma**2 - (y - y_mu)**2/y_sigma**2 - (z - z_mu)**2/z_sigma**2)
-    
-    return k
