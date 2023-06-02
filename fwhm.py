@@ -8,7 +8,7 @@ This is a temporary script file.
 
 import numpy as np
 from scipy.ndimage import rotate
-
+from skimage.measure import EllipseModel
 
 def fwhm_edge_profile(y):
     """
@@ -227,3 +227,44 @@ def fwhm_ang(img, angles):
             fwhms[i, :] = fwhm_orth(img_rot)
         
         return fwhms.squeeze()
+    
+
+def fwhm_pts(img):
+    
+    angles = np.linspace(0,90,50)
+    img_pad = pad_image(img)
+    cX, cY = np.unravel_index(np.argmax(img_pad), img_pad.shape)
+
+    x = np.zeros(angles.size*4)
+    y = np.zeros(angles.size*4)
+    for i, angle in enumerate(angles):
+        img_rot = rotate(img_pad, angle, reshape=False, order=1)
+        img_rot = img_rot/img_rot.max()
+
+        r = fwhm_edge_profile(img_rot[cX:,cY][::-1])
+        x[i*4] = r*np.cos(angle*np.pi/180)
+        y[i*4] = r*np.sin(angle*np.pi/180)
+        
+        
+        r = fwhm_edge_profile(img_rot[:(cX+1),cY])
+        x[i*4+1] = r*np.cos((angle+180)*np.pi/180)
+        y[i*4+1] = r*np.sin((angle+180)*np.pi/180)
+        
+        
+        r = fwhm_edge_profile(img_rot[cX,cY:][::-1])
+        x[i*4+2] = r*np.cos((angle-90)*np.pi/180)
+        y[i*4+2] = r*np.sin((angle-90)*np.pi/180)
+        
+        r = fwhm_edge_profile(img_rot[cX,:(cY+1)])
+        x[i*4+3] = r*np.cos((angle+90)*np.pi/180)
+        y[i*4+3] = r*np.sin((angle+90)*np.pi/180)
+        
+    return x,y
+
+
+def fit_error_ellipse(x,y):
+    ellipse = EllipseModel()
+    ellipse.estimate(np.vstack([x,y]).T)
+
+    return ellipse.params
+
