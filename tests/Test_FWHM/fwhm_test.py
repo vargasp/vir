@@ -49,16 +49,17 @@ print(fwhm.fwhm_orth(img3d))
 print(fwhm.fwhm_ang(img3d,(90,0,0)))
 print(fwhm.fwhm_ang(img3d,[(0,0,0),(90,0,0),(45,0,0) ]))
 
-img2d = psf.gaussian2d(nX=129, nY=129)
+img2d = psf.gaussian2d(mus = (10,0), sigmas=(5,10), nX=129, nY=129, theta =45)
 x,y =  fwhm.fwhm_pts(img2d)
+plt.imshow(img2d, origin='lower')
+plt.plot(y, x)
+plt.show()
 
 
-from skimage.measure import EllipseModel
-
-ellipse = EllipseModel()
-ellipse.estimate(np.vstack([x,y]).T)
-np.round(ellipse.params, 2)
 
 
+params = fwhm.fit_error_ellipse(x,y)
+
+xe, ye = fwhm.ellipse_params2xy(params)
 
 

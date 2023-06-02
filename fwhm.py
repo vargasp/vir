@@ -252,14 +252,14 @@ def fwhm_pts(img):
         
         
         r = fwhm_edge_profile(img_rot[cX,cY:][::-1])
-        x[i*4+2] = r*np.cos((angle-90)*np.pi/180)
-        y[i*4+2] = r*np.sin((angle-90)*np.pi/180)
+        x[i*4+2] = r*np.cos((angle+90)*np.pi/180)
+        y[i*4+2] = r*np.sin((angle+90)*np.pi/180)
         
         r = fwhm_edge_profile(img_rot[cX,:(cY+1)])
-        x[i*4+3] = r*np.cos((angle+90)*np.pi/180)
-        y[i*4+3] = r*np.sin((angle+90)*np.pi/180)
+        x[i*4+3] = r*np.cos((angle-90)*np.pi/180)
+        y[i*4+3] = r*np.sin((angle-90)*np.pi/180)
         
-    return x,y
+    return x+cX,y+cY
 
 
 def fit_error_ellipse(x,y):
@@ -268,3 +268,7 @@ def fit_error_ellipse(x,y):
 
     return ellipse.params
 
+def ellipse_params2xy(params, samples=500):
+    xy = EllipseModel().predict_xy(np.linspace(0,2*np.pi,samples),params=params)
+
+    return xy[:,0], xy[:,1]
