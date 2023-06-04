@@ -272,3 +272,59 @@ def ellipse_params2xy(params, samples=500):
     xy = EllipseModel().predict_xy(np.linspace(0,2*np.pi,samples),params=params)
 
     return xy[:,0], xy[:,1]
+
+
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Jun  3 19:44:32 2023
+
+@author: pvargas21
+"""
+
+import numpy as np
+import math
+import matplotlib.pyplot as plt
+
+samples=1000
+
+#Golden angle increments
+theta = np.pi*(np.sqrt(5.0) - 1.0)*np.arange(samples) 
+
+
+y = np.linspace(1,-1,samples)
+radius = np.sqrt(1 - y**2)  # radius at y
+
+
+x = radius*np.cos(theta)
+z = radius*np.sin(theta)
+
+
+
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ax.scatter(x,y,z, c = 'b', marker='.')
+
+
+
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ax.scatter(pts[:,0],pts[:,1],pts[:,2], c = 'b', marker='.')
+
+"""
+
+y = 1 - (i / float(samples - 1)) * 2  # y goes from 1 to -1
+
+for i in range(samples):
+    y = 1 - (i / float(samples - 1)) * 2  # y goes from 1 to -1
+    radius = np.sqrt(1 - y**2)  # radius at y
+
+    theta = phi * i  # golden angle increment
+
+    x = np.cos(theta) * radius
+    z = np.sin(theta) * radius
+
+    points.append((x, y, z))
+
+pts = np.array(points)
+"""
