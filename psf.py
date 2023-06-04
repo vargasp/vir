@@ -53,14 +53,14 @@ def gaussian2d(mus=(0.0,0.0), sigmas=(5.0,5.0), theta=0, A=None, \
     y = vir.censpace(nY)
     x, y = np.meshgrid(x,y)
     
-    a = (np.cos(theta)**2 / (2*x_sigma**2) + np.sin(theta)**2 / (2*y_sigma**2))
-    b = (np.sin(2*theta)**2 / (2*x_sigma**2) - np.sin(2*theta)**2 / (2*y_sigma**2))
-    c = (np.sin(theta)**2 / (2*x_sigma**2) + np.cos(theta)**2 / (2*y_sigma**2))
+    a = np.cos(theta)**2 / (2*x_sigma**2) + np.sin(theta)**2 / (2*y_sigma**2)
+    b = -np.sin(2*theta) / (4*x_sigma**2) + np.sin(2*theta) / (4*y_sigma**2)
+    c = np.sin(theta)**2 / (2*x_sigma**2) + np.cos(theta)**2 / (2*y_sigma**2)
     
     if A is None:
         A = 1.0 / (x_sigma*y_sigma * (2*np.pi))
     
-    return A*np.exp(-a*(x - x_mu)**2 - b*(x - x_mu)*(y - y_mu) - c*(y - y_mu)**2)
+    return A*np.exp(-a*(x - x_mu)**2 - 2*b*(x - x_mu)*(y - y_mu) - c*(y - y_mu)**2)
     
 
 

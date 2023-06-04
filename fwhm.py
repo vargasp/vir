@@ -229,9 +229,9 @@ def fwhm_ang(img, angles):
         return fwhms.squeeze()
     
 
-def fwhm_pts(img):
+def fwhm_pts(img, samples):
     
-    angles = np.linspace(0,90,50)
+    angles = np.linspace(0,90,samples)
     img_pad = pad_image(img)
     cX, cY = np.unravel_index(np.argmax(img_pad), img_pad.shape)
 
@@ -259,7 +259,7 @@ def fwhm_pts(img):
         x[i*4+3] = r*np.cos((angle-90)*np.pi/180)
         y[i*4+3] = r*np.sin((angle-90)*np.pi/180)
         
-    return x+cX,y+cY
+    return cX-x,y+cY
 
 
 def fit_error_ellipse(x,y):

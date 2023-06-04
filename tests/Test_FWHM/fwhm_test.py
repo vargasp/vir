@@ -49,10 +49,10 @@ print(fwhm.fwhm_orth(img3d))
 print(fwhm.fwhm_ang(img3d,(90,0,0)))
 print(fwhm.fwhm_ang(img3d,[(0,0,0),(90,0,0),(45,0,0) ]))
 
-img2d = psf.gaussian2d(mus = (10,0), sigmas=(5,10), nX=129, nY=129, theta =45)
-x,y =  fwhm.fwhm_pts(img2d)
+img2d = psf.gaussian2d(mus = (10,0), sigmas=(30,10), nX=129, nY=129, theta =np.pi/180*50)
+x,y =  fwhm.fwhm_pts(img2d,50)
 plt.imshow(img2d, origin='lower')
-plt.plot(y, x)
+plt.plot(y, x, 'r.')
 plt.show()
 
 
