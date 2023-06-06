@@ -81,6 +81,106 @@ def boundspace(n,d=1.0,c=0.0):
     return np.linspace(-n,n,n+1)*d/2.0 + c
 
 
+def cart2circ(x, y):
+    r = np.hypot(x, y)
+    az = np.arctan2(y, x)
+    
+    return r, az
+
+
+def circ2cart(r, az):
+    x = r * np.cos(az)
+    y = r * np.sin(az)
+    
+    return x, y
+
+
+def sph2cart(r, az, el):
+    rcos_theta = r * np.cos(el)
+    x = rcos_theta * np.cos(az)
+    y = rcos_theta * np.sin(az)
+    z = r * np.sin(el)
+    
+    return x, y, z
+
+
+def cart2sph(x, y, z):
+    hxy = np.hypot(x, y)
+    r = np.hypot(hxy, z)
+    el = np.arctan2(z, hxy)
+    az = np.arctan2(y, x)
+    
+    return r, az, el
+
+
+def sample_circle(radius=1.0, samples=128):
+    """
+    Calculates evenly spaced samples points on a circle.
+
+    Parameters
+    ----------
+    radius : float, optional
+        The radius of the sampled circle. The default is 1.0.
+    samples : int, optional
+        The number of sampled points on the circle. The default is 128.
+
+    Returns
+    -------
+    x : (samples) numpy ndarray 
+        The x coordinates of the sampled point.
+    y : (samples) numpy ndarray 
+        The x coordinates of the sampled point.
+
+    """
+    
+    #Generates the evenly spaced angles to sample
+    theta = np.linspace(0,2*np.pi,samples, endpoint=False)
+    
+    #Calculates the x and y coordinates
+    x = radius*np.cos(theta)
+    y = radius*np.sin(theta)
+    
+    return x,y
+
+
+def sample_sphere(radius=1.0,samples=512):
+    """
+    Calculates approximetly evenly spaced samples points on the surface of a
+    sphere using the Fibonacci Lattice method. 
+
+    Parameters
+    ----------
+    radius : float, optional
+        The radius of the sampled sphere.. The default is 1.0.
+    samples : int, optional
+        The number of sampled points on the sphere. The default is 512.
+
+    Returns
+    -------
+    x : (samples) numpy ndarray 
+        The x coordinates of the sampled point..
+    y : (samples) numpy ndarray 
+        The y coordinates of the sampled point..
+    z : (samples) numpy ndarray 
+        The z coordinates of the sampled point..
+
+    """
+
+    #Golden angle increments
+    theta = np.pi*(np.sqrt(5.0) - 1.0)*np.arange(samples) 
+   
+    #Generates the evenly spaced angles to samples in y     
+    y = np.linspace(radius, -radius, samples)
+    r = np.sqrt(radius**2 - y**2)  # radius at y
+    
+    #Calculates the x and z coordinates
+    x = r*np.cos(theta)
+    z = r*np.sin(theta)
+
+    return x,y,z
+
+
+
 def rebin(a, shape):
     """
     Returns the resized array of the specified dimensions.

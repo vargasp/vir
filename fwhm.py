@@ -10,6 +10,50 @@ import numpy as np
 from scipy.ndimage import rotate, map_coordinates
 from skimage.measure import EllipseModel
 
+def fwhm_psf_side_profile(y):
+    """
+    Calcualtes the half max value of a one side of a point spread profile by
+    linear interpolation.
+
+    Parameters
+    ----------
+    y : (nY) numpy ndarray 
+        One side of a psf. The profile must be normilized, with a maximum of
+        1.0, a minimum of 0.0, and monotonically increasing or decreasing.
+
+    Raises
+    ------
+    ValueError
+        Raises ValueError if the profile is non-monotonic or if there are no 
+        values less the 0.5 (cannot accurately interpolate width).
+
+    Returns
+    -------
+    pixel_width : int
+        The width in pixels between the last value and 0.5
+
+    """
+    
+    
+    #Checks and corrects for negaive gradient
+    if y[0] > y[-1]:
+        y = y[::-1]
+        
+    #Checks for monotonicity
+    if np.all(np.diff(y) <= 0):
+        raise ValueError("Non-monotonic Profile")
+ 
+    #Checks for a value less than 0.5 to ensure a correct interpol;ation
+    if y[0] > 0.5:
+        raise ValueError("No profile value less 0.5")
+
+    #Assigns an x axis based on pixel indices
+    x = np.arange(y.size-1,-1,-1)
+    
+    #Returns the interpolated half width for the edge
+    return np.interp(.5,y,x)
+
+
 def fwhm_edge_profile(y):
     """
     Calcualtes the half max value of a one side of a point spread profile by
@@ -274,23 +318,17 @@ def ellipse_params2xy(params, samples=500):
     return xy[:,0], xy[:,1]
 
 
-def sphere_pts(samples=1000):
-
-    #Golden angle increments
-    theta = np.pi*(np.sqrt(5.0) - 1.0)*np.arange(samples) 
-        
-    y = np.linspace(1,-1,samples)
-    radius = np.sqrt(1 - y**2)  # radius at y
-    
-    x = radius*np.cos(theta)
-    z = radius*np.sin(theta)
-
-    return x,y,z
-
 def profile_img(img, p0, p1):
-    dPts = np.array(p1) - np.array(p0)
-    d = np.linalg.norm(dPts)
+    p0 = np.moveaxis(np.array(p0),-1,0)
+    p1 = np.moveaxis(np.array(p1),-1,0)
+    
+    dPts = p1 - p0
+    d = np.linalg.norm(dPts,axis=0)
+    nPix = int(d.min())
 
-    coords = np.outer(dPts/d, np.arange(d)) + np.array(p0)[:,np.newaxis]
-             
+    
+    #coords = np.multiply.outer(np.arange(nPix),dPts/d[...,np.newaxis]) + p0
+    coords = np.multiply.outer(dPts/d,np.arange(nPix)) + p0[...,np.newaxis]
+
+
     return map_coordinates(img, coords, order=2)
