@@ -169,13 +169,13 @@ def sample_sphere(radius=1.0,samples=512):
     #Golden angle increments
     theta = np.pi*(np.sqrt(5.0) - 1.0)*np.arange(samples) 
    
-    #Generates the evenly spaced angles to samples in y     
-    y = np.linspace(radius, -radius, samples)
-    r = np.sqrt(radius**2 - y**2)  # radius at y
+    #Generates the evenly spaced angles to samples in z   
+    z = np.linspace(-radius, radius, samples)
+    r = np.sqrt(radius**2 - z**2)  # radius at z
     
-    #Calculates the x and z coordinates
+    #Calculates the x and y coordinates
     x = r*np.cos(theta)
-    z = r*np.sin(theta)
+    y = r*np.sin(theta)
 
     return x,y,z
 

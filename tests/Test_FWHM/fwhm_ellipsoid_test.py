@@ -98,4 +98,8 @@ lsvec = psf.ls_ellipsoid(xf, yf, zf)
 
 psf.polyToParams3D(lsvec,True)
 
+from scipy.spatial import Delaunay
+tri = Delaunay(np.vstack([xf,yf,zf]).T)
+
+
 
