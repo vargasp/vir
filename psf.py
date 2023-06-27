@@ -182,7 +182,7 @@ def ls_ellipsoid(xx,yy,zz):
    return (eansa)
 
 
-def polyToParams3D(vec,printMe):
+def polyToParams3D(vec,printMe=False):
 
    # convert the polynomial form of the 3D-ellipsoid to parameters
    # center, axes, and transformation matrix
@@ -192,7 +192,7 @@ def polyToParams3D(vec,printMe):
 
    #Algebraic form: X.T * Amat * X --> polynomial form
 
-   if printMe: print('\npolynomial\n',vec)
+   #if printMe: print('\npolynomial\n',vec)
 
    Amat=np.array(
    [
@@ -202,7 +202,7 @@ def polyToParams3D(vec,printMe):
    [ vec[6]/2.0, vec[7]/2.0, vec[8]/2.0, vec[9]     ]
    ])
 
-   if printMe: print('\nAlgebraic form of polynomial\n',Amat)
+   #if printMe: print('\nAlgebraic form of polynomial\n',Amat)
 
    #See B.Bartoni, Preprint SMU-HEP-10-14 Multi-dimensional Ellipsoidal Fitting
    # equation 20 for the following method for finding the center
@@ -210,26 +210,26 @@ def polyToParams3D(vec,printMe):
    A3inv=np.linalg.inv(A3)
    ofs=vec[6:9]/2.0
    center=-np.dot(A3inv,ofs)
-   if printMe: print ('\nCenter at:',center)
+   #if printMe: print ('\nCenter at:',center)
 
    # Center the ellipsoid at the origin
    Tofs=np.eye(4)
    Tofs[3,0:3]=center
    R = np.dot(Tofs,np.dot(Amat,Tofs.T))
-   if printMe: print('\nAlgebraic form translated to center\n',R,'\n')
+   #if printMe: print('\nAlgebraic form translated to center\n',R,'\n')
 
    R3=R[0:3,0:3]
    R3test=R3/R3[0,0]
-   print('normed \n',R3test)
+   #if printMe: print('normed \n',R3test)
    s1=-R[3, 3]
    R3S=R3/s1
    (el,ec)=np.linalg.eig(R3S)
 
    recip=1.0/np.abs(el)
    axes=np.sqrt(recip)
-   if printMe: print( '\nAxes are\n',axes  ,'\n')
+   #if printMe: print( '\nAxes are\n',axes  ,'\n')
 
    inve=np.linalg.inv(ec) #inverse is actually the transpose here
-   if printMe: print('\nRotation matrix\n',inve)
+   #if printMe: print('\nRotation matrix\n',inve)
    return (center,axes,inve)
 
