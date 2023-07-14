@@ -145,7 +145,7 @@ def sample_circle(radius=1.0, samples=128):
 
 def sample_sphere(radius=1.0,samples=512):
     """
-    Calculates approximetly evenly spaced samples points on the surface of a
+    Calculates approximetly evenly spaced sampled points on the surface of a
     sphere using the Fibonacci Lattice method. 
 
     Parameters
@@ -158,11 +158,11 @@ def sample_sphere(radius=1.0,samples=512):
     Returns
     -------
     x : (samples) numpy ndarray 
-        The x coordinates of the sampled point..
+        The x coordinates of the sampled point.
     y : (samples) numpy ndarray 
-        The y coordinates of the sampled point..
+        The y coordinates of the sampled point.
     z : (samples) numpy ndarray 
-        The z coordinates of the sampled point..
+        The z coordinates of the sampled point.
 
     """
 

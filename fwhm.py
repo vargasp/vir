@@ -7,19 +7,27 @@ This is a temporary script file.
 
 
 import numpy as np
+
+import vir
+import vir.psf as psf
+
 from scipy.ndimage import rotate, map_coordinates
 from skimage.measure import EllipseModel
+from scipy.spatial import ConvexHull
 
-def fwhm_psf_side_profile(y):
+def fwhm_edge_profile(y, v=0.5):
     """
-    Calcualtes the half max value of a one side of a point spread profile by
-    linear interpolation.
+    Calcualtes the half max (or other) value of a one side of a point spread
+    profile by linear interpolation.
 
     Parameters
     ----------
     y : (nY) numpy ndarray 
         One side of a psf. The profile must be normilized, with a maximum of
         1.0, a minimum of 0.0, and monotonically increasing or decreasing.
+    v : int, optional
+        The interpolated value. The dfault is 0.5 to give FWHM. Other values
+        can be used to calculate FWTM, etc 
 
     Raises
     ------
@@ -30,7 +38,7 @@ def fwhm_psf_side_profile(y):
     Returns
     -------
     pixel_width : int
-        The width in pixels between the last value and 0.5
+        The width in pixels between the value and the last pixel
 
     """
     
@@ -38,63 +46,22 @@ def fwhm_psf_side_profile(y):
     #Checks and corrects for negaive gradient
     if y[0] > y[-1]:
         y = y[::-1]
-        
-    #Checks for monotonicity
-    if np.all(np.diff(y) <= 0):
-        raise ValueError("Non-monotonic Profile")
- 
-    #Checks for a value less than 0.5 to ensure a correct interpol;ation
-    if y[0] > 0.5:
-        raise ValueError("No profile value less 0.5")
-
-    #Assigns an x axis based on pixel indices
-    x = np.arange(y.size-1,-1,-1)
-    
-    #Returns the interpolated half width for the edge
-    return np.interp(.5,y,x)
-
-
-def fwhm_edge_profile(y):
-    """
-    Calcualtes the half max value of a one side of a point spread profile by
-    linear interpolation.
-
-    Parameters
-    ----------
-    y : (nY) numpy ndarray 
-        One side of a psf. The profile must be normilized, with a maximum of
-        1.0, a minimum of 0.0, and monotonically increasing. The last value in
-        the array should be 1.0.
-
-    Raises
-    ------
-    ValueError
-        Raises ValueError if the profile is non-monotonic or if there are no 
-        values less the 0.5 (cannot accurately interpolate width).
-
-    Returns
-    -------
-    pixel_width : int
-        The width in pixels between the last value and 0.5
-
-    """
     
     #Checks for monotonicity
     if np.all(np.diff(y) <= 0):
         raise ValueError("Non-monotonic Profile")
  
-    #Checks for a value less than 0.5 to ensure a correct interpol;ation
-    if y[0] > 0.5:
-        raise ValueError("No profile value less 0.5")
-    
+    #Checks for a value less than v to ensure a correct interpolation
+    if y[0] > v:
+        raise ValueError(f"No profile value less {v:.2f}")
+
     #Assigns an x axis based on pixel indices
     x = np.arange(y.size-1,-1,-1)
     
     #Returns the interpolated half width for the edge
-    return np.interp(.5,y,x)
-    
-    
-    
+    return np.interp(v,y,x)
+
+
 def fwhm_1d(profile, allow_multiple_max=True):
     """
     Calculates the full width half max of a psf in line profile. 
@@ -121,7 +88,6 @@ def fwhm_1d(profile, allow_multiple_max=True):
     -------
     fwhm : int
         The full width half max in pixels of the profile
-
     """
     
     #Normalizes profile to a maximim of 1.0
@@ -209,6 +175,160 @@ def fwhm_orth(img, allow_multiple_max=True):
     else:
         raise ValueError("Img must be between 1 and 3 dimesions")
 
+
+def profile_img(img, p0, p1, dPix=1.0):
+    """
+    Returns a line profile from an image between to points p0 and p1
+
+    Parameters
+    ----------
+    img : (nX, nY) or (nX, nY, nZ) numpy ndarray 
+        Image array from which to extract profiles
+    p0 : (..., nDims) numpy ndarray 
+        The array of starting points for the profile. The final axis size must 
+        be equal to the dimensions  of img
+    p1 : (..., nDims) numpy ndarray 
+        The array of ending points for the profile. The final axis size must 
+        be equal to the dimensions  of img
+    dPix : TYPE, optional
+        DESCRIPTION. The default is 1.0.
+
+    Returns
+    -------
+    profiles (..., nPix) numpy ndarray 
+        An array of profiles from img 
+
+    """
+    
+    #Swaps the last and first axis to have the correct format for map_coordinates
+    p0 = np.moveaxis(np.array(p0),-1,0)
+    p1 = np.moveaxis(np.array(p1),-1,0)
+
+    #Calculates the unit vector(s) of the line profile between the two points   
+    dPts = p1 - p0
+    d = np.linalg.norm(dPts,axis=0)
+    profile_vect = dPts/d
+
+    #Calculates a uniform sampling vector for the profile
+    nPix = int(d.max())
+    sample_vect = np.linspace(0,nPix,int(nPix/dPix)+1)
+    
+    #Calculates the coordinates to sammple the gridded img
+    coords = np.multiply.outer(profile_vect,sample_vect) + p0[...,np.newaxis]
+
+    #Returns the interpolated values at coords
+    return map_coordinates(img, coords, order=2)
+
+
+def impulse_profile(imp,samples=1024, angles=False):
+
+    if imp.ndim == 2:
+        #Dtermines the coordinats of higest value pixel
+        cX, cY = np.unravel_index(np.argmax(imp), imp.shape)
+        
+        #Calculates the x, y, and z coordinates around a sphere
+        x,y = vir.sample_circle(radius=np.max(imp.shape), samples=samples)
+        
+        ret_angles = vir.cart2circ(x,y)[1]
+        
+        #Calculates profile starting and ending points for line profiles 
+        p0 = np.tile([cX,cY],[samples,1])
+        p1 = np.vstack([x,y]).T + np.array([cX,cY])
+
+    if imp.ndim == 3:
+        #Dtermines the coordinats of higest value pixel
+        cX, cY, cZ = np.unravel_index(np.argmax(imp), imp.shape)
+        
+        #Calculates the x, y, and z coordinates around a sphere
+        x,y,z = vir.sample_sphere(radius=np.max(imp.shape), samples=samples)
+        
+        ret_angles = vir.cart2sph(x,y,z)[1:]
+        
+        #Calculates profile starting and ending points for line profiles 
+        p0 = np.tile([cX,cY,cZ],[samples,1])
+        p1 = np.vstack([x,y,z]).T + np.array([cX,cY,cZ])
+
+    
+    #Returns an array of line profiles spherialing emenating from the center
+    #of the impulse
+
+    imp_profiles = profile_img(imp, p0, p1)
+    
+    if angles:     
+        return imp_profiles,ret_angles
+    else:
+        return imp_profiles
+        
+
+def impulse_characteristics(imp):
+    samples = 1024
+    v = 0.5
+    imp_profiles, angles = impulse_profile(imp,samples=samples, angles=True)
+    theta, phi = angles
+    
+    fwhms = fwhm_edge_profiles(imp_profiles, v=v)
+    
+    xf, yf, zf = vir.sph2cart(fwhms, theta, phi)
+
+    
+    #Calcuates the ellipse parameters
+    lsvec = psf.ls_ellipsoid(xf, yf, zf)
+    
+    l,w,h = psf.polyToParams3D(lsvec,True)[1]
+    
+    vol = ConvexHull(np.array([xf,yf,zf]).T).volume
+    area = ConvexHull(np.array([xf,yf,zf]).T).area
+    return l, w, h, vol, area
+    
+
+def fwhm_edge_profiles(ys, v=0.5):
+    samples = ys.shape[0]
+    
+    fwhms = np.empty(samples)
+    
+    for i in range(samples):
+        fwhms[i] = fwhm_edge_profile(norm_profile(ys[i]),v=v)
+
+    return fwhms
+
+    
+def norm_profile(profile,v=.5):
+    
+    #Normalizes profile
+    profile /= profile.max()
+   
+    #Sets values after the impulse drops below 0 to 0
+    #zero_ind = np.argwhere(imp_profiles<0)
+    #zero_ind = zero_ind[np.searchsorted(zero_ind[:,0], np.arange(samples)),1]
+
+    #for i in range(samples):
+    #    imp_profiles[i,zero_ind[i]:] = 0.0
+
+   
+    
+    #Sets all non monotonic values to 0
+    non_mon = np.diff(profile,axis=-1)
+    zero_ind = np.argwhere(non_mon > 0)
+    
+    if zero_ind.size != 0:
+        zero_ind = zero_ind[0][0]
+        
+        if profile[zero_ind] > v:
+            print(f"Warning: Lowest monotonic value ({profile[zero_ind]:.4f}) less than {v:.2f} ")
+            
+        profile[(zero_ind+1):] = 0.0
+
+
+    return profile.clip(0.0)
+    
+
+
+
+
+
+
+
+
 def pad_vals(n, c):
     if n % 2:
         pad = int(2*(np.floor(n/2) - c))
@@ -272,7 +392,6 @@ def fwhm_ang(img, angles):
         
         return fwhms.squeeze()
     
-
 def fwhm_pts(img, samples):
     
     angles = np.linspace(0,90,samples)
@@ -306,6 +425,7 @@ def fwhm_pts(img, samples):
     return cX-x,y+cY
 
 
+
 def fit_error_ellipse(x,y):
     ellipse = EllipseModel()
     ellipse.estimate(np.vstack([x,y]).T)
@@ -316,19 +436,3 @@ def ellipse_params2xy(params, samples=500):
     xy = EllipseModel().predict_xy(np.linspace(0,2*np.pi,samples),params=params)
 
     return xy[:,0], xy[:,1]
-
-
-def profile_img(img, p0, p1):
-    p0 = np.moveaxis(np.array(p0),-1,0)
-    p1 = np.moveaxis(np.array(p1),-1,0)
-    
-    dPts = p1 - p0
-    d = np.linalg.norm(dPts,axis=0)
-    nPix = int(d.min())
-
-    
-    #coords = np.multiply.outer(np.arange(nPix),dPts/d[...,np.newaxis]) + p0
-    coords = np.multiply.outer(dPts/d,np.arange(nPix)) + p0[...,np.newaxis]
-
-
-    return map_coordinates(img, coords, order=2)
