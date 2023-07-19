@@ -11,7 +11,7 @@ import numpy as np
 import vir
 import vir.psf as psf
 
-from scipy.ndimage import rotate, map_coordinates
+from scipy.ndimage import rotate, map_coordinates, center_of_mass
 from skimage.measure import EllipseModel
 from scipy.spatial import ConvexHull
 
@@ -217,14 +217,49 @@ def profile_img(img, p0, p1, dPix=1.0):
     coords = np.multiply.outer(profile_vect,sample_vect) + p0[...,np.newaxis]
 
     #Returns the interpolated values at coords
-    return map_coordinates(img, coords, order=2)
+    return map_coordinates(img, coords, order=1)
+
+
+def impulse_center(imp, method=0):
+
+    if method == 0:
+        return np.unravel_index(np.argmax(imp), imp.shape)
+    
+    if method == 1:
+        imp /= imp.max()
+        imp[imp < .5] = 0.0
+
+        return center_of_mass(imp)
+    
+    
+
+
+def imp_center(imp):
+    #Determines the coordinats of higest value pixel
+    C = np.array(np.unravel_index(np.argmax(imp), imp.shape))
+    
+    if imp.ndim == 2:
+        imp_crop = imp[(C[0]-1):(C[0]+2), (C[1]-1):(C[1]+2)]    
+    
+    if imp.ndim == 3:
+        imp_crop = imp[(C[0]-1):(C[0]+2), (C[1]-1):(C[1]+2), (C[2]-1):(C[2]+2)]
+
+    #Determines the center of mass distance from highest value pixel
+    dM = np.array(center_of_mass(imp_crop)) - 1
+
+    if np.max(abs(dM)) >= 0.5:
+        print("Warning!!! Center of mass pixel distnace exceed max pixel by 0.5 ")
+    
+    return tuple(C + dM) 
 
 
 def impulse_profile(imp,samples=1024, angles=False):
 
     if imp.ndim == 2:
         #Dtermines the coordinats of higest value pixel
-        cX, cY = np.unravel_index(np.argmax(imp), imp.shape)
+        #cX, cY = np.unravel_index(np.argmax(imp), imp.shape)
+        cX, cY = imp_center(imp)
+        
         
         #Calculates the x, y, and z coordinates around a sphere
         x,y = vir.sample_circle(radius=np.max(imp.shape), samples=samples)
@@ -237,7 +272,8 @@ def impulse_profile(imp,samples=1024, angles=False):
 
     if imp.ndim == 3:
         #Dtermines the coordinats of higest value pixel
-        cX, cY, cZ = np.unravel_index(np.argmax(imp), imp.shape)
+        #cX, cY, cZ = np.unravel_index(np.argmax(imp), imp.shape)
+        cX, cY, cZ = imp_center(imp)
         
         #Calculates the x, y, and z coordinates around a sphere
         x,y,z = vir.sample_sphere(radius=np.max(imp.shape), samples=samples)
