@@ -10,6 +10,25 @@ import numpy as np
 
 import vir
 
+def gaussinfunc1d(x, mu, sigma,A):            
+    return A*np.exp(-(x - mu)**2/(2*sigma**2))
+
+
+def gaussinfunc2d(xy, x_mu, y_mu, x_sigma, y_sigma,A):   
+    x,y = xy
+    
+    return A*np.exp(-(x - x_mu)**2/(2*x_sigma**2) \
+                    -(y - y_mu)**2/(2*y_sigma**2))
+        
+        
+def gaussinfunc3d(xyz, x_mu, y_mu, z_mu, x_sigma, y_sigma, z_sigma,A):            
+    x,y,z = xyz         
+
+    return A*np.exp(-(x - x_mu)**2/(2*x_sigma**2) \
+                    -(y - y_mu)**2/(2*y_sigma**2) \
+                    -(z - z_mu)**2/(2*z_sigma**2))
+    
+
 def gaussian1d(mu=0.0, sigma=5.0, A=None, nX=128):
     """
     Generates a 1-d gaussian function.
