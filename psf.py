@@ -7,10 +7,64 @@ Created on Thu Jun  1 10:33:57 2023
 """
 
 import numpy as np
+import scipy.spatial.transform as transform
 
 import vir
 
-def gaussinfunc1d(x, mu, sigma,A):            
+"""
+
+
+def gaussian2d(mu=(0.0,0.0), sigma=(5.0,5.0), theta=0, A=None, \
+               nX=128, nY=128):
+    
+    X = vir.censpace(nX)
+    Y = vir.censpace(nY)
+
+    mu = np.array(mu)
+    sigma = np.array(sigma)
+       
+
+    c, s = np.cos(theta), np.sin(theta)
+    R  = np.array([[c, -s], [s, c]])
+    
+    #R = transform.Rotation.from_euler('z', theta, degrees=True).as_matrix()[:2,:2]
+    
+    COV = R @ np.diag((1/sigma)**2) @ R.T
+    
+    V2 = np.dstack(np.meshgrid(X,Y))
+    
+    if A is None:
+        A = 1.0 / (np.prod(sigma) * (2*np.pi))
+    
+    return A * np.exp(-0.5*((V2 @ COV) * V2).sum(axis=2))
+
+
+def gaussian3d(mu=(0.0,0.0,0.0), sigma=(5.0,5.0,5.0), angles=(0.0,0.0,0.0),\
+               A=None, nX=128, nY=128, nZ=128):
+    
+    X = vir.censpace(nX)
+    Y = vir.censpace(nY)
+    Z = vir.censpace(nZ)
+
+    mu = np.array(mu)
+    sigma = np.array(sigma)
+       
+    R = transform.Rotation.from_euler('xyz', angles, degrees=True).as_matrix()
+    COV = R @ np.diag((1/sigma)**2) @ R.T
+    
+    V2 = np.stack(np.meshgrid(X,Y,Z), axis=3)
+    
+    if A is None:
+        A = 1.0 / (np.prod(sigma) * (2*np.pi)**(3/2))
+    
+    return A * np.exp(-0.5*((V2 @ COV) * V2).sum(axis=3))
+
+
+
+"""
+
+
+def gaussinfunc1d(x, mu, sigma, A):            
     return A*np.exp(-(x - mu)**2/(2*sigma**2))
 
 
@@ -19,14 +73,45 @@ def gaussinfunc2d(xy, x_mu, y_mu, x_sigma, y_sigma,A):
     
     return A*np.exp(-(x - x_mu)**2/(2*x_sigma**2) \
                     -(y - y_mu)**2/(2*y_sigma**2))
-        
-        
+
+
 def gaussinfunc3d(xyz, x_mu, y_mu, z_mu, x_sigma, y_sigma, z_sigma,A):            
     x,y,z = xyz         
 
     return A*np.exp(-(x - x_mu)**2/(2*x_sigma**2) \
                     -(y - y_mu)**2/(2*y_sigma**2) \
                     -(z - z_mu)**2/(2*z_sigma**2))
+
+def gaussinfunc2dG(xy, x_mu, y_mu, x_sigma, y_sigma, theta, A):   
+    mu = np.array([x_mu, y_mu])
+    sigma = np.array([x_sigma, y_sigma])
+       
+    V = xy - mu
+
+    R = transform.Rotation.from_euler('z', theta).as_matrix()[:2,:2]       
+    COV = R @ np.diag((1/sigma)**2) @ R.T
+        
+    return A * np.exp(-0.5*((V @ COV) * V).sum(axis=2))
+        
+
+def gaussinfunc3dG(xyz, x_mu, y_mu, z_mu, \
+                   x_sigma, y_sigma, z_sigma, \
+                   theta, phi, psi, A):
+
+    mu = np.array([x_mu, y_mu])
+    sigma = np.array([x_sigma, y_sigma])
+       
+    
+    R = transform.Rotation.from_euler('xyz', [theta,phi,psi]).as_matrix()
+    COV = R @ np.diag((1/sigma)**2) @ R.T
+    
+    V2 = np.stack(np.meshgrid(X,Y,Z), axis=3)
+    
+    if A is None:
+        A = 1.0 / (np.prod(sigma) * (2*np.pi)**(3/2))
+    
+    return A * np.exp(-0.5*((V2 @ COV) * V2).sum(axis=3))
+    
     
 
 def gaussian1d(mu=0.0, sigma=5.0, A=None, nX=128):
