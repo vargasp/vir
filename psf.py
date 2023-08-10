@@ -7,13 +7,14 @@ Created on Thu Jun  1 10:33:57 2023
 """
 
 import numpy as np
-import scipy.spatial.transform as transform
+from scipy import ndimage
+from scipy.optimize import curve_fit
+from scipy.spatial import transform
 
 import vir
 
 
-
-def gaussinfunc1d(x, mu, sigma, A):
+def gaussianfunc1d(x, mu, sigma, A):
     """
     Returns the pdf of a 1d guassian distribution. Guassian paramters are
     scalar so the function can be used in model fitting algorithms. 
@@ -37,7 +38,7 @@ def gaussinfunc1d(x, mu, sigma, A):
     return A*np.exp(-(x - mu)**2/(2*sigma**2))
 
 
-def gaussinfunc2d(xy, x_mu, y_mu, x_sigma, y_sigma, theta, A):
+def gaussianfunc2d(xy, x_mu, y_mu, x_sigma, y_sigma, theta, A):
     """
     Returns the pdf of a 2d guassian distribution. This is a general case where
     the axes may not be aligned with the coordiante system. Guassian paramters
@@ -82,10 +83,10 @@ def gaussinfunc2d(xy, x_mu, y_mu, x_sigma, y_sigma, theta, A):
     COV = R @ np.diag((1.0/sigma)**2) @ R.T
     
     #Returns the gaussian pdf
-    return A * np.exp(-0.5*((V @ COV) * V).sum(axis=2))
+    return A * np.exp(-0.5*((V @ COV) * V).sum(axis=-1))
         
 
-def gaussinfunc3dG(xyz, x_mu, y_mu, z_mu, \
+def gaussianfunc3d(xyz, x_mu, y_mu, z_mu, \
                    x_sigma, y_sigma, z_sigma, \
                    theta, phi, psi, A):
 
@@ -104,10 +105,10 @@ def gaussinfunc3dG(xyz, x_mu, y_mu, z_mu, \
     COV = R @ np.diag((1.0/sigma)**2) @ R.T
     
     #Returns the gaussian pdf    
-    return A * np.exp(-0.5*((V @ COV) * V).sum(axis=3))
+    return A * np.exp(-0.5*((V @ COV) * V).sum(axis=-1))
 
 
-def gaussinfunc2d_ortho(xy, x_mu, y_mu, x_sigma, y_sigma, A):
+def gaussianfunc2d_ortho(xy, x_mu, y_mu, x_sigma, y_sigma, A):
     """
     Returns the pdf of a 2d guassian distribution. This is a special case where
     the axes are aligned with the coordiante system. Guassian paramters are
@@ -139,7 +140,7 @@ def gaussinfunc2d_ortho(xy, x_mu, y_mu, x_sigma, y_sigma, A):
                     -(y - y_mu)**2/(2*y_sigma**2))
 
 
-def gaussinfunc3d_orth0(xyz, x_mu, y_mu, z_mu, x_sigma, y_sigma, z_sigma, A):
+def gaussianfunc3d_orth0(xyz, x_mu, y_mu, z_mu, x_sigma, y_sigma, z_sigma, A):
     """
     Returns the pdf of a 3d guassian distribution. This is a special case where
     the axes are aligned with the coordiante system. Guassian paramters are
@@ -206,7 +207,7 @@ def gaussian1d(mu=0.0, sigma=5.0, A=None, nX=128):
         A = 1.0 / (sigma*np.sqrt(2*np.pi))
             
     #Returns the kernel
-    return A* gaussinfunc1d(x, mu, sigma, A)
+    return gaussianfunc1d(x, mu, sigma, A)
 
 
 def gaussian2d(mus=(0.0,0.0), sigmas=(5.0,5.0), theta=0, A=None, \
@@ -222,7 +223,7 @@ def gaussian2d(mus=(0.0,0.0), sigmas=(5.0,5.0), theta=0, A=None, \
     if A is None:
         A = 1.0 / (x_sigma*y_sigma * (2*np.pi))
 
-    return A* gaussinfunc2d((x,y), x_mu, y_mu, x_sigma, y_sigma, theta, A)
+    return gaussianfunc2d((x,y), x_mu, y_mu, x_sigma, y_sigma, theta, A)
 
 
 def gaussian3d(mus=(0.0,0.0,0.0), sigmas=(5.0,5.0,5.0), A=None, \
@@ -243,6 +244,131 @@ def gaussian3d(mus=(0.0,0.0,0.0), sigmas=(5.0,5.0,5.0), A=None, \
                     -(y - y_mu)**2/(2*y_sigma**2) \
                     -(z - z_mu)**2/(2*z_sigma**2))
         
+
+def moments(imp):
+    """
+    Calculates the moments of an impulse by maximum, center of mass, and RMSE.
+    Used to estimate intital guesses for a guassian model fitting
+
+    Parameters
+    ----------
+    imp : 1, 2, or 3d np.array
+        An impusle with values on a rectllinear grid of equal sizes
+
+    Returns
+    -------
+    CoMs : scalar or array
+        The estimated mu of the impulse.
+    sigmas : scalar or array
+        The estimated sigma of the impulse.
+    A : scalar
+        The estimated amplitude of the impulse.
+    """
+    
+    #Estimates the amplitude
+    A = imp.max()
+    
+    #Estiamtes mu valeues by the center of mass
+    CoMs  = ndimage.center_of_mass(imp)
+
+    #Creates orthogonal profiles to estimate sigma
+    profiles = []
+    if len(CoMs) == 1:
+        profiles.append(imp)
+    
+    elif len(CoMs) == 2:
+        profiles.append(imp[:, int(CoMs[1])])
+        profiles.append(imp[int(CoMs[0]), :])
+
+    elif len(CoMs) == 3:
+        profiles.append(imp[:, int(CoMs[1]), int(CoMs[2])])
+        profiles.append(imp[int(CoMs[0]), :, int(CoMs[2])])
+        profiles.append(imp[int(CoMs[0]), int(CoMs[1]), :])
+
+    sigmas = ()
+    for i in range(len(CoMs)):
+        #Estimate sigma by the root mean squared deviation
+        sigmas += (np.sqrt(np.abs((np.arange(profiles[i].size)-CoMs[i])**2*profiles[i]).sum()/profiles[i].sum()),)
+
+    #Returns the gaussian parameter estimates
+    return CoMs, sigmas, A
+
+
+def fitGaussian2d(x, y, imp):
+    """
+    Calculates the parameters of a 2d guassian.
+
+    Parameters
+    ----------
+    x : nX np.array
+        The x coordinates of a 2d guassian impulse 
+    y : nY np.array
+        The y coordinates of a 2d guassian impulse 
+    imp : (nX, nY) np.array 
+        The impulse pdf.
+
+    Returns
+    -------
+    params : array
+        The guassian parameters of the impulse
+        (x_mu, y_mu, x_sigma, y_sigma, theta, A)
+
+    """
+    #Estimates the intial gausian paramters
+    (mu_x0, mu_y0), (sigma_x0, sigma_y0), A = moments(imp)
+    p0  = [y[int(mu_y0)], x[int(mu_x0)], sigma_y0, sigma_x0, 0.0, A]
+    
+    #Unravels the arrays to be used in curvefit
+    x2, y2 = np.meshgrid(x,y)
+    x2 = np.ravel(x2)
+    y2 = np.ravel(y2)
+    imp = np.ravel(imp)
+
+    #Estimates the parameters using least squares
+    #OPTIMIZE This can probably be improved with a different optimization alg
+    return curve_fit(gaussianfunc2d, np.array((x2,y2)), imp, p0=p0)
+    
+
+def fitGaussian3d(x, y, z, imp):
+    """
+    Calculates the parameters of a 3d guassian.
+
+    Parameters
+    ----------
+    x : nX np.array
+        The x coordinates of a 3d guassian impulse 
+    y : nY np.array
+        The y coordinates of a 3d guassian impulse 
+    z : nZ np.array
+        The z coordinates of a 3d guassian impulse 
+    imp : (nX, nY, nZ) np.array 
+        The impulse pdf.
+
+    Returns
+    -------
+    params : array
+        The guassian parameters of the impulse
+        (x_mu, y_mu, z_mu, x_sigma, y_sigma, z_sigma, theta, phi, psi, A)
+
+    """
+    
+    #Estimates the intial gausian paramters
+    (mu_x0, mu_y0, mu_z0), (sigma_x0, sigma_y0,sigma_z0), A = moments(imp)    
+    p0  = [y[int(mu_y0)], x[int(mu_x0)], z[int(mu_z0)], \
+           sigma_y0, sigma_x0, sigma_z0, \
+           0.0, 0.0, 0.0, A]
+    
+    #Unravels the arrays to be used in curvefit
+    x2, y2, z2 = np.meshgrid(x,y,z)
+    x2 = np.ravel(x2)
+    y2 = np.ravel(y2)
+    z2 = np.ravel(z2)
+    imp = np.ravel(imp)
+
+    #Estimates the parameters using least squares
+    #OPTIMIZE This can probably be improved with a different optimization alg
+    return curve_fit(gaussianfunc3d, np.array((x2,y2,z2)), imp, p0=p0)
+
 
 def LorentzianPSF(gamma,dPixel=1.0,dims=1,epsilon=1e-3):
     """
