@@ -25,49 +25,31 @@ def file_path(fname):
     dirs = re.split('\\\\|/',fname)
     
     return os.path.join(home_dir,*dirs)
-    """
-    if home:
-        return os.path.join(home_dir,*dirs)
-    else:
-        return os.path.join('/',*dirs)
-     """  
+
     
-def box_dir():
+def box_dir(research_folder=True):
 
-    box_drive_location1 = 'C:\\Users\\vargasp\\Box\\'
-    box_drive_location2 = '/Users/pvargas21/Library/CloudStorage/Box-Box/'
-    box_drive_location3 = '/Users/vargasp/Library/CloudStorage/Box-Box/'
+    box_drive_locations = []
 
-    if os.path.exists(box_drive_location1):
-        return box_drive_location1
+    if research_folder == True:
+        research_folder =  os.path.join('Research','Projects') + os.sep 
+    else:
+        research_folder = ''
 
-    if os.path.exists(box_drive_location2):
-        return box_drive_location2
+    #Mac Location
+    box_drive_locations.append('/Users/vargasp/Library/CloudStorage/Box-Box/')
+    box_drive_locations.append('/Users/pvargas21/Library/CloudStorage/Box-Box/')
 
-    if os.path.exists(box_drive_location3):
-        return box_drive_location3
+    #PC location
+    box_drive_locations.append('C:\\Users\\vargasp\\Box\\')
+
+    #MEL Location
+    box_drive_locations.append('/home/vargasp/Box/')
+ 
+    #Checks box location possibilities
+    for box_driveLocation in box_drive_locations:
+        if os.path.exists(box_driveLocation):
+            return box_driveLocation  + research_folder
 
     return ''
 
-
-
-"""
-
-def file_path_box(fname):
-    
-    
-    file_path(fname):
-    os.path.exuts(fname)
-
-    os.system('rclone lsf Box' + fname)
-
-
-
-
-rclone lsf remote:path-to-file
-
-fname = '/Users/vargasp/Box/ktyt\params_arr.npy'
-print(file_path(fname))
-
-
-"""
