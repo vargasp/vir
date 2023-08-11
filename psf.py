@@ -367,7 +367,11 @@ def fitGaussian3d(x, y, z, imp):
 
     #Estimates the parameters using least squares
     #OPTIMIZE This can probably be improved with a different optimization alg
-    return curve_fit(gaussianfunc3d, np.array((x2,y2,z2)), imp, p0=p0)
+    bounds =((x.min(),y.min(),z.min(), 0.0,0.0,0.0, 0.0,0.0,0.0, A*0.5 ),\
+             (x.max(),y.max(),z.max(), \
+              x.max()-x.min(),y.max()-y.min(),z.max()-z.min(), \
+              2.0*np.pi,2.0*np.pi,2.0*np.pi, A*1.5 ))
+    return curve_fit(gaussianfunc3d, np.array((x2,y2,z2)), imp, p0=p0, bounds=bounds)
 
 
 def LorentzianPSF(gamma,dPixel=1.0,dims=1,epsilon=1e-3):
