@@ -297,7 +297,7 @@ def impulse_profile(imp,samples=1024, angles=False):
         
 
 def impulse_characteristics(imp):
-    samples = 1024
+    samples = 128
     v = 0.5
     imp_profiles, angles = impulse_profile(imp,samples=samples, angles=True)
     theta, phi = angles
@@ -306,7 +306,7 @@ def impulse_characteristics(imp):
     
     xf, yf, zf = vir.sph2cart(fwhms, theta, phi)
 
-    
+    """
     #Calcuates the ellipse parameters
     lsvec = psf.ls_ellipsoid(xf, yf, zf)
     
@@ -315,7 +315,8 @@ def impulse_characteristics(imp):
     vol = ConvexHull(np.array([xf,yf,zf]).T).volume
     area = ConvexHull(np.array([xf,yf,zf]).T).area
     return l, w, h, vol, area
-    
+    """
+    return ConvexHull(np.array([xf,yf,zf]).T).area
 
 def fwhm_edge_profiles(ys, v=0.5):
     samples = ys.shape[0]
