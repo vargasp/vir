@@ -31,23 +31,11 @@ imp2d = psf.gaussian2d(nX=N,nY=N, mus=(1,-2), sigmas=(3,4),theta=np.pi/4)
 params = psf.fitGaussian2d(n, n, imp2d)
 
 
-imp3d = psf.gaussian3d(nX=N,nY=N,nZ=N, mus=(1,-2,3),sigmas=(5,6,7))
+imp3d = psf.gaussian3d(nX=N,nY=N,nZ=N, mus=(1,-2,3),sigmas=(5,6,7), angles=(.3, 0, .0))
 params = psf.fitGaussian3d(n, n, n,imp3d)
 
 
 
-
-cX, cY, cZ = np.unravel_index(np.argmax(img1), img1.shape)
-
-ip = np.where(img1 <=img1.max()*.1, 0, 1)
-t = label(ip,connectivity = 1)
-
-imgN = np.where(t==t[cX,cY,cZ],img1,0)
-
-
-
-
-np.where(img1 <=img1.max()*.1, 0, 1)
 
 
 

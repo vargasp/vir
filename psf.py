@@ -226,11 +226,12 @@ def gaussian2d(mus=(0.0,0.0), sigmas=(5.0,5.0), theta=0, A=None, \
     return gaussianfunc2d((x,y), x_mu, y_mu, x_sigma, y_sigma, theta, A)
 
 
-def gaussian3d(mus=(0.0,0.0,0.0), sigmas=(5.0,5.0,5.0), A=None, \
-               nX=128, nY=128, nZ=128):
+def gaussian3d(mus=(0.0,0.0,0.0), sigmas=(5.0,5.0,5.0), angles=(0.0,0.0,0.0), \
+               A=None, nX=128, nY=128, nZ=128):
     
     x_mu, y_mu, z_mu = mus
     x_sigma, y_sigma, z_sigma = sigmas
+    theta, phi, psi = angles
     
     x = vir.censpace(nX)
     y = vir.censpace(nY)
@@ -240,9 +241,8 @@ def gaussian3d(mus=(0.0,0.0,0.0), sigmas=(5.0,5.0,5.0), A=None, \
     if A is None:
         A = 1.0 / (x_sigma*y_sigma*z_sigma * (2*np.pi)**(3/2))
             
-    return A*np.exp(-(x - x_mu)**2/(2*x_sigma**2) \
-                    -(y - y_mu)**2/(2*y_sigma**2) \
-                    -(z - z_mu)**2/(2*z_sigma**2))
+    return gaussianfunc3d((x,y,z), x_mu, y_mu, z_mu, x_sigma, y_sigma, z_sigma,
+                          theta, phi, psi, A)
         
 
 def moments(imp):
@@ -367,11 +367,21 @@ def fitGaussian3d(x, y, z, imp):
 
     #Estimates the parameters using least squares
     #OPTIMIZE This can probably be improved with a different optimization alg
+    
+    """
+    TESTING
     bounds =((x.min(),y.min(),z.min(), 0.0,0.0,0.0, 0.0,0.0,0.0, A*0.5 ),\
              (x.max(),y.max(),z.max(), \
               x.max()-x.min(),y.max()-y.min(),z.max()-z.min(), \
               2.0*np.pi,2.0*np.pi,2.0*np.pi, A*1.5 ))
-    return curve_fit(gaussianfunc3d, np.array((x2,y2,z2)), imp, p0=p0, bounds=bounds)
+    par0 = curve_fit(gaussianfunc3d, np.array((x2,y2,z2)), imp, p0=p0, bounds=bounds, full_output=True)
+    
+    par1 = curve_fit(gaussianfunc3d, np.array((x2,y2,z2)), imp, p0=p0, full_output=True)
+    
+    print(par0)
+    print(par1)
+    """
+    return curve_fit(gaussianfunc3d, np.array((x2,y2,z2)), imp, p0=p0)
 
 
 def LorentzianPSF(gamma,dPixel=1.0,dims=1,epsilon=1e-3):
@@ -597,6 +607,24 @@ def gaussian3d(mu=(0.0,0.0,0.0), sigma=(5.0,5.0,5.0), angles=(0.0,0.0,0.0),\
     return A * np.exp(-0.5*((V2 @ COV) * V2).sum(axis=3))
 
 
+def gaussian3d(mus=(0.0,0.0,0.0), sigmas=(5.0,5.0,5.0), A=None, \
+               nX=128, nY=128, nZ=128):
+    
+    x_mu, y_mu, z_mu = mus
+    x_sigma, y_sigma, z_sigma = sigmas
+    
+    x = vir.censpace(nX)
+    y = vir.censpace(nY)
+    z = vir.censpace(nZ)
+    x, y, z = np.meshgrid(x,y,z)
+    
+    if A is None:
+        A = 1.0 / (x_sigma*y_sigma*z_sigma * (2*np.pi)**(3/2))
+            
+    return A*np.exp(-(x - x_mu)**2/(2*x_sigma**2) \
+                    -(y - y_mu)**2/(2*y_sigma**2) \
+                    -(z - z_mu)**2/(2*z_sigma**2))
+        
 
 """
 
