@@ -14,6 +14,77 @@ from matplotlib.ticker import MultipleLocator, FuncFormatter
 import vir 
 
 
+def test(d, g, nAngles):
+    """
+    Calculates the sample locations of a helical trajectory
+
+    Parameters
+    ----------
+    d : TYPE
+        DESCRIPTION.
+    g : TYPE
+        DESCRIPTION.
+    nAngles : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    VN : TYPE
+        DESCRIPTION.
+    ZN : TYPE
+        DESCRIPTION.
+    Z_counts : TYPE
+        DESCRIPTION.
+
+    """
+    VN, ZN, CN = np.array([]), np.array([]), np.array([])
+
+    for angle in range(nAngles):
+        
+        #Row Z locations at angle
+        Rows = d.H + g.Z[angle]
+
+        #Adds additional Z locations at subsequent revolutions
+        view = angle + nAngles
+        while view  < g.nViews:
+            Rows = np.append(Rows, d.H + g.Z[view])
+            view += nAngles
+
+        #Unique Z values and counts at angle 
+        Z_unique, counts = np.unique(Rows,return_counts=True)   
+        
+        #View angles 
+        VN = np.append(VN ,np.repeat(g.Views[angle], Z_unique.size))
+        
+        #Z values
+        ZN = np.append(ZN, Z_unique)
+        Z_counts = np.append(CN, counts)
+    
+    return VN, ZN, Z_counts
+
+
+#Sample Zs & Views
+def helical_sample1(d, g):
+    Views = np.tile(g.Views, [d.H.size,1])
+    Zs = np.add.outer(d.H, g.Z)
+    
+    return Zs, Views
+
+
+#Sample Zs & Angles
+def helical_sample2(d, g):    
+    Angles, counts = np.unique(g.Views % (2*np.pi),return_counts=True)
+    
+    Zs = np.empty([Angles.size, d.H.size*counts[0]])
+    
+    for angle, i in enumerate(Angles):
+        Zs[i,:] = np.add.outer(g.Z[np.where(g.Views%(2*np.pi) == angle)], d.H).flatten()
+    
+    
+    return Zs, Angles
+
+
+
 
 def createHelicalSampleImage(Views, Z, CN=None, title=None,outfile=None, \
                              y360=None, y180=None,base_tick=np.pi/2,xlim=np.pi*2):
@@ -34,8 +105,6 @@ def createHelicalSampleImage(Views, Z, CN=None, title=None,outfile=None, \
     ax.yaxis.set_major_locator(MultipleLocator(base=base_tick))
     ax.set_ylim(-base_tick/4.,xlim)
     #ax.set_xlim(-20,20)
-
-
 
     #Creates shaded regions of 2pi reconstrion
     if y180:
@@ -76,7 +145,6 @@ def scatter_samp(g,d, wrap="None"):
     
         title = 'Full View: Pitch: '+str(g.pitch/d.nH/d.dH)
         outfile = "P1_p" +str(g.pitch)
-        print("Here")
         createHelicalSampleImage(Views, Z, title=title,outfile=outfile, \
                             y360=(y360l,y360r), y180=(y180l,y180r), xlim=g.coverage)
        
@@ -117,6 +185,9 @@ def helical_recon_range(g,d):
     y180r = g.Z[-int(g.nAngles/2)] + d.H[-1]
     
     return y360l, y360r, y180l, y180r
+
+
+
 
 
 
