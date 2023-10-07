@@ -72,16 +72,16 @@ def helical_sample1(d, g):
 
 
 #Sample Zs & Angles
-def helical_sample2(d, g):    
-    Angles, counts = np.unique(g.Views % (2*np.pi),return_counts=True)
+def helical_sample2(d, g, cov=2.0*np.pi):    
+    Angles, counts = np.unique(g.Views % cov,return_counts=True)
     
     Zs = np.empty([Angles.size, d.H.size*counts[0]])
     
-    for angle, i in enumerate(Angles):
-        Zs[i,:] = np.add.outer(g.Z[np.where(g.Views%(2*np.pi) == angle)], d.H).flatten()
+    for i,angle in enumerate(Angles):
+        Zs[i,:] = np.add.outer(g.Z[np.where(g.Views % cov == angle)], d.H).flatten()
     
-    
-    return Zs, Angles
+
+    return np.sort(Zs, axis=1), Angles
 
 
 
