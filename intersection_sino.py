@@ -8,6 +8,7 @@ Created on Fri Sep 25 14:17:49 2020
 
 import numpy as np
 from scipy.integrate import tplquad
+import vir.analytic_geom as ag
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -88,7 +89,7 @@ def AnalyticSinoParSphere2(Sphere,Views,Rows,Cols):
     P = np.hstack([np.tile([0,0,1],(Rows.size,1)), -1*Rows.T])
 
     #Calculates the circle parameters at the row z postiions 
-    C = SpherePlaneIntersection(P,Sphere)
+    C = ag.sphere_plane_inter(P,Sphere)
     
     if C.ndim == 1:
         C = C[np.newaxis]

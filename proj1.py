@@ -8,7 +8,7 @@ Created on Fri Oct 30 09:44:45 2020
 
 import numpy as np
 import vir
-import intersection as inter
+import vir.intersection_sino as inter
 from scipy import interpolate
 
 

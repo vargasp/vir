@@ -86,12 +86,10 @@ def dering(img,thresh_min=None,thresh_max=None,thresh_art_max=30,\
     nX, nY = img.shape
     
     #Lower threshold for image segmentation
-    if thresh_min is None:
-        thresh_min = img.min()
+    if thresh_min is None: thresh_min = img.min()
 
     #Upper threshold for image segmentation
-    if thresh_max is None:
-        thresh_max = img.max()
+    if thresh_max is None: thresh_max = img.max()
 
 
     #Thresholded image
