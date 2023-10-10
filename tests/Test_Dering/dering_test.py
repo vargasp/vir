@@ -8,6 +8,7 @@ Created on Thu Oct  5 15:48:55 2023
 
 import numpy as np
 import matplotlib.pyplot as plt
+plt.rcParams['figure.dpi'] = 600
 
 
 from scipy.signal import medfilt
@@ -61,7 +62,7 @@ plt.imshow(img.T, origin='lower')
 
 
 
-mimg = median_filter(img,size=(42,1))
+mimg = median_filter(img,size=(1,42))
 
 plt.imshow(mimg.T, origin='lower')
 

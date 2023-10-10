@@ -8,8 +8,8 @@ Created on Wed Dec 21 09:11:51 2022
 
 import numpy as np
 from skimage.transform import warp_polar
-from scipy.signal import medfilt
 from scipy.ndimage.interpolation import map_coordinates
+from scipy.ndimage import median_filter
 
 
 # Auxiliary function to map polar data to a cartesian plane
@@ -47,39 +47,32 @@ def polar_to_cart(polar_data, nX, nY, theta_step=1, range_step=1,order=3):
     return(cart_data.reshape(nY, nX))
 
 
-def linear_kernel(k_max, width, steps=3):
-    steps_max = int(np.ceil(k_max/2))
-    steps = np.min([steps+1, steps_max])
-    
-    steps_filt = np.floor(np.linspace(1,steps,width,endpoint=False))
+def polar_filter(img, kernel_max, axis, steps=3):
 
-    return  2*np.floor(k_max*steps_filt/(steps-1)/2).astype(int) + 1
+    #Generates the kernel sizes and indices for the concentric anulii
+    kernels = np.rint(kernel_max*np.arange(1,steps+1)/steps).astype(int)
+    idxs = np.rint(img.shape[axis]*np.arange(0,steps+1)/steps).astype(int)
 
+    #Generates kernel footprints and modes
+    if axis == 0: #Filters in the azimuthal dimension
+        kernels = list(zip(kernels,np.ones(steps, dtype=int)))
+        mode = 'wrap'
+    elif axis == 1: #Filters in the radial dimension
+        kernels = list(zip(np.ones(steps, dtype=int),kernels))
+        mode = 'reflect'
+    else:
+        raise ValueError("Only values 0 or 1 allowed for axis")
 
-def polar_filter(img, kernel_max, axis):
-    k_size = img.shape[1]
-    
-    kernel_filter = linear_kernel(kernel_max, k_size)
-    
-    kernel = [1,1]
-    
-    lf_img = np.zeros(img.shape)
-    
-    
-    for k in np.unique(kernel_filter):
-        print(k)
-        
-        kernel[axis] = k
-        f_img = medfilt(img, kernel)
-        
-        idx = np.where(kernel_filter == k)[0]
-        lf_img[:,idx] = f_img[:,idx]
-        
+    #Filters the image at each annulus
+    lf_img = np.zeros(img.shape)    
+    for i, kernel in enumerate(kernels):            
+        lf_img[:, idxs[i]:idxs[i+1]] = median_filter(img, kernel, mode=mode)[:, idxs[i]:idxs[i+1]]
+
     return lf_img
 
 
 def dering(img,thresh_min=None,thresh_max=None,thresh_art_max=30,\
-           thresh_art_min=0, azimuthal_kernel=11,radial_kernel=21, return_art=False):
+           thresh_art_min=-30, azimuthal_kernel=11,radial_kernel=21, return_art=False):
 
     img = img.astype(float)
     
@@ -91,21 +84,18 @@ def dering(img,thresh_min=None,thresh_max=None,thresh_art_max=30,\
     #Upper threshold for image segmentation
     if thresh_max is None: thresh_max = img.max()
 
-
     #Thresholded image
     tImg = img.clip(thresh_min,thresh_max)
 
-    #Image transformed into polar coordinates
+    #Image transformed into polar coordinates [nThetas,nRadii]
     nRadii = int(np.ceil(np.sqrt((nX/2)**2 + (nY/2)**2)))
     nThetas = 1440
-    pImg = warp_polar(tImg, output_shape=[nThetas,nRadii])
+    pImg = warp_polar(tImg, output_shape=[nThetas,nRadii]) 
 
     #Radial median filtering in polar coordinates
     fImg = polar_filter(pImg, radial_kernel, 1)
-
-    #fImg = medfilt(pImg, [1,radial_kernel])
     
-    #Subtract median imge to calculate artifactimge.
+    #Subtract median image to calculate artifact image.
     #Thresholded artifact image
     fImg = (pImg - fImg).clip(thresh_art_min,thresh_art_max)
 
