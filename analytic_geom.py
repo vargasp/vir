@@ -311,3 +311,69 @@ def plot_plane(P):
     plt.show()
     
 
+def pyramid_sa(x, y, z):
+    """
+    Calculates the solid angle of a subtened pyramid within a sphere with an
+    irregular n-sided base. The x, y, and z arrays of the base coordinates must
+    be provided by connected edges. Implemented from:
+    "Solid Angle of Conical Surfaces, Polyhedral Cones, and  Intersecting
+    Spherical Caps"
+
+    Parameters
+    ----------
+    x : (n) ndarray
+        Sequence of x values of the unit vectors representing base vertices
+    y : (n) ndarray
+        Sequence of y values of the unit vectors representing base vertices
+    z : (n) ndarray
+        Sequence of z values of the unit vectors representing base vertices
+        
+    Returns
+    -------
+    Solid angle in steridians.
+
+    """
+    #number of vertices
+    n = np.size(x)
+
+    #Creates a list of unit vectores
+    u = list(zip(x,y,z))
+
+    #Creates a cycled list to access elements before and after the list
+    u0 = u[0]
+    un = u[-1]
+    u.append(u0)
+    u.insert(0,un)
+    
+    #Converts the list to an array for computaion
+    u = np.array(u)
+    
+    #Complex Product Algorithm
+    #!!!Not implemented completely!!!
+    """
+    SA = complex(1,0)
+    for j in range(1,n+1):
+        a = np.dot(u[j-1,:],u[j+1,:])
+        b = np.dot(u[j-1,:],u[j,:])
+        c = np.dot(u[j,:],u[j+1,:])
+        d =  np.dot(u[j-1,:],np.cross(u[j+1,:],u[j,:]))
+        SA *= complex(b*c - a, d)
+
+    return 2*np.pi - np.arctan2(np.imag(SA),np.real(SA))  
+    """
+    
+    #Arctan Summation Algorithm
+    SA = 0.0
+    for j in range(1,n+1):
+        #Cosines of the spherical triangle formed at the vertices
+        a = np.dot(u[j-1,:],u[j+1,:])
+        b = np.dot(u[j-1,:],u[j,:])
+        c = np.dot(u[j,:],u[j+1,:])
+        
+        #Volume of the parallelepiped spannned by the vectors
+        d =  np.dot(u[j-1,:],np.cross(u[j+1,:],u[j,:]))
+
+        
+        SA += np.arctan2(d, b*c - a)
+
+    return 2*np.pi - SA
