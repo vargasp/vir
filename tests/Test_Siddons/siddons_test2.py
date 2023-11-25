@@ -15,14 +15,32 @@ import vir.siddon as sd
 import vt
 
 
-def plot_params(nPix, dPix, src, trg):
-    x0 = -int(nPix[0]/2)
-    xN = int(nPix[0]/2)
-    y0 = -int(nPix[1]/2)
-    yN = int(nPix[1]/2)
+def print_sdlist(sdlist):
+    arrs = ['x:','y:','z:']
+ 
+    for i, arr in enumerate(arrs):
+        print(arr, end='')
+        for j in sdlist[0][i][:-1]:
+            print(f'{j:6},', end = '')
+        
+        print(f'{sdlist[0][i][-1]:6}')
 
-    src = np.array(src)/np.array(dPix) #[[1,0,2]]
-    trg = np.array(trg)/np.array(dPix) #[[1,0,2]]
+    print('d:', end='')
+    for j in sdlist[0][3][:-1]:
+        print(f' {j:1.3f},', end = '')
+    
+    print(f' {sdlist[0][3][-1]:2.3f}')
+
+
+
+def plot_params(nPix, dPix, src, trg):
+    x0 = -int(nPix[0]/2)*dPix[0]
+    xN = int(nPix[0]/2)*dPix[0]
+    y0 = -int(nPix[1]/2)*dPix[1]
+    yN = int(nPix[1]/2)*dPix[1]
+
+    src = np.array(src) #[[1,0,2]]
+    trg = np.array(trg) #[[1,0,2]]
 
     xS = (src[0], trg[0])
     yS = (src[1], trg[1])
@@ -33,25 +51,34 @@ def plot_params(nPix, dPix, src, trg):
 
 #Plots line and sdarray
 nPix = (12,10,1)
-dPix = (.8, 1,1)
+dPix = (1.0, 1,1)
 
-src = np.array((-6.5, .25,0))
-trg = np.array((6.5,1.25, 0))
+src = np.array((-5.5, -5.0,0))
+trg = np.array((5.5,-5.0, 0))
 
 
 sdlist = sd.siddons(trg, src, nPixels=nPix, dPixels=dPix)
 sdarray = sd.list2array(sdlist, nPix)
-print(sdlist)
+print_sdlist(sdlist)
 
 x0,xN,y0,yN,xS,yS = plot_params(nPix, dPix, src, trg)
 plt.imshow(sdarray[:,:,0].T, origin='lower', extent=(x0,xN,y0,yN))
 plt.plot(xS,yS, color="red", linewidth=1)
-plt.xticks(np.arange(x0-1, xN+2))
-plt.yticks(np.arange(y0-1, yN+2))
+plt.xticks(np.linspace(x0-dPix[0],xN+dPix[0], int(np.round((xN - x0)/dPix[0])+3)))
+plt.yticks(np.linspace(y0-dPix[1],yN+dPix[1], int(np.round((yN - y0)/dPix[1])+3)))
 plt.grid()
 plt.show()
 
 
+
+
+
+
+
+
+
+
+"""
 
 #Plots backprojection
 nPix = (100,100,1)
@@ -99,7 +126,7 @@ sd.siddons(Srcs, Trgs, nPixels=nPixelsG, dPixels=dPixel, origin=origin,\
             flat = True, ravel= True)
 
 
-
+"""
 
 
 

@@ -692,7 +692,10 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
             #Alpha = np.sort(np.concatenate([alpha_bounds[ray,:], X_alpha, Y_alpha, Z_alpha]), kind='mergesort')
             #Rounding function was added to elimintae duplicate alphas introduced by machine precision
             Alpha = np.unique(np.round(np.concatenate([alpha_bounds[ray_idx], X_alpha, Y_alpha, Z_alpha]),decimals=decimal_round))
-
+            #print(Alpha)
+            #print(alpha_bounds)
+            
+            
             #Loops through the alphas and calculates pixel length and pixel index
             dAlpha = Alpha[1:] - Alpha[:-1]
             mAlpha = 0.5 * (Alpha[1:] + Alpha[:-1])
