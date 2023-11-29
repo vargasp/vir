@@ -54,7 +54,6 @@ def sa_cone(angle):
     return 2*np.pi *(1 - np.cos(angle))
 
 
-
 def xyx_a(ang1, ang2):
     x1,y1,z1 = vir.sph2cart(1, ang1/2, 0)
     x2,y2,z2 = vir.sph2cart(1, -ang1/2, 0)
@@ -62,9 +61,66 @@ def xyx_a(ang1, ang2):
     x4,y4,z4 = vir.sph2cart(1, 0, -ang1/2)
     
     return [x1,x2,x3,x4],[y1,y2,y3,y4], [z1,z2,z3,z4]
+
+
     
 def print_rad(angle):
     print(f'{angle/np.pi:.5f}\N{GREEK SMALL LETTER PI}')
+
+
+def oblique_pym(pa, pb1, pb2, pb3, pb4):
+    #Vertices
+    pa = np.array(pa)
+    pb1 = np.array(pb1)
+    pb2 = np.array(pb2)
+    pb3 = np.array(pb3)
+    pb4 = np.array(pb4)
+    pB = np.vstack([pb1,pb2,pb3,pb4])
+
+    #Base Vectors
+    vB = pB - pa
+    
+    #Base vectors magnitude
+    vB_mag = np.linalg.norm(vB, axis=1)
+
+    #Base Midpoint Vertices (b12, b23, b34, b41)
+    pBm = (pB + np.roll(pB,-1,0))/2
+    
+    #Centroid point
+    pc = pB.sum(axis=0)/4
+
+    #Centroid Vector
+    vc = pc - pa 
+
+    #Centroid vector magnitude
+    vc_mag = np.linalg.norm(vc)
+    
+    #Base vectors angles
+    aB = np.arccos(np.dot(vB/vB_mag[:,np.newaxis], vc/vc_mag))
+              
+    #Base area
+    abase = np.linalg.norm(np.cross((pb1-pb2), (pb3-pb2)))
+
+    #Closest base vertex to apex index
+    vBminIdx = np.argmin(vB_mag)
+    
+    #Effective height of right pyramid inscribed in pyrmaid 
+    vEc = np.dot(vB[vBminIdx,:], vc/vc_mag)
+    
+    #Effective Base vectors magnitude
+    vEB_mag = vEc/np.cos(aB)
+
+    vEB = vB*(vEB_mag/vB_mag)[:,np.newaxis]
+
+
+
+
+pa = [0,0,0]
+pa = [1,1,0]
+pb1 = [1,1,1]
+pb2 = [1,-1,1]
+pb3 = [-1,-1,1]
+pb4 = [-1,1,1]
 
 
 print_rad(sa_cone(np.pi))
