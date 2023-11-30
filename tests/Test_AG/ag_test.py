@@ -69,48 +69,80 @@ def print_rad(angle):
 
 
 def oblique_pym(pa, pb1, pb2, pb3, pb4):
+    
+    def base_area(pB):
+        #Circulent Base Vectors (b1- b2, b2-b3, ..., bn - b0)
+        pB_circ = np.vstack([pB, pB[0,:]])
+        
+        #Calculates area from the summation of cross-products
+        return np.linalg.norm(np.cross(pB_circ[:-1,:], pB_circ[1:,:]).sum(axis=0))/2.
+    
+    
+    def solid_angle(vB_unit):
+        vB_unit_circ = np.vstack([vB_unit[-1,:], vB_unit, vB_unit[0,:]])
+
+        SA = 0.0
+        for j in range(1,vB_unit_circ.shape[0] -1):
+            #Cosines of the spherical triangle formed at the vertices
+            a = np.dot(vB_unit_circ[j-1,:],vB_unit_circ[j+1,:])
+            b = np.dot(vB_unit_circ[j-1,:],vB_unit_circ[j,:])
+            c = np.dot(vB_unit_circ[j,:],vB_unit_circ[j+1,:])
+            
+            #Volume of the parallelepiped spannned by the vectors
+            d =  np.dot(vB_unit_circ[j-1,:],np.cross(vB_unit_circ[j+1,:],vB_unit_circ[j,:]))
+            
+            SA += np.arctan2(d, b*c - a)
+
+        return 2*np.pi - SA
+        
+        
     #Vertices
     pa = np.array(pa)
-    pb1 = np.array(pb1)
-    pb2 = np.array(pb2)
-    pb3 = np.array(pb3)
-    pb4 = np.array(pb4)
     pB = np.vstack([pb1,pb2,pb3,pb4])
 
-    #Base Vectors
-    vB = pB - pa
-    
-    #Base vectors magnitude
+    #Base Vectors and Magnitude
+    vB = pB - pa   
     vB_mag = np.linalg.norm(vB, axis=1)
+    vB_unit = vB/vB_mag[:,np.newaxis]  
 
+    #Centroid Vector and Magnitude
+    vc = pB.sum(axis=0)/pB.shape[0] - pa 
+    vc_mag = np.linalg.norm(vc)
+    vc_unit = vc/vc_mag
+
+    #Effective height of right pyramid inscribed in pyrmaid 
+    #Projection of closest base vertex to apex on Centroid Vector
+    vEc = np.dot(vB[np.argmin(vB_mag),:], vc_unit)
+
+    #Effective Base Vectors Magnitude
+    vEB_mag = vEc/np.dot(vB_unit, vc_unit)
+    vEB = vB_unit*vEB_mag[:,np.newaxis]
+
+    #Calculates the base and effective base areas
+    Area = base_area(pB)
+    Eff_Area = base_area(vEB + pa)
+
+    #Calculates the solid area
+    SA1 = solid_angle(vB_unit)
+    SA2 = solid_angle(vEB/vEB_mag[:,np.newaxis])
+
+
+    return Area, Eff_Area, SA1, SA2
+
+
+
+    """
     #Base Midpoint Vertices (b12, b23, b34, b41)
     pBm = (pB + np.roll(pB,-1,0))/2
     
-    #Centroid point
-    pc = pB.sum(axis=0)/4
-
-    #Centroid Vector
-    vc = pc - pa 
-
-    #Centroid vector magnitude
-    vc_mag = np.linalg.norm(vc)
     
     #Base vectors angles
     aB = np.arccos(np.dot(vB/vB_mag[:,np.newaxis], vc/vc_mag))
-              
-    #Base area
-    abase = np.linalg.norm(np.cross((pb1-pb2), (pb3-pb2)))
+    """        
 
-    #Closest base vertex to apex index
-    vBminIdx = np.argmin(vB_mag)
     
-    #Effective height of right pyramid inscribed in pyrmaid 
-    vEc = np.dot(vB[vBminIdx,:], vc/vc_mag)
-    
-    #Effective Base vectors magnitude
-    vEB_mag = vEc/np.cos(aB)
 
-    vEB = vB*(vEB_mag/vB_mag)[:,np.newaxis]
+
 
 
 
@@ -122,6 +154,8 @@ pb2 = [1,-1,1]
 pb3 = [-1,-1,1]
 pb4 = [-1,1,1]
 
+
+oblique_pym([1,1,.0], pb1,pb2,pb3,pb4)
 
 print_rad(sa_cone(np.pi))
 
