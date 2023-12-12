@@ -12,9 +12,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import vir
-import visualization_tools as vt
-import phantoms as pt
-import proj as pj
+import vt
+import vir.phantoms as pt
+import vir.proj1 as pj
 
 dDet = .25
 radius = 10

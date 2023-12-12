@@ -10,7 +10,7 @@ import numpy as np
 import vir
 import vir.intersection_sino as inter
 from scipy import interpolate
-
+import vir.analytic_geom as ag
 
 
 def back_proj_ray(phantom, sino_val, ray):
@@ -64,7 +64,7 @@ def createSino(g,d,s,p):
                             
                     #Loops over objects in the phantom
                     for sphere_idx, sphere in enumerate(Spheres):
-                        r, dist =inter.dist((0,0,1,z),sphere[:4])
+                        r, dist =ag.sphere_plane_inter_dist((0,0,1,z),sphere[:4])
         
                         if np.isnan(r) == False:
                             S_2d = [sphere[0], sphere[1], r, sphere[4]]

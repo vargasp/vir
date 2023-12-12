@@ -73,7 +73,7 @@ class Phantom:
         spheres : (nS, 5) array_like
             The number of spheres in the phantom. Default is None
         """
-        spheres = np.array(spheres, copy=True, dtype=np.float)
+        spheres = np.array(spheres, copy=True, dtype=float)
         
         if spheres.shape[-1] != 5:
             raise ValueError('Sphere parameters must have (nS, 5) shape')
