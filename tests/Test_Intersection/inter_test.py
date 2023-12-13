@@ -11,7 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import vir as vir
-import intersection as inter
+import vir.intersection_sino as inter
 
 
 
@@ -38,6 +38,8 @@ Bins = np.array(Cols)/src_iso
 
 importlib.reload(inter)
 print(inter.AnalyticSinoParSphere(spheres,views,Cols))
+print(inter.AnalyticSinoParSphere2(spheres,views,Cols,0))
+
 print(inter.AnalyticSinoFanSphere(spheres,views,Bins,src_iso,))
 
 

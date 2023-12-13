@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
 
-def AnalyticSinoParSphere(S,view,xi):
+def AnalyticSinoParSphere2D(S,view,xi):
     '''
     Calculates the intersection length or linear attenuation for a sphere in
     parallel beam geometry for 
@@ -39,25 +39,7 @@ def AnalyticSinoParSphere(S,view,xi):
     return 2.*np.sqrt((S[2]**2 - u**2).clip(0))
 
 
-def AnalyticSinoFanSphere(S,view,Bins,src_iso,offset=0.0):
-
-    xi   = src_iso*np.sin(Bins) + offset*np.cos(Bins)
-
-    s  = np.sqrt(S[0]**2 + S[1]**2)
-    delta = np.arctan2(S[0], S[1])
-
-                
-    phi  = np.add.outer(view, Bins)
-    f    = S[2]**2 * (np.cos(phi)**2 + np.sin(phi)**2)
-    
-    u    = xi + s*np.cos(delta - phi)
-
-    weight = (2.*S[2]**2/f)*np.sqrt((f - u**2).clip(0) )
-
-    return weight
-
-
-def AnalyticSinoParSphere2(Sphere,Views,Rows,Cols):
+def AnalyticSinoParSphere3D(Sphere,Views,Rows,Cols):
     '''
     Calculates the intersection length for a sphere in
     parallel beam geometry for 
@@ -107,6 +89,34 @@ def AnalyticSinoParSphere2(Sphere,Views,Rows,Cols):
         return 2.*np.sqrt((C[:,3][np.newaxis].T**2 - u**2).clip(0))
     else:
         return 2.*np.sqrt((C[:,3]**2 - u**2).clip(0))
+
+
+def AnalyticSinoParSphere(Sphere,Views,Cols,Rows=None):
+    if Sphere.size == 4:
+        return AnalyticSinoParSphere3D(Sphere,Views,Rows,Cols)
+    else:
+        return AnalyticSinoParSphere2D(Sphere,Views,Cols)
+        
+
+def AnalyticSinoFanSphere(S,view,Bins,src_iso,offset=0.0):
+
+    xi   = src_iso*np.sin(Bins) + offset*np.cos(Bins)
+
+    s  = np.sqrt(S[0]**2 + S[1]**2)
+    delta = np.arctan2(S[0], S[1])
+
+                
+    phi  = np.add.outer(view, Bins)
+    f    = S[2]**2 * (np.cos(phi)**2 + np.sin(phi)**2)
+    
+    u    = xi + s*np.cos(delta - phi)
+
+    weight = (2.*S[2]**2/f)*np.sqrt((f - u**2).clip(0) )
+
+    return weight
+
+
+
     
 
 def AnalyticSinoParEllipse(S,view,xi):
