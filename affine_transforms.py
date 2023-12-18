@@ -11,7 +11,28 @@ import matplotlib.pyplot as plt
 from scipy.spatial import transform
 from scipy.ndimage import map_coordinates
 
+"""
+Affine Tranformation Functions:
+-------------------------------
+"""
+
 def rankIdn(A, rank):
+    """
+    Changes the rank of an affine tranformation matrix. Primarily used for
+    matrix multiplicaiton operations. !!!DOES NOT MAP ALL ELEMENTS!!!
+
+    Parameters
+    ----------
+    A : (n,m) np.array
+        An affine transformation matrix
+    rank : int
+        The rank of the new affine transformation matrix
+
+    Returns
+    -------
+    (rank, rank) np.array
+        The new affine tranformation matrix or rank "rank"
+    """
     n,m = A.shape
     
     if rank > n or rank >m:
@@ -24,12 +45,34 @@ def rankIdn(A, rank):
 
 
 def transMat(coords,rank=None):
+    """
+    Creates an affine translation matrix for translation
+
+    Parameters
+    ----------
+    coords : float or arraylike
+        The translation vector 
+    rank : int, optional
+        The rank of the matrix. The default is "None" which is the lowest rank
+
+    Returns
+    -------
+    T : (rank, rank) np.array
+        The translation matrix in format: for coords = x; (x,y); and (x,y,z)
+        |1 x| if x   |1 0 x| if (x,y)   |1 0 0 x| if (x,y,z)
+        |0 1|        |0 1 y|            |0 1 0 y|
+                     |0 0 1|            |0 0 1 z|
+                                        |0 0 0 1|
+    """
+    #Calculates the dimension of the coords vector
     coords = np.array(coords)
     n = coords.size
     
-    if rank == None:
+    #Determines the rank of the matrix
+    if rank is None:
         rank = n+1
     
+    #Creates the tranlation matrix
     T = np.identity(rank)
     T[:n,-1] = coords
     
@@ -37,6 +80,33 @@ def transMat(coords,rank=None):
 
 
 def rotateMat(angs, center=None, seq='XYZ', extrinsic=True, rank=2):
+    """
+    Creates an affine translation matrix for rotation
+
+    Parameters
+    ----------
+    angs : float or arraylike
+        The rotation vector.
+    center : arraylike, optional
+        The center of rotation location. The default is "None" which
+        corresponds to the origin
+    seq : TYPE, optional
+        DESCRIPTION. The default is 'XYZ'.
+    extrinsic : TYPE, optional
+        DESCRIPTION. The default is True.
+    rank : TYPE, optional
+        DESCRIPTION. The default is 2.
+
+    Returns
+    -------
+    R : (rank, rank) np.array
+        The rotation matrix in format: for angs = x; (0,x); and (0,0,x)
+        |cos(x) -sin(x)| if x   |1 0 x| if (0,x)   |1 0 0 x| if (0,0,x)
+        |sin(x)  cos(x)|        |0 1 y|            |0 1 0 y|
+                                |0 0 1|            |0 0 1 z|
+                                        |0 0 0 1|
+
+    """
 
     #Converts angs to an np.array and calcualtes the number of angles
     angs = np.array(angs)
@@ -61,7 +131,7 @@ def rotateMat(angs, center=None, seq='XYZ', extrinsic=True, rank=2):
     R = R.as_matrix().squeeze()
     R = rankIdn(R, rank)
 
-    #Returns the R matrix or modifies it if rotation center is provided
+    #Returns the R matrix or changes the center of rotation if center is provided
     if center is None:
         return R
     else:
@@ -71,6 +141,7 @@ def rotateMat(angs, center=None, seq='XYZ', extrinsic=True, rank=2):
 
 
 def coords_array(shape,ones=False):
+    
     if len(shape) == 1:
         coords = np.mgrid[:shape[0]]
     elif len(shape) == 2:
@@ -85,14 +156,17 @@ def coords_array(shape,ones=False):
     else:
         coords = np.stack(coords, axis = 0, dtype=float)
 
-    #coords = np.moveaxis(coords,0, -2)
-    #coords = np.ascontiguousarray(coords)
+    coords = np.moveaxis(coords,0, -2)
+    coords = np.ascontiguousarray(coords)
 
     return coords
 
 
 
 def coords_transform(arr, coords):
+    coords = np.moveaxis(coords,-2, 0)[:3,...]
+    coords = np.ascontiguousarray(coords)
+    
     return map_coordinates(arr, coords, order=1, mode='constant', cval=0.0)
 
 
