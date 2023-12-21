@@ -38,6 +38,8 @@ def plot_fit(sino,angs):
     plt.plot(angs,y)
     plt.show()
     
+    plt.plot(angs,y-cg)
+    plt.show()
     
 
 def estimate_wobble(sino,angs):

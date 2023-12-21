@@ -197,9 +197,16 @@ def rebin(a, shape):
     (shape[0], shape[1]) numpy ndarray 
         The evenly spaced array
     """    
-    
+
+    """    
     sh = shape[0],a.shape[0]//shape[0],shape[1],a.shape[1]//shape[1]
     return a.reshape(sh).mean(-1).mean(1)
+    """
+
+    factors = (np.array(a.shape)/np.asanyarray(shape)).astype(int)
+    sh = np.column_stack([a.shape//factors, factors]).ravel()
+    return a.reshape(sh).mean(tuple(range(1, 2*a.ndim, 2)))
+
 
 
 class Grid3d:
