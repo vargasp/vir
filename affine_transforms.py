@@ -116,7 +116,7 @@ def rotateMat(angs, center=None, seq='XYZ', extrinsic=True, rank=2):
     #Rank must be 1 more than the number of translation or have min of 3
     if n > 1: rank = max(rank, 3)    
     if center is None: rank = max(rank, 3)
-    if np.array(center).size > 2: rank = max(rank, 4)
+    rank = max(rank, np.array(center).size + 1)
 
 
     #If the angle is intrinsic lower the sequence 
@@ -164,7 +164,7 @@ def coords_array(shape,ones=False):
 
 
 def coords_transform(arr, coords):
-    coords = np.moveaxis(coords,-2, 0)[:3,...]
+    coords = np.moveaxis(coords,-2, 0)[:-1,...]
     coords = np.ascontiguousarray(coords)
     
     return map_coordinates(arr, coords, order=1, mode='constant', cval=0.0)
