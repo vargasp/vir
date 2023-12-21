@@ -127,7 +127,7 @@ def rotateMat(angs, center=None, seq='XYZ', extrinsic=True, rank=2):
     seq = seq[(3-n):]
     
     #Calcuatd a 3x3 rotation matrix (centered at the 0,0)
-    R = transform.Rotation.from_euler(seq, angs, degrees=True)
+    R = transform.Rotation.from_euler(seq, angs, degrees=False)
     R = R.as_matrix().squeeze()
     R = rankIdn(R, rank)
 

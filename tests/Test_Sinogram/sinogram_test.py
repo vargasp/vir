@@ -23,26 +23,24 @@ from scipy.ndimage import affine_transform
 nX = 128
 nY = 128
 nZ = 64
-f =4
+f = 1
 
 """
 3d
 """
 phantom = np.zeros([nX*f, nY*f])
 phantom[56*f:72*f,56*f:72*f] = 1
-phantom = np.tile(phantom, (nZ,1,1))
+phantom = np.tile(phantom, (f*nZ,1,1))
 phantom = phantom.transpose([1,2,0])
-phantom *= np.arange(nZ)
+phantom *= np.arange(f*nZ)
 
 nX, nY, nZ = phantom.shape
 
 nAng = 256*f
-angs = np.linspace(0,nAng,nAng,endpoint=False)
+angs = np.linspace(0,np.pi*2,nAng,endpoint=False)
 
-sino10 = sg.forward_project_wobble(phantom, angs, 10, 0, center=(nX/2.-.5,nY/2.-.5,0.5))
+sino10 = sg.forward_project_wobble(phantom, angs, 0, 10/180*np.pi, center=(nX/2.-.5,nY/2.-.5,0.5))
 sino10 = vir.rebin(sino10, [nAng, nZ, nX])
-
-
 
 plt.imshow(sino0[0,:,:], origin='lower')
 plt.imshow(sino10[0,:,:], origin='lower')
@@ -51,12 +49,52 @@ plt.imshow(sino10[0,:,:], origin='lower')
 """
 3d Coorection
 """
+a = sg.estimate_wobble(sino10,angs)
+center = a[0].mean()
+m, y_int = np.polyfit(np.arange(64), a[1], 1)
+z_center = -y_int/m
+phi = np.arctan(m)
+theta = a[2,:].mean()
+print(center, z_center, phi*np.pi/180,theta*np.pi/180)
+
+
+phantom = np.zeros([nX*f, nY*f])
+phantom[24*f:40*f,56*f:72*f] = 1
+phantom = np.tile(phantom, (f*nZ,1,1))
+phantom = phantom.transpose([1,2,0])
+phantom *= np.arange(f*nZ)
+
+nX, nY, nZ = phantom.shape
+
+sino10 = sg.forward_project_wobble(phantom, angs, 0, 10/180*np.pi, center=(nX/2.-.5,nY/2.-.5,0.5))
+sino10 = vir.rebin(sino10, [nAng, nZ, nX])
+sino0 = sg.forward_project_wobble(phantom, angs, 0, 0, center=(nX/2.-.5,nY/2.-.5,0.5))
+sino0 = vir.rebin(sino0, [nAng, nZ, nX])
+
+
+a0 = sg.estimate_wobble(sino0,angs)
+a10 = sg.estimate_wobble(sino10,angs)
+
+center = a[0].mean()
+m, y_int = np.polyfit(np.arange(64), a[1], 1)
+z_center = -y_int/m
+phi = np.arctan(m)
+theta = a[2,:].mean()
+print(center, z_center, phi,theta)
+
+
+
+
+
+
+
+
+
 sinoC = sg.correct_wobble(sino10, angs/180*np.pi, -10, 0, center=(0.5, nX/2.0-.5))
 plt.imshow(sinoC[0,:,:], origin='lower')
 
 
 
-a = sg.estimate_wobble(sino10,angs/180*np.pi)
 sg.plot_fit(sino10[:,60,:],angs/180*np.pi)
 
 
