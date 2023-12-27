@@ -17,7 +17,7 @@ import vir.affine_transforms as af
 
 
 def cog(sino):
-    return np.sum(sino*np.arange(1,sino.shape[-1]+1),axis=-1)/sino.sum(axis=-1)
+    return np.sum(sino*np.arange(1,sino.shape[-1]+1),axis=-1)/sino.sum(axis=-1) - .5
 
 
 def sine_wave(x, offset, amplitude, phase):
