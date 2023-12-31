@@ -49,41 +49,89 @@ def gen_params(params):
 
 
 
+
+
 nX = 128
 nY = 128
-nZ = 160
+nZ = 180
 
 nAng = 256
 angs = np.linspace(0,np.pi*2,nAng,endpoint=False)
 phantom = gen_phantom(nX,nY,nZ)
 
+"""
+sino00 = gen_sino(phantom,angs,phi=0,theta=0)
+sino20 = gen_sino(phantom,angs,phi=.2,theta=0)
+sino02 = gen_sino(phantom,angs,phi=0,theta=.2)
+sino22 = gen_sino(phantom,angs,phi=.2,theta=.2)
+
+x=40
+y=0
+center_rot = (nX/2.-.5+x,nY/2.-.5+y,nZ/2.-.5)
+phant_shift = np.roll(phantom,(x,y),axis=(0,1))
+sinoS0 = gen_sino(phant_shift,angs,phi=.2,theta=0)
+sinoS1 = gen_sino(phant_shift,angs,phi=.2,theta=0,center=center_rot)
+"""
+
 
 Xs = vir.censpace(5).astype(int)
 Ys = vir.censpace(5).astype(int)
-phi = 10*np.pi/180
-theta = 0
+phis = vir.censpace(5,2.5*np.pi/180)
+thetas = vir.censpace(5,2.5*np.pi/180)
 
-params_arr = np.zeros((Xs.size,Ys.size,3,128 ))
-center_arr = np.zeros((Xs.size,Ys.size))
-z_center_arr = np.zeros((Xs.size,Ys.size))
-phi_arr = np.zeros((Xs.size,Ys.size))
-theta_arr = np.zeros((Xs.size,Ys.size))
+params_arr = np.zeros((Xs.size,Ys.size,thetas.size,phis.size,3,128 ))
+center_arr = np.zeros((Xs.size,Ys.size,thetas.size,phis.size))
+z_center_arr = np.zeros((Xs.size,Ys.size,thetas.size,phis.size))
+phi_arr = np.zeros((Xs.size,Ys.size,thetas.size,phis.size))
+theta_arr = np.zeros((Xs.size,Ys.size,thetas.size,phis.size))
 
+for i, x, in enumerate(Xs): 
+    for j, y, in enumerate(Ys):
+        center_rot = (nX/2.-.5+x,nY/2.-.5+y,nZ/2.-.5)
+        phant_shift = np.roll(phantom,(x,y),axis=(0,1))
+
+        for k, theta, in enumerate(thetas): 
+            for l, phi, in enumerate(phis): 
+
+                sino = gen_sino(phant_shift,angs,phi=phi,theta=theta,center=center_rot)[:,26:154,:]
+        
+                params = sg.estimate_wobble(sino,angs)
+                center_e, z_center_e, phi_e, theta_e = gen_params(params)
+                print(i,j,k,l)
+                print(f'Center: {center_e:.2f}, Z Center: {z_center_e:.2f}, Phi: {phi_e/np.pi*180:.2f}, Theta:{theta_e*np.pi/180:2f}')
+                print('')
+                params_arr[i,j,k,l,:,:] = params
+                center_arr[i,j,k,l] = center_e
+                z_center_arr[i,j,k,l] = z_center_e
+                phi_arr[i,j,k,l] = phi_e
+                theta_arr[i,j,k,l] = theta_e
+        
+        
+
+params_arr2 = np.zeros((Xs.size,Ys.size,thetas.size,phis.size,3,128 ))
+center_arr2 = np.zeros((Xs.size,Ys.size,thetas.size,phis.size))
+z_center_arr2 = np.zeros((Xs.size,Ys.size,thetas.size,phis.size))
+phi_arr2 = np.zeros((Xs.size,Ys.size,thetas.size,phis.size))
+theta_arr2 = np.zeros((Xs.size,Ys.size,thetas.size,phis.size))
 
 for i, x, in enumerate(Xs): 
     for j, y, in enumerate(Ys): 
-
         phant_shift = np.roll(phantom,(x,y),axis=(0,1))
-        sino = gen_sino(phant_shift,angs,phi=0,theta=0)[:,16:144,:]
+
+        for k, theta, in enumerate(thetas): 
+            for l, phi, in enumerate(phis): 
+
+                sino = gen_sino(phant_shift,angs,phi=phi,theta=theta)[:,26:164,:]
         
-        params = sg.estimate_wobble(sino,angs)
-        center, z_center, phi, theta = gen_params(params)        
-        print(f'Center: {center:.2f}, Z Center: {z_center:.2f}, Phi: {phi/np.pi*180:.2f}, Theta:{theta*np.pi/180:2f}')
-
-        params_arr[i,j,:,:] = params
-        center_arr[i,j] = center
-        z_center_arr[i,j] = z_center
-        phi_arr[i,j] = phi
-        theta_arr[i,j] = theta
-
-
+                params = sg.estimate_wobble(sino,angs)
+                center, z_center, phi, theta = gen_params(params)
+                print(i,j,k,l)
+                print(f'Center: {center:.2f}, Z Center: {z_center:.2f}, Phi: {phi/np.pi*180:.2f}, Theta:{theta*np.pi/180:2f}')
+                print('')
+                params_arr2[i,j,k,l,:,:] = params
+                center_arr2[i,j,k,l] = center
+                z_center_arr2[i,j,k,l] = z_center
+                phi_arr2[i,j,k,l] = phi
+                theta_arr2[i,j,k,l] = theta
+        
+        
