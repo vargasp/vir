@@ -11,6 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import vir
+import vir.phantoms as pt
 import vir.sinogram as sg
 import vt
 
@@ -20,8 +21,7 @@ def gen_phantom(nX,nY,nZ,f=1):
     sX = slice(int(nX/2-1*f), int(nX/2+1*f))
     sY = slice(int(nY/2-1*f), int(nY/2+1*f))
     
-    phantom = np.zeros([nX*f, nY*f])
-    phantom[sX,sY] = 1
+    phantom = pt.discrete_circle(nPixels=(nX,nY), radius=nX/8, upsample=4)
     phantom = np.tile(phantom, (f*nZ,1,1))
     phantom = phantom.transpose([1,2,0])
 
@@ -51,33 +51,21 @@ def gen_params(params):
 
 
 
-nX = 16
-nY = 16
-nZ = 16
+nX = 32
+nY = 32
+nZ = 32
 
-nAng = 32
+nAng = int(nX*2)
 angs = np.linspace(0,np.pi*2,nAng,endpoint=False)
 phantom = gen_phantom(nX,nY,int(nZ*1.25))
 
-"""
-sino00 = gen_sino(phantom,angs,phi=0,theta=0)
-sino20 = gen_sino(phantom,angs,phi=.2,theta=0)
-sino02 = gen_sino(phantom,angs,phi=0,theta=.2)
-sino22 = gen_sino(phantom,angs,phi=.2,theta=.2)
+Xs = vir.censpace(13).astype(int)
+Ys = vir.censpace(13).astype(int)
+Xs = np.array([0])
+Ys = np.array([0])
 
-x=40
-y=0
-center_rot = (nX/2.-.5+x,nY/2.-.5+y,nZ/2.-.5)
-phant_shift = np.roll(phantom,(x,y),axis=(0,1))
-sinoS0 = gen_sino(phant_shift,angs,phi=.2,theta=0)
-sinoS1 = gen_sino(phant_shift,angs,phi=.2,theta=0,center=center_rot)
-"""
-
-
-Xs = vir.censpace(7).astype(int)
-Ys = vir.censpace(7).astype(int)
-phis = vir.censpace(7,2.5*np.pi/180)
-thetas = vir.censpace(7,2.5*np.pi/180)
+phis = vir.censpace(13,2.5*np.pi/180)
+thetas = vir.censpace(13,2.5*np.pi/180)
 
 params_arr = np.zeros((Xs.size,Ys.size,thetas.size,phis.size,3,nZ ))
 center_arr = np.zeros((Xs.size,Ys.size,thetas.size,phis.size))

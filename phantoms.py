@@ -270,3 +270,44 @@ def discrete_sphere(nPixels=512, center=None, radius=10):
     x,y,z = np.indices((nPixels[0],nPixels[1],nPixels[2])) + 0.5
     
     return (x - center[0])**2 + (y - center[1])**2 + (z - center[2])**2 < radius**2
+
+
+def discrete_circle(nPixels=512, center=None, radius=10, upsample=1):
+    """
+        Returns a boolean array with a cicular mask with the specifiec paramters
+        
+        Parameters:
+        
+        center:    The location of the center of the mask (j,i)  [index]
+        radius:    The size of the mask's radius in pixels
+        img_shape: List or tuple specifying pixels [nrows,ncols] for the image
+       
+        Returns:
+        
+        A boolean array with a cicular mask
+    """
+
+    upsample = int(upsample)
+
+    nPixels = upsample*np.array(nPixels,dtype=int)
+    if nPixels.size == 1:
+        nPixels = np.repeat(nPixels,2)
+
+    if center is None:
+        center = nPixels/2.0
+    else:
+        center = upsample*np.array(center) + nPixels/2.0
+            
+    x,y = np.indices((nPixels[0],nPixels[1])) + 0.5
+    
+    return vir.rebin( ((x - center[0])**2 + (y - center[1])**2 < (upsample*radius)**2), nPixels/upsample)
+
+
+
+
+
+
+
+
+
+
