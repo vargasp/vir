@@ -75,7 +75,7 @@ theta_arr = np.zeros((Xs.size,Ys.size,thetas.size,phis.size))
 
 for i, x, in enumerate(Xs): 
     for j, y, in enumerate(Ys):
-        center_rot = (nX/2.-.5+x,nY/2.-.5+y,nZ/2.-.5)
+        center_rot = (nX/2.-.5+x,nY/2.-.5+y,(nZ*1.25)/2.-.5)
         phant_shift = np.roll(phantom,(x,y),axis=(0,1))
 
         for k, theta, in enumerate(thetas): 
@@ -97,7 +97,23 @@ for i, x, in enumerate(Xs):
         
 
 
+sino6 = gen_sino(phant_shift,angs,phi=phi,theta=thetas[6],center=center_rot)[:,c:(nZ+c),:]
+sino7 = gen_sino(phant_shift,angs,phi=phi,theta=thetas[7],center=center_rot)[:,c:(nZ+c),:]
+sino8 = gen_sino(phant_shift,angs,phi=phi,theta=thetas[8],center=center_rot)[:,c:(nZ+c),:]
+sino9 = gen_sino(phant_shift,angs,phi=phi,theta=thetas[9],center=center_rot)[:,c:(nZ+c),:]
+sino10 = gen_sino(phant_shift,angs,phi=phi,theta=thetas[10],center=center_rot)[:,c:(nZ+c),:]
+sino11 = gen_sino(phant_shift,angs,phi=phi,theta=thetas[11],center=center_rot)[:,c:(nZ+c),:]
+sino12 = gen_sino(phant_shift,angs,phi=phi,theta=thetas[12],center=center_rot)[:,c:(nZ+c),:]
+params6 = sg.estimate_wobble(sino6,angs)
+params7 = sg.estimate_wobble(sino7,angs)
+params8 = sg.estimate_wobble(sino8,angs)
+params9 = sg.estimate_wobble(sino9,angs)
+params10 = sg.estimate_wobble(sino10,angs)
+params11 = sg.estimate_wobble(sino11,angs)
+params12 = sg.estimate_wobble(sino12,angs)
 
+
+"""
         
 
 params_arr2 = np.zeros((Xs.size,Ys.size,thetas.size,phis.size,3,128 ))
@@ -126,4 +142,4 @@ for i, x, in enumerate(Xs):
                 phi_arr2[i,j,k,l] = phi
                 theta_arr2[i,j,k,l] = theta
         
-        
+"""
