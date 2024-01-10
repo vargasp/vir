@@ -21,7 +21,7 @@ def cog(sino):
 
 
 def sine_wave(x, offset, amplitude, phase):
-    return np.sin(x + phase) * amplitude + offset
+    return np.cos(x + phase) * amplitude + offset
 
 
 def plot_fit(sino,angs):
@@ -51,7 +51,7 @@ def estimate_wobble(sino,angs):
     #bounds = ((0,0,0),(nCols,4*nCols,2*np.pi))
     
     for row in range(nRows):
-        a = [(nCols-1)/2., (np.max(cg[:,row]) - np.min(cg[:,row]))/2., 0.]                               
+        a = [(nCols-1)/2., (np.max(cg[:,row]) - np.min(cg[:,row]))/2., angs[np.argmax(angs)]]                               
 
         #cf_p, pcov = curve_fit(sine_wave, angs, cg[:,row], p0=a, bounds=bounds)
         cf_p, pcov = curve_fit(sine_wave, angs, cg[:,row], p0=a)
@@ -60,14 +60,15 @@ def estimate_wobble(sino,angs):
         if cf_p[1] < 0:
            cf_p[1] *= -1.0
            cf_p[2] = cf_p[2] + np.pi
-        """
         
+        """
         if cf_p[2] < 0:
             cf_p[2] = cf_p[2] + 2*np.pi
  
         if cf_p[2] > 2*np.pi:
-            cf_p[2] = cf_p[2] % 2*np.pi
+            cf_p[2] = cf_p[2] % (2*np.pi)
     
+        
         wave_properties[:,row] = cf_p[:3]
 
     return wave_properties
