@@ -42,6 +42,64 @@ def plot_fit(sino,angs):
     plt.show()
     
 
+
+def _org_wave_properites(wp):
+    
+    idx = wp[2,:] < 0
+    wp[2,idx] +=  2*np.pi
+
+    idx = wp[2,:] > 2*np.pi
+    wp[2,idx] %= (2*np.pi)
+    
+    return wp
+
+
+def org_wave_properites(wp):
+    
+    wp = _org_wave_properites(wp)
+        
+    #Deterines how many modes are in the the theta array
+    bins = np.linspace(0,np.pi*2,8,endpoint=True)
+    hist = np.histogram(wp[2,:],bins=bins)
+    nModes = np.sum(hist[0] > 0)
+    
+    
+    if nModes == 2:
+        
+        idxs = np.argsort(hist[0])[-2:]
+
+        m0_sub = (wp[2,:] > hist[1][idxs[0]]) * (wp[2,:] < hist[1][idxs[0]+1])
+        m0_mean = np.mean(wp[2,m0_sub])
+
+        m1_sub = (wp[2,:] > hist[1][idxs[1]]) * (wp[2,:] < hist[1][idxs[1]+1])
+        m1_mean = np.mean(wp[2,m1_sub])
+
+
+        #Aligns thetas accros slices
+        if np.isclose(m0_mean-m1_mean, np.pi*2, atol=0.01):
+            wp[2,m0_sub] -= np.pi*2
+    
+        if np.isclose(m1_mean-m0_mean, np.pi*2, atol=0.01):
+            wp[2,m1_sub] -= np.pi*2
+    
+        if np.isclose(m1_mean-m0_mean, np.pi, atol=0.01):
+            wp[2,m0_sub] += np.pi
+            wp[1,m0_sub] *= -1.0
+    
+        if np.isclose(m0_mean-m1_mean, np.pi, atol=0.01):
+            wp[2,m0_sub] -= np.pi
+            wp[1,m0_sub] *= -1.0
+    
+    slope = np.polyfit(np.arange(wp.shape[1]), wp[1,:], 1)[0]
+    if slope < 0:
+        wp[2,:] += np.pi
+        wp[1,:] *= -1.0
+        wp = _org_wave_properites(wp)
+    
+    
+    return wp
+
+
 def estimate_wobble(sino,angs):
     
     nAngs, nRows, nCols = sino.shape 
@@ -55,21 +113,12 @@ def estimate_wobble(sino,angs):
 
         #cf_p, pcov = curve_fit(sine_wave, angs, cg[:,row], p0=a, bounds=bounds)
         cf_p, pcov = curve_fit(sine_wave, angs, cg[:,row], p0=a)
-    
-        """
-        if cf_p[1] < 0:
-           cf_p[1] *= -1.0
-           cf_p[2] = cf_p[2] + np.pi
-        
-        """
-        if cf_p[2] < 0:
-            cf_p[2] = cf_p[2] + 2*np.pi
- 
-        if cf_p[2] > 2*np.pi:
-            cf_p[2] = cf_p[2] % (2*np.pi)
-    
-        
+                
         wave_properties[:,row] = cf_p[:3]
+
+
+    wave_properties = org_wave_properites(wave_properties)
+        
 
     return wave_properties
 
@@ -106,7 +155,7 @@ def correct_wobble(sino, angs, phi, theta, center=None):
     
     
     coords = af.coords_array((nRows,nCols), ones=True)
-    angle_shifts = phi*np.cos(angs+theta)
+    angle_shifts = -phi*np.cos(angs+theta)
     
     for i, angle_shift in enumerate(angle_shifts):
         R = af.rotateMat(angle_shift, center=center)
