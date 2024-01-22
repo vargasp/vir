@@ -439,6 +439,29 @@ def LorentzianPSF(gamma,dPixel=1.0,dims=1,epsilon=1e-3):
     return psf/psf.sum()
 
 
+def estimatePSF(im_t, im_b, mask=None, kernel_size=None):
+    fft_im_t = np.fft.fftshift(np.fft.fft2(im_t))
+    fft_im_b = np.fft.fftshift(np.fft.fft2(im_b))
+    fft_psf = fft_im_b / fft_im_t
+    
+    if mask is not None:
+        fft_psf = vir.mask(fft_psf, mask)
+    
+    psf = np.fft.fftshift(np.fft.ifft2(np.fft.ifftshift(fft_psf)))
+    psf = np.real(psf)
+    
+    if kernel_size is None:
+        return psf
+    else:
+        k0 = int(im_t.shape[0]/2 - kernel_size[0]/2)
+        k1 = int(im_t.shape[1]/2 - kernel_size[1]/2)
+
+        return psf[k0:(k0+kernel_size[0]),k1:(k1+kernel_size[1])]
+
+
+
+
+
 
 
 #least squares fit to a 3D-ellipsoid
