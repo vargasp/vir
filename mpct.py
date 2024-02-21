@@ -8,8 +8,25 @@ Created on Thu Mar 10 13:53:21 2022
 
 import multiprocessing as mp
 import numpy as np
+import os, psutil
 
 import ctypes
+
+
+def ps_mem():
+    return psutil.Process().memory_full_info().rss/(1024**3)
+
+def ps_info(out='', m=[]):
+    cpu = psutil.Process().cpu_num()
+    pid = os.getpid()
+    ppid = os.getppid()
+    m.append(psutil.Process().memory_full_info().rss/(1024**3))
+   
+    print(out + f': CPU#: {cpu:3}, pid: {pid}, ppid: {ppid}, Mem RSS: {m[0]:.2f}GB', end='')
+    for i in m[1:]:
+        print(f', {i:.2f}GB', end='')
+    print()
+
 
 
 class Ray(ctypes.Structure):
