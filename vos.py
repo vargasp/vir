@@ -38,6 +38,7 @@ def box_dir(research_folder=True):
 
     #Mac Location
     box_drive_locations.append('/Users/vargasp/Library/CloudStorage/Box-Box/')
+    box_drive_locations.append('/Users/vargasp/Box/')
     box_drive_locations.append('/Users/pvargas21/Library/CloudStorage/Box-Box/')
 
     #PC location
