@@ -9,11 +9,75 @@ Created on Thu Dec 21 11:42:09 2023
 
 import numpy as np
 import matplotlib.pyplot as plt
-
+from PIL import Image
 
 from scipy.optimize import curve_fit
 
 import vir.affine_transforms as af
+
+
+def read_tiff_rows(infiles,rows=None,cols=None):
+    """
+    Reads a contiguous box of pixels from a series of tiff images and generates
+    a stacked array. This can be used to generate sinograms from a set of
+    projection images. This method does not read the entire image which can
+    improve read speed for large projection image when only a few slice need
+    to be reconstructed.
+
+    Parameters
+    ----------
+    infiles : list or str
+        Filename of the tiff image or list of filenames
+    rows : int or (2) array like, optional
+        row or [row_start, row_end] indices. Default is all rows
+    cols : int or (2) array like, optional
+        col or [col_start, col_end] indices. Default is all cols
+
+    Returns
+    -------
+    nd.nparray
+    The 
+
+    """
+
+
+    #If only one file name is provided wrap it in list to make it iterable
+    if isinstance(infiles,str):
+        infiles = [infiles]
+
+    im_obj = Image.open(infiles[0])
+    w,h = im_obj.size
+
+    #If row indices are not provided include all rows
+    if rows==None:
+        rows = np.array([0,h])
+    else:
+        rows = np.array(rows)
+
+    #If col indices are not provided include all cols
+    if cols==None:
+        cols = np.array([0,w])
+    else:
+        cols = np.array(cols)
+
+    #If only 1 index is provided set end to next index
+    if rows.size == 1:
+        rows = np.append(rows, rows + 1)
+
+    #If only 1 index is provided set end to next index
+    if cols.size == 1:
+        cols = np.append(cols, cols + 1)
+
+    #Allocate space for the array
+    im_arr = np.empty([len(infiles),rows[1]-rows[0],cols[1]-cols[0]])
+    
+    #Loop though the filenames, extract the subset data, and save it to the array
+    for z, infile in enumerate(infiles):
+        im_obj = Image.open(infile)
+        
+        im_arr[z,:,:] = np.array(im_obj.crop(box=[cols[0],rows[0],cols[1],rows[1]]))
+
+    return im_arr
 
 
 def cog(sino):

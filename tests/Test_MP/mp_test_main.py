@@ -24,8 +24,8 @@ if __name__ == '__main__':
 
 
 m1 = mpct.ps_mem()
-X_shape = (16, 1024*1024*32)
-#X_shape = (16, 1024*32)
+#X_shape = (16, 1024*1024*32)
+X_shape = (16, 1024*32)
 
 # Randomly generate some data
 data = np.random.randn(*X_shape)
