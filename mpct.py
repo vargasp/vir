@@ -8,11 +8,12 @@ Created on Thu Mar 10 13:53:21 2022
 
 import multiprocessing as mp
 import numpy as np
-import os, psutil
+#import os, psutil
 
 import ctypes
 
 
+"""
 def ps_mem():
     return psutil.Process().memory_full_info().rss/(1024**3)
 
@@ -26,7 +27,7 @@ def ps_info(out='', m=[]):
     for i in m[1:]:
         print(f', {i:.2f}GB', end='')
     print()
-
+"""
 
 
 class Ray(ctypes.Structure):

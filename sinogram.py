@@ -12,8 +12,18 @@ import matplotlib.pyplot as plt
 from PIL import Image
 
 from scipy.optimize import curve_fit
-
+from os.path import join, sep, abspath
 import vir.affine_transforms as af
+
+
+def read_file(fname, dirs=None):
+    return np.array(Image.open(abspath(join(sep,dirs,fname))))
+
+
+def reads_gains(proj_dirs, gf_pre='gain.tif', gf_post='gain_post.tif'):
+    g1 = read_file(gf_pre, dirs=proj_dirs)
+    g2 = read_file(gf_post, dirs=proj_dirs)
+    return (g1,g2)
 
 
 def read_tiff_rows(infiles,rows=None,cols=None):
@@ -69,7 +79,7 @@ def read_tiff_rows(infiles,rows=None,cols=None):
         cols = np.append(cols, cols + 1)
 
     #Allocate space for the array
-    im_arr = np.empty([len(infiles),rows[1]-rows[0],cols[1]-cols[0]])
+    im_arr = np.empty([len(infiles),rows[1]-rows[0],cols[1]-cols[0]],dtype=np.float32)
     
     #Loop though the filenames, extract the subset data, and save it to the array
     for z, infile in enumerate(infiles):
