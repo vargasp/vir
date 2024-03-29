@@ -91,12 +91,47 @@ def read_tiff_rows(infiles,rows=None,cols=None):
 
 
 def cog(sino):
+    """
+    Calculates the center of gravity of a sinogram. The sinogram can be any
+    shape, but the bins must be the last axis 
+
+    Parameters
+    ----------
+    sino : array_like
+        Sinogram to calcualte the center of gravity
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+
+    """
     return np.sum(sino*np.arange(1,sino.shape[-1]+1),axis=-1)/sino.sum(axis=-1) - .5
 
 
 def sine_wave(x, offset, amplitude, phase):
     return np.cos(x + phase) * amplitude + offset
 
+def fit_sine_wave(sino, angs):
+
+    if sino.ndim == 2:
+        nAngs, nCols = sino.shape
+        nRows = 1
+    else:
+        nAngs, nRows, nCols = sino.shape 
+
+    cg = cog(sino)
+    a = [(nCols-1)/2., (np.max(cg,axis=0) - np.min(cg,axis=0))/2., 0.]                               
+
+    if nRows == 1:
+        return curve_fit(sine_wave, angs, cg, p0=a)[0]
+    else:
+        res = np.empty([nRows,3])
+        for row in range(nRows):
+            res[row,:] = curve_fit(sine_wave, angs, cg[:,row], p0=[a[0],a[1][row],a[2]])[0]
+        
+        return res
+                
 
 def plot_fit(sino,angs):
     nAngs, nCols = sino.shape 
