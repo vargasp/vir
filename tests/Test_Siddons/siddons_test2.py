@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 
 import vir
 import vir.siddon as sd
-import vt
 
 
 def print_sdlist(sdlist):

@@ -6,19 +6,45 @@ Created on Fri Jul 23 22:16:09 2021
 @author: vargasp
 """
 
-
+import os
+filename = os.environ.get('PYTHONSTARTUP')
+if filename and os.path.isfile(filename):
+    with open(filename) as fobj:
+        startup_file = fobj.read()
+    exec(startup_file)
+    
+    
+    
 import numpy as np
 import matplotlib.pyplot as plt
 import time
 import importlib
 
-import vt
-import vir
+#import vt
+#import vir
 import vir.siddon as sd
 import vir.proj_geom as pg
 import time
-    
 
+
+nPix = 4
+nPixels = (nPix,nPix,1)
+dPix = 1.0
+
+importlib.reload(sd)
+
+trg = np.array([3.0,.25,.25])
+src = np.array([-3.0,.25,.25])
+
+importlib.reload(sd)
+#sd.calc_grid_lines(5,4,4,1.0,1,1.5)
+    
+sd.siddon_c(src,trg,nPixels,dPix)
+
+a = sd.siddons(src,trg,nPixels,dPix)
+print(a)
+
+"""
 
 nPix = 4
 nPixels = (nPix,nPix,1)
@@ -124,7 +150,7 @@ print((h - j)[:,:,0])
 
 a = sd.siddons(srcs,trgs,nPixels, dPix, flat=True)
 sd.list_ave(a, flat=True, ravel=True, nPixels=nPixels, nRays=32)
-
+"""
 
 
 #test = sd.list_flip(c.copy(),x=2,y=None,z=None,ravel=False,nPixels=nPixels)
@@ -179,7 +205,7 @@ b = sd.list2array(a, nPixels, ravel=False, ave=True)
 
 
 
-
+"""
 
 
 #Sheep Lgan Cicular
@@ -411,5 +437,5 @@ src = [500, 311.8166274539262, 235.9766274539262]
 trg = [-147.0, -0.72, -76.55999999999999]
 a = sd.siddons(trg,src,nPixels, dPixel, return_format='ravel_idx')
 
-
+"""
 
