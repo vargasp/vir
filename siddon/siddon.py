@@ -839,33 +839,39 @@ def calc_grid_lines(X,Y,Z, x_size, y_size, z_size):
     print(f_arr3)
 
 
-class Vect(ctypes.Structure):
+class VectI(ctypes.Structure):
+     _fields_ = [("x", ctypes.c_int32),
+                ("y", ctypes.c_int32),
+                ("z", ctypes.c_int32)]
+
+
+class VectF(ctypes.Structure):
      _fields_ = [("x", ctypes.c_float),
                 ("y", ctypes.c_float),
                 ("z", ctypes.c_float)]
 
-class Weight(ctypes.Structure):
-     _fields_ = [("pixel", ctypes.c_int),
-                ("length", ctypes.c_float)]
 
+class VoxelLength(ctypes.Structure):
+     _fields_ = [("idx", ctypes.c_int),
+                ("length", ctypes.c_float)]
 
 
 def siddon_c(src, trg, nPixels=128, dPixels=1.0):
     #Converts and assigns paramters to approprate data types
     src = np.array(src, dtype=np.float32)        
     trg = np.array(trg, dtype=np.float32)
-    nX,nY,nZ = vir.np_array(nPixels,3, dtype=int)
-    dX,dY,dZ = vir.np_array(dPixels,3, dtype=np.float32)
+    nPixels = vir.np_array(nPixels,3, dtype=np.int32)
+    dPixels = vir.np_array(dPixels,3, dtype=np.float32)
 
     #Allocates memory for the arrays
-    Xb =  np.empty(nX+1, dtype=np.float32)
-    Yb =  np.empty(nY+1, dtype=np.float32)
-    Zb =  np.empty(nZ+1, dtype=np.float32)
+    Xb =  np.empty(nPixels[0]+1, dtype=np.float32)
+    Yb =  np.empty(nPixels[1]+1, dtype=np.float32)
+    Zb =  np.empty(nPixels[2]+1, dtype=np.float32)
 
-    X_alpha =  np.empty(nX+1, dtype=np.float32)
-    Y_alpha =  np.empty(nY+1, dtype=np.float32)
-    Z_alpha =  np.empty(nZ+1, dtype=np.float32)
-    Alpha =  np.empty(2*(max(nX,nY,nZ)+2)+1, dtype=np.float32)
+    X_alpha =  np.empty(nPixels[0]+1, dtype=np.float32)
+    Y_alpha =  np.empty(nPixels[1]+1, dtype=np.float32)
+    Z_alpha =  np.empty(nPixels[2]+1, dtype=np.float32)
+    Alpha =  np.empty(2*(max(nPixels[0],nPixels[1],nPixels[2])+2)+1, dtype=np.float32)
     
     #Assigns c types pointers to variables
     c_float_p = ctypes.POINTER(ctypes.c_float)
@@ -874,16 +880,6 @@ def siddon_c(src, trg, nPixels=128, dPixels=1.0):
     Xb_c = Xb.ctypes.data_as(c_float_p)
     Yb_c = Yb.ctypes.data_as(c_float_p)
     Zb_c = Zb.ctypes.data_as(c_float_p)
-    
-    #Grid dimensions pointers
-    nX_c = ctypes.c_int(nX)
-    nY_c = ctypes.c_int(nY)
-    nZ_c = ctypes.c_int(nZ)
-    
-    #Voxel size pointers
-    dX_c = ctypes.c_float(dX)
-    dY_c = ctypes.c_float(dY)
-    dZ_c = ctypes.c_float(dZ)
 
     #Alpha array pointers
     X_alpha_c = X_alpha.ctypes.data_as(c_float_p)
@@ -892,26 +888,31 @@ def siddon_c(src, trg, nPixels=128, dPixels=1.0):
     Alpha_c = Alpha.ctypes.data_as(c_float_p)
 
     #Struct array pointers
-    src_c = Vect(ctypes.c_float(src[0]),ctypes.c_float(src[1]),ctypes.c_float(src[2]))
-    trg_c = Vect(ctypes.c_float(trg[0]),ctypes.c_float(trg[1]),ctypes.c_float(trg[2]))
+    nPixels_c = VectI(ctypes.c_int32(nPixels[0]),ctypes.c_int32(nPixels[1]),ctypes.c_int32(nPixels[2]))
+    dPixels_c = VectF(ctypes.c_float(dPixels[0]),ctypes.c_float(dPixels[1]),ctypes.c_float(dPixels[2]))
+    src_c = VectF(ctypes.c_float(src[0]),ctypes.c_float(src[1]),ctypes.c_float(src[2]))
+    trg_c = VectF(ctypes.c_float(trg[0]),ctypes.c_float(trg[1]),ctypes.c_float(trg[2]))
 
-    rays_c = (Weight*200)()
+    rays_c = (VoxelLength*200)()
     
     #Calculates the grid lines
-    c_test.calc_grid_lines(Xb_c, Yb_c, Zb_c, nX_c, nY_c, nZ_c, dX_c, dY_c, dZ_c)
+    c_test.calc_grid_lines(Xb_c, Yb_c, Zb_c, nPixels_c, dPixels_c)
  
+    print(dPixels_c.x, dPixels_c.y,dPixels_c.z)
     #
-    c_test.siddons(src_c, trg_c, Xb_c, Yb_c, Zb_c,\
+    c_test.siddons(src_c, trg_c, nPixels_c, dPixels_c, Xb_c, Yb_c, Zb_c,\
                    X_alpha_c, Y_alpha_c, Z_alpha_c, Alpha_c, \
-                   nX_c, nY_c, nZ_c, dX_c, dY_c, dZ_c, ctypes.byref(rays_c))
+                   ctypes.byref(rays_c))
 
     print("OKay")
-    print(rays_c[0].pixel, rays_c[0].length)
-    print(rays_c[1].pixel, rays_c[1].length)
-    print(rays_c[2].pixel, rays_c[2].length)
-    print(rays_c[3].pixel, rays_c[3].length)
-    print(rays_c[4].pixel, rays_c[4].length)
-    print(rays_c[5].pixel, rays_c[5].length)
-    print(rays_c[6].pixel, rays_c[6].length)
+    print(dPixels_c.x, dPixels_c.y,dPixels_c.z)
+  
+    print(rays_c[0].idx, rays_c[0].length)
+    print(rays_c[1].idx, rays_c[1].length)
+    print(rays_c[2].idx, rays_c[2].length)
+    print(rays_c[3].idx, rays_c[3].length)
+    print(rays_c[4].idx, rays_c[4].length)
+    print(rays_c[5].idx, rays_c[5].length)
+    print(rays_c[6].idx, rays_c[6].length)
     
 

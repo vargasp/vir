@@ -29,7 +29,7 @@ import time
 
 nPix = 4
 nPixels = (nPix,nPix,1)
-dPix = 1.0
+dPix = .75
 
 importlib.reload(sd)
 
@@ -41,8 +41,8 @@ importlib.reload(sd)
     
 sd.siddon_c(src,trg,nPixels,dPix)
 
-a = sd.siddons(src,trg,nPixels,dPix)
-print(a)
+#a = sd.siddons(src,trg,nPixels,dPix)
+#print(a)
 
 """
 
