@@ -13,36 +13,41 @@ if filename and os.path.isfile(filename):
         startup_file = fobj.read()
     exec(startup_file)
     
-    
-    
-import numpy as np
-import matplotlib.pyplot as plt
-import time
-import importlib
 
-#import vt
-#import vir
-import vir.siddon as sd
-import vir.proj_geom as pg
 import time
+import numpy as np
+import vir.siddon as sd
 
 
 nPix = 4
 nPixels = (nPix,nPix,1)
 dPix = .75
 
-importlib.reload(sd)
 
 trg = np.array([3.0,.25,.25])
 src = np.array([-3.0,.25,.25])
 
-importlib.reload(sd)
 #sd.calc_grid_lines(5,4,4,1.0,1,1.5)
     
+print(sd.siddons(src, trg, nPixels=nPixels, dPixels=dPix, flat=True, ravel=False))
+
 sd.siddon_c(src,trg,nPixels,dPix)
 
 #a = sd.siddons(src,trg,nPixels,dPix)
 #print(a)
+
+nPix = 4
+dPix = 1.0
+
+
+
+iArray = np.zeros([4,4,4], np.float32)
+iArray[1:3,1:3,1:3] = 1.0
+dArray = np.zeros([4,4,4], np.float32)
+
+sd.forward_project_c(iArray, dArray, nPix, dPix)
+
+print(dArray)
 
 """
 

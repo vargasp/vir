@@ -84,7 +84,6 @@ float min4(float *array)
 
 void calc_grid_lines(float *x_lines, float *y_lines, float *z_lines, VectI nPixels, VectF dPixels)
 {
-  printf("dPixels.x,dPixels.y,dPixels.z: %f, %f, %f\n",dPixels.x,dPixels.y,dPixels.z);
   int i;
 
   x_lines[0] = -nPixels.x*dPixels.x/2.;
@@ -94,8 +93,6 @@ void calc_grid_lines(float *x_lines, float *y_lines, float *z_lines, VectI nPixe
   for(i=1; i<nPixels.x+1; i++) x_lines[i] = x_lines[i-1]+dPixels.x;
   for(i=1; i<nPixels.y+1; i++) y_lines[i] = y_lines[i-1]+dPixels.y;
   for(i=1; i<nPixels.z+1; i++) z_lines[i] = z_lines[i-1]+dPixels.z;
-  printf("dPixels.x,dPixels.y,dPixels.z: %f, %f, %f\n",dPixels.x,dPixels.y,dPixels.z);
-  
 }
 
 
@@ -197,21 +194,12 @@ void calc_inter(VoxelLength *row, float *all_alpha, VectF src,
   while(all_alpha[a_index+1] <= 1.0){
     delta_alpha = all_alpha[a_index+1]-all_alpha[a_index];
     if(delta_alpha > 0.0){
-      printf("delta_alpha %f\n", delta_alpha);
       alpha_sum = 0.5 * (all_alpha[a_index+1] + all_alpha[a_index]);
       x_index = (int)((src.x + alpha_sum*dST.x - x_plane[0])/dPixels.x);
       y_index = (int)((src.y + alpha_sum*dST.y - y_plane[0])/dPixels.y);
-      z_index = (int)((src.z + alpha_sum*dST.z - z_plane[0])/dPixels.z);
-      
-      printf("x_index,y_index,z_index: %d, %d, %d\n",x_index,y_index,z_index);
-      printf("nPixels.x,nPixels.y,nPixels.z: %d, %d, %d\n",nPixels.x,nPixels.y,nPixels.z);
-      printf("dPixels.x,dPixels.y,dPixels.z: %f, %f, %f\n",dPixels.x,dPixels.y,dPixels.z);
-
-      printf("t: %d",  (nPixels.x*nPixels.y*z_index) + (nPixels.x*y_index) + (x_index));
+      z_index = (int)((src.z + alpha_sum*dST.z - z_plane[0])/dPixels.z);      
       row[index].idx  = (nPixels.x*nPixels.y*z_index) + (nPixels.x*y_index) + (x_index);
       row[index].length = distance*delta_alpha;
-      printf("Idx: %d\n",row[index].idx);
-      printf("length: %f\n",row[index].length);
       
       ++index;
     }
@@ -221,20 +209,45 @@ void calc_inter(VoxelLength *row, float *all_alpha, VectF src,
 }
 
 
+//Loops through the alphas and calculates pixel length and pixel index                
+void sum_inter(float *ray_sum, float *iArray, float *all_alpha, VectF src, 
+                VectF dST, VectI nPixels, VectF dPixels,
+                float *x_plane, float *y_plane, float *z_plane)
+{
+  float delta_alpha, alpha_sum, distance;
+  int a_index, x_index, y_index, z_index;
+  
+  distance = sqrt((dST.x*dST.x) + (dST.y*dST.y) + (dST.z*dST.z));
+
+  *ray_sum = 0;
+  a_index = 0;
+  while(all_alpha[a_index+1] <= 1.0){
+    delta_alpha = all_alpha[a_index+1]-all_alpha[a_index];
+    if(delta_alpha > 0.0){
+      alpha_sum = 0.5 * (all_alpha[a_index+1] + all_alpha[a_index]);
+      x_index = (int)((src.x + alpha_sum*dST.x - x_plane[0])/dPixels.x);
+      y_index = (int)((src.y + alpha_sum*dST.y - y_plane[0])/dPixels.y);
+      z_index = (int)((src.z + alpha_sum*dST.z - z_plane[0])/dPixels.z);
+      *ray_sum += iArray[(nPixels.x*nPixels.y*z_index) + (nPixels.x*y_index) + (x_index)]*distance*delta_alpha;
+    }
+    ++a_index;
+  }
+}
+
+
 void siddons(VectF src, VectF trg, VectI nPixels, VectF dPixels, float *x_plane, float *y_plane, float *z_plane, float *x_alpha,
              float *y_alpha, float *z_alpha, float *all_alpha,
              VoxelLength *row)
 {
 
+  printf("\nSiddons\n");
   printf("Size of Int: %lu\n", sizeof(int));
   printf("Size of Float: %lu\n", sizeof(float));
-  printf("Here 1\n");
   printf("src.x,src.y,src.z: %f, %f, %f\n",src.x,src.y,src.z);
   printf("trg.x,trg.y,trg.z: %f, %f, %f\n",trg.x,trg.y,trg.z);
   printf("nPixels.x,nPixels.y,nPixels.z: %d, %d, %d\n",nPixels.x,nPixels.y,nPixels.z);
   printf("dPixels.x,dPixels.y,dPixels.z: %f, %f, %f\n",dPixels.x,dPixels.y,dPixels.z);
-  
-  
+  printf("x_plane,y_plane,z_plane: %f, %f, %f\n",x_plane[0],y_plane[0],z_plane[0]);
   
   
   VectF dST;
@@ -256,7 +269,6 @@ void siddons(VectF src, VectF trg, VectI nPixels, VectF dPixels, float *x_plane,
   calc_alpha_range(m_min, m_max, x_plane, nPixels.x, src.x, dST.x, 1);
   calc_alpha_range(m_min, m_max, y_plane, nPixels.y, src.y, dST.y, 2);
   calc_alpha_range(m_min, m_max, z_plane, nPixels.z, src.z, dST.z, 3);
-  printf("Here 2\n");
 
   alpha_min = max4(m_min);
   alpha_max = min4(m_max);
@@ -268,15 +280,131 @@ void siddons(VectF src, VectF trg, VectI nPixels, VectF dPixels, float *x_plane,
   calc_alphas(x_alpha, x_plane, alpha_min, alpha_max, src.x,  dST.x,  nPixels.x,  dPixels.x);
   calc_alphas(y_alpha, y_plane, alpha_min, alpha_max, src.y,  dST.y,  nPixels.y,  dPixels.y);
   calc_alphas(z_alpha, z_plane, alpha_min, alpha_max, src.z,  dST.z,  nPixels.z,  dPixels.z);
-  printf("Here 3\n");
 
   //Merges and sorts the alphas
   merge(x_alpha, y_alpha, z_alpha, alpha_min, alpha_max, all_alpha);
-  printf("Here 4\n");
 
   calc_inter(row, all_alpha, src, dST, nPixels, dPixels,
              x_plane, y_plane, z_plane);
-  printf("Here 5\n");
-
 }
+
+
+
+void siddons_proj(float *ray_sum, float *iArray, VectF src, VectF trg, VectI nPixels, VectF dPixels, float *x_plane, float *y_plane, float *z_plane, float *x_alpha,
+             float *y_alpha, float *z_alpha, float *all_alpha)
+{
+
+  
+  printf("\nSiddons Project\n");
+  printf("Size of Int: %lu\n", sizeof(int));
+  printf("Size of Float: %lu\n", sizeof(float));
+  printf("src.x,src.y,src.z: %f, %f, %f\n",src.x,src.y,src.z);
+  printf("trg.x,trg.y,trg.z: %f, %f, %f\n",trg.x,trg.y,trg.z);
+  printf("nPixels.x,nPixels.y,nPixels.z: %d, %d, %d\n",nPixels.x,nPixels.y,nPixels.z);
+  printf("dPixels.x,dPixels.y,dPixels.z: %f, %f, %f\n",dPixels.x,dPixels.y,dPixels.z);
+  printf("x_plane,y_plane,z_plane: %f, %f, %f\n",x_plane[0],y_plane[0],z_plane[0]);
+  
+  
+  VectF dST;
+  float alpha_min, alpha_max;
+  float m_min[4], m_max[4];
+
+  //Calculate the parametric values of the intersections of the line in question
+  //with the first and last grid lines, both horizontal and vertical.
+  dST.x  = trg.x - src.x;
+  dST.y  = trg.y - src.y;
+  dST.z  = trg.z - src.z;
+
+  //Calculate alpha_min and alpha_max, which is either the parametric value of the intersection
+  // where the line of interest enters the grid, or 0.0 if the source is inside the grid.
+  m_min[0] = 0.0;
+  m_max[0] = 1.0;
+
+  //Calculate the alpha ranges across planes
+  calc_alpha_range(m_min, m_max, x_plane, nPixels.x, src.x, dST.x, 1);
+  calc_alpha_range(m_min, m_max, y_plane, nPixels.y, src.y, dST.y, 2);
+  calc_alpha_range(m_min, m_max, z_plane, nPixels.z, src.z, dST.z, 3);
+
+  alpha_min = max4(m_min);
+  alpha_max = min4(m_max);
+
+  //If alpha_max <= alpha_min, then the ray doesn't pass through the grid.
+  if(alpha_max <= alpha_min) return;
+  
+  //Compute the alpha values of the intersections of the line with all the relevant x planes in the grid.
+  calc_alphas(x_alpha, x_plane, alpha_min, alpha_max, src.x,  dST.x,  nPixels.x,  dPixels.x);
+  calc_alphas(y_alpha, y_plane, alpha_min, alpha_max, src.y,  dST.y,  nPixels.y,  dPixels.y);
+  calc_alphas(z_alpha, z_plane, alpha_min, alpha_max, src.z,  dST.z,  nPixels.z,  dPixels.z);
+
+  //Merges and sorts the alphas
+  merge(x_alpha, y_alpha, z_alpha, alpha_min, alpha_max, all_alpha);
+
+  sum_inter(ray_sum, iArray, all_alpha, src, dST, nPixels, dPixels,
+             x_plane, y_plane, z_plane);
+}
+
+void sum_inter(float *ray_sum, float *iArray, float *all_alpha, VectF src, 
+                VectF dST, VectI nPixels, VectF dPixels,
+                float *x_plane, float *y_plane, float *z_plane);
+
+
+void forward_project(float *iArray, float *dArray, VectI nPixels, VectF dPixels)
+{
+  float *x_plane, *y_plane, *z_plane;
+  float *xAlpha, *yAlpha, *zAlpha, *nAlpha;
+  float cosAngle, sinAngle;
+  float *ray_sum;
+  int angle, xy, z;
+  
+  VectF src, trg;
+
+
+
+  ray_sum = (float*)malloc(sizeof(float));
+
+  x_plane = (float*)malloc((nPixels.x+1)*sizeof(float));
+  y_plane = (float*)malloc((nPixels.y+1)*sizeof(float));
+  z_plane = (float*)malloc((nPixels.z+1)*sizeof(float));
+
+  xAlpha = (float*)malloc((nPixels.x+1)*sizeof(float));
+  yAlpha = (float*)malloc((nPixels.y+1)*sizeof(float));
+  zAlpha = (float*)malloc((nPixels.z+1)*sizeof(float));
+  nAlpha = (float*)malloc((2*nPixels.z+3)*sizeof(float));
+
+
+
+  calc_grid_lines(x_plane, y_plane, z_plane, nPixels, dPixels);
+
+  int nAngles = 4;
+  float dAngles = 6.283185307179586/nAngles;
+  int nDets = 4;
+
+  float dist = sqrt(nPixels.x*nPixels.x*dPixels.x + nPixels.y*nPixels.y*dPixels.y);
+  
+  
+  for(angle=0; angle<nAngles; angle++){
+    cosAngle = cos(angle*dAngles);
+    sinAngle = sin(angle*dAngles);
+    printf("CosSin: %f, %f\n", cosAngle,sinAngle);
+  
+    for(xy=0; xy<nDets; xy++){
+      src.x = cosAngle*(xy - 1.5) - sinAngle*dist;
+      src.y = sinAngle*(xy - 1.5) + cosAngle*dist;
+
+      trg.x = cosAngle*(xy - 1.5) + sinAngle*dist;
+      trg.y = sinAngle*(xy - 1.5) - cosAngle*dist;
+    
+      for(z=0; z<nDets; z++){
+        src.z = z - 1.5; 
+        trg.z = z - 1.5;
+      
+        siddons_proj(ray_sum, iArray, src, trg, nPixels, dPixels, x_plane, y_plane, z_plane, 
+                xAlpha, yAlpha, zAlpha, nAlpha);                
+        dArray[16*angle + 4*xy + z] = *ray_sum;
+
+      }
+    }
+  }
+}
+
 

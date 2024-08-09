@@ -680,29 +680,30 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
                   ((src + alpha_max[...,np.newaxis]*dST - p0)/g.dPixels),\
                   ((src + alpha_min[...,np.newaxis]*dST - p0)/g.dPixels))
 
-
+    """
     print()
     print()
     print("src:", src, "trg:", trg)
     print("dST:", dST)
     print("p0:", p0,"pN:", pN)
     print("i0:", i0, "iN:", iN)
+    """
     i0 = np.ceil(i0).astype(int)
     iN = np.ceil(iN).astype(int)
-    print("i0 (int):", i0,"iN (int):", iN)
+    #print("i0 (int):", i0,"iN (int):", iN)
 
 
     
     #np.set_printoptions(precision=10)
     #print("alpha0:", alpha0)
     #print("alphaN:", alphaN)    
-    print("alpha_min:", alpha_min,"alpha_max:", alpha_max)
+    #print("alpha_min:", alpha_min,"alpha_max:", alpha_max)
     #print("g.nPixels+1:", g.nPixels+1)
     #print('{0:.16f}'.format(alpha_min[0]))
     
     
-    print()
-
+    #print()
+    
     
     #Loops through the rays intersecting the source and target
     for ray_idx, ray in np.ndenumerate(Rays):
@@ -713,13 +714,6 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
             idxX = ray_idx + (0,)
             idxY = ray_idx + (1,)
             idxZ = ray_idx + (2,)
-
-            np.set_printoptions(precision=10)
-            #print(i0[idxX],i0[idxY],i0[idxZ])
-            #print(iN[idxX],iN[idxY],iN[idxZ])
-            #print(src[ray_idx],trg[ray_idx])
-
-
 
             #Compute the alpha values of the intersections of the line with all
             #the relevant planes in the grid.
@@ -735,18 +729,8 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
                 Z_alpha = (g.Zb[i0[idxZ]:iN[idxZ]] - src[idxZ])/dST[idxZ]
             else:
                 Z_alpha = np.array([])
-
-                      
-            print("X_alpha:",X_alpha)            
-            print("Y_alpha:",Y_alpha)
-            print("Z_alpha:",Z_alpha)
-            
-            
             
             #Merges and sorts alphas
-            #Alpha = np.sort(np.concatenate([alpha_bounds[ray,:], X_alpha, Y_alpha, Z_alpha]), kind='mergesort')
-            #Rounding function was added to elimintae duplicate alphas introduced by machine precision
-            #Alpha = np.unique(np.round(np.concatenate([alpha_bounds[ray_idx], X_alpha, Y_alpha, Z_alpha]),decimals=decimal_round))
             Alpha = np.sort(np.concatenate([alpha_bounds[ray_idx], X_alpha, Y_alpha, Z_alpha]))
 
             if np.isclose(Alpha[0], Alpha[1]):
@@ -755,8 +739,6 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
             if np.isclose(Alpha[-1], Alpha[-2]):
                 Alpha = Alpha[:-1]
 
-            #print('{0:.20}'.format(alpha_min[0]))
-            #print('{0:.20}'.format(X_alpha[0]))
             
             #Loops through the alphas and calculates pixel length and pixel index
             dAlpha = Alpha[1:] - Alpha[:-1]
@@ -767,25 +749,6 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
             z_ind = ((src[idxZ] + mAlpha*dST[idxZ] - g.Zb[0])/g.dZ).astype(int)
            
             length = (distance[ray_idx]*dAlpha).astype(np.float32)
-            
-            
-            print("Alpha:", Alpha)
-            print("X ind:", x_ind)
-            print('length', length)
-            
-            """
-            print(g.Xb- src[idxX])
-            print(g.Xb)
-            print('{0:.20}'.format(dST[idxX]))
-            
-            print('{0:.20}'.format((g.Xb[0]- src[idxX])/dST[idxX]))
-            print('{0:.20}'.format((g.Xb[1]- src[idxX])/dST[idxX]))
-            print('{0:.20}'.format((g.Xb[2]- src[idxX])/dST[idxX]))
-            print('{0:.20}'.format((g.Xb[3]- src[idxX])/dST[idxX]))
-            """
-            #print(mAlpha[0])
-            #print(distance[ray_idx])
-            
             
             #Stores the index and intersection length in flat, raveled, or
             #unraveled form
@@ -898,15 +861,12 @@ def siddon_c(src, trg, nPixels=128, dPixels=1.0):
     #Calculates the grid lines
     c_test.calc_grid_lines(Xb_c, Yb_c, Zb_c, nPixels_c, dPixels_c)
  
-    print(dPixels_c.x, dPixels_c.y,dPixels_c.z)
     #
     c_test.siddons(src_c, trg_c, nPixels_c, dPixels_c, Xb_c, Yb_c, Zb_c,\
                    X_alpha_c, Y_alpha_c, Z_alpha_c, Alpha_c, \
                    ctypes.byref(rays_c))
 
     print("OKay")
-    print(dPixels_c.x, dPixels_c.y,dPixels_c.z)
-  
     print(rays_c[0].idx, rays_c[0].length)
     print(rays_c[1].idx, rays_c[1].length)
     print(rays_c[2].idx, rays_c[2].length)
@@ -915,4 +875,26 @@ def siddon_c(src, trg, nPixels=128, dPixels=1.0):
     print(rays_c[5].idx, rays_c[5].length)
     print(rays_c[6].idx, rays_c[6].length)
     
+
+
+
+def forward_project_c(iArray, dArray, nPixels=128, dPixels=1.0):
+    #Converts and assigns paramters to approprate data types
+    nPixels = vir.np_array(nPixels,3, dtype=np.int32)
+    dPixels = vir.np_array(dPixels,3, dtype=np.float32)
+
+    #Struct array pointers
+    nPixels_c = VectI(ctypes.c_int32(nPixels[0]),ctypes.c_int32(nPixels[1]),ctypes.c_int32(nPixels[2]))
+    dPixels_c = VectF(ctypes.c_float(dPixels[0]),ctypes.c_float(dPixels[1]),ctypes.c_float(dPixels[2]))
+
+    #Assigns c types pointers to variables
+    c_float_p = ctypes.POINTER(ctypes.c_float)
+    
+    #Plane boundary pointers
+    iArray_c = iArray.ctypes.data_as(c_float_p)
+    dArray_c = dArray.ctypes.data_as(c_float_p)
+        
+    #Calculates the grid lines
+    c_test.forward_project(iArray_c, dArray_c, nPixels_c, dPixels_c)
+ 
 
