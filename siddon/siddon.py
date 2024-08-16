@@ -12,6 +12,15 @@ import ctypes
 
 import vir.mpct as mpct
 
+
+try:
+    c_test = ctypes.CDLL(__file__.rsplit("/",1)[0] + "/siddons.so")
+except:
+    print("Warning. PSiddons shared object libray not present.")
+
+
+
+
 def list_ctypes_object(sdlist, flat=True):
     """
     Converts the data in unraveled array created by siddons to C data types.
@@ -606,7 +615,6 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
     
     #Machine precision
     epsilon = 1e-15
-    decimal_round = int(-np.log10(epsilon))
     
     #Creates the grid of voxels
     g = vir.Grid3d(nPixels=nPixels,dPixels=dPixels,origin=origin, dtype=np.float32)
@@ -673,6 +681,15 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
                   np.ceil((trg + alpha_max[...,np.newaxis]*dST - p0)/g.dPixels).astype(int),\
                   np.ceil((trg + alpha_min[...,np.newaxis]*dST - p0)/g.dPixels).astype(int))
     """
+
+
+    i0p = g.nPixels - (pN-alpha_min[...,np.newaxis]*dST - src)/g.dPixels
+    i0n = g.nPixels - (pN-alpha_max[...,np.newaxis]*dST - src)/g.dPixels
+    i0p = np.where( np.isclose(i0p - np.round(i0p)), np.round(i0p),  np.ceil(i0p))
+    i0n = np.where( np.isclose(i0n - np.round(i0n)), np.round(i0n),  np.ceil(i0n))
+
+
+
     i0 = np.where(dST > 0.0, \
                   (g.nPixels - (pN-alpha_min[...,np.newaxis]*dST - src)/g.dPixels),\
                   (g.nPixels - (pN-alpha_max[...,np.newaxis]*dST - src)/g.dPixels))
@@ -680,6 +697,8 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
                   ((src + alpha_max[...,np.newaxis]*dST - p0)/g.dPixels),\
                   ((src + alpha_min[...,np.newaxis]*dST - p0)/g.dPixels))
 
+
+        
     """
     print()
     print()
@@ -775,7 +794,6 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
 
 
 
-c_test = ctypes.cdll.LoadLibrary("/Users/pvargas21/Codebase/Libraries/vir/siddon/siddons.so")
 
 def calc_grid_lines(X,Y,Z, x_size, y_size, z_size):    
     

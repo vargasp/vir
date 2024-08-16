@@ -75,7 +75,7 @@ nPixels = (nPix,nPix,1)
 dPix = 1.0
 nDets = nPix
 dDet = .5
-nTheta = 16
+nTheta = 2
 det_lets = 1
 src_lets = 1
 
@@ -83,8 +83,8 @@ d = vir.Detector1d(nDets=nDets,dDet=dDet, det_lets=det_lets)
 
 Thetas = np.linspace(0,np.pi,nTheta,endpoint=False)
 srcs, trgs = pg.geom_circular(d.Dets, Thetas,geom="par")
-srcs[:,:,0] = -64
-trgs[:,:,0] = 64
+srcs[:,:,2] = .5
+trgs[:,:,2] = .5
 
 importlib.reload(sd)
 a = sd.siddons(srcs,trgs,nPixels, dPix, flat=True)
