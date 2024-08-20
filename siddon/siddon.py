@@ -572,7 +572,7 @@ def ray_unravel(ray,nPixels):
 
 
 def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
-            ravel=False, flat=False):
+            ravel=False, flat=False, epsilon = 1e-5):
     """
     An implementation of Siddon's algorithm (Med. Phys., 12, 252-255) for 
     computing the intersection lengths of a line specified by the coordinates
@@ -614,7 +614,7 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
     
     
     #Machine precision
-    epsilon = 1e-15
+
     
     #Creates the grid of voxels
     g = vir.Grid3d(nPixels=nPixels,dPixels=dPixels,origin=origin, dtype=np.float32)
@@ -648,14 +648,13 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
     distance = np.linalg.norm(dST, axis=-1) #(nRays)
 
     #Calculate the parametric values of the intersections of the ray with the 
-    #first and last grid lines.
-    alpha0 = np.divide((p0-src), dST, out=np.zeros(dST.shape, dtype=np.float32),\
-                       where=dST!=0)
-
-    alphaN = np.divide((pN-src), dST, out=np.zeros(dST.shape, dtype=np.float32),\
-                       where=dST!=0)
-
-        
+    #first and last grid lines. In the case of paralle lines where dST is equal
+    #to 0.0, dST is set to epislon for alpha0 and alphaN caluclations. This will
+    #allow ensure ray the grid intersection check works 
+    with np.errstate(divide='ignore'):
+        alpha0 = np.where(dST != 0.0, (p0-src)/dST, (p0-src)/epsilon)
+        alphaN = np.where(dST != 0.0, (pN-src)/dST, (pN-src)/epsilon)
+            
     #Calculate alpha_min and alpah max, which is either the parametric value of
     #the intersection where the line of interest enters or leaves the grid, or
     #0.0 if the trg is inside the grid.
@@ -683,13 +682,41 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
     """
 
 
-    i0p = g.nPixels - (pN-alpha_min[...,np.newaxis]*dST - src)/g.dPixels
-    i0n = g.nPixels - (pN-alpha_max[...,np.newaxis]*dST - src)/g.dPixels
-    i0p = np.where( np.isclose(i0p - np.round(i0p)), np.round(i0p),  np.ceil(i0p))
-    i0n = np.where( np.isclose(i0n - np.round(i0n)), np.round(i0n),  np.ceil(i0n))
+    i0p = 1 + g.nPixels - (pN-alpha_min[...,np.newaxis]*dST - src)/g.dPixels
+    i0n = 1 + g.nPixels - (pN-alpha_max[...,np.newaxis]*dST - src)/g.dPixels
+    iNp = 0 + (src + alpha_max[...,np.newaxis]*dST - p0)/g.dPixels
+    iNn = 0 + (src + alpha_min[...,np.newaxis]*dST - p0)/g.dPixels
+
+    i0p = np.where( np.isclose(i0p, np.round(i0p), atol=epsilon), np.round(i0p),  np.floor(i0p)).astype(int)
+    i0n = np.where( np.isclose(i0n, np.round(i0n), atol=epsilon), np.round(i0n),  np.floor(i0n)).astype(int)
+    iNp = np.where( np.isclose(iNp, np.round(iNp), atol=epsilon), np.round(iNp),  np.ceil(iNp)).astype(int)
+    iNn = np.where( np.isclose(iNn, np.round(iNn), atol=epsilon), np.round(iNn),  np.ceil(iNn)).astype(int)
+
+    
+    
+    i0 = np.where(dST > 0.0, i0p, i0n)
+    iN = np.where(dST > 0.0, iNp, iNn)
 
 
+    """
+    idx = np.where(i0 < 0)
+    print('Idx:',idx)
+    print('src:', src[idx[:2]])
+    print('trg:', trg[idx[:2]])
+    print(alpha_min[idx[:2]])
+    print(alpha_max[idx[:2]])
+    print("dST:", dST[idx[:2]])
+    """
+    #print(g.nPixels - (pN - alpha_min[idx[:2]][:,np.newaxis]*dST[idx] - src[idx])/g.dPixels)
+    #print(alpha_min[idx[:2]][:,np.newaxis]*dST[idx] - src[idx])
 
+    #print(g.nPixels - (pN-alpha_min[idx[:2]][:,np.newaxis]*dST[idx] - src[idx[:2]])/g.dPixels)
+    #print(g.nPixels - (pN-alpha_max[idx[:2]][:,np.newaxis]*dST[idx] - src[idx[:2]])/g.dPixels)
+
+
+    #return i0, iN
+
+    """
     i0 = np.where(dST > 0.0, \
                   (g.nPixels - (pN-alpha_min[...,np.newaxis]*dST - src)/g.dPixels),\
                   (g.nPixels - (pN-alpha_max[...,np.newaxis]*dST - src)/g.dPixels))
@@ -698,17 +725,19 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
                   ((src + alpha_min[...,np.newaxis]*dST - p0)/g.dPixels))
 
 
-        
-    """
-    print()
-    print()
-    print("src:", src, "trg:", trg)
-    print("dST:", dST)
-    print("p0:", p0,"pN:", pN)
-    print("i0:", i0, "iN:", iN)
-    """
     i0 = np.ceil(i0).astype(int)
     iN = np.ceil(iN).astype(int)
+    """
+
+        
+    
+    #print()
+    #print("src:", src, "trg:", trg)
+    #print("dST:", dST)
+    #print("p0:", p0,"pN:", pN)
+    #print("i0:", i0, "iN:", iN)
+    #print()
+    
     #print("i0 (int):", i0,"iN (int):", iN)
 
 
@@ -740,10 +769,12 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
                 X_alpha = (g.Xb[i0[idxX]:iN[idxX]] - src[idxX])/dST[idxX]
             else:
                 X_alpha = np.array([])
+                
             if dST[idxY] != 0.0:
                 Y_alpha = (g.Yb[i0[idxY]:iN[idxY]] - src[idxY])/dST[idxY]
             else:
                 Y_alpha = np.array([])
+                
             if dST[idxZ] != 0.0:
                 Z_alpha = (g.Zb[i0[idxZ]:iN[idxZ]] - src[idxZ])/dST[idxZ]
             else:
@@ -753,11 +784,42 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
             Alpha = np.sort(np.concatenate([alpha_bounds[ray_idx], X_alpha, Y_alpha, Z_alpha]))
 
             if np.isclose(Alpha[0], Alpha[1]):
+                print("I'm here1")
                 Alpha = Alpha[1:]
             
             if np.isclose(Alpha[-1], Alpha[-2]):
+                print("")
+                print("dST:", dST[idxX],dST[idxY],dST[idxZ])
+                print("Alpha Bounds:",alpha_bounds[ray_idx])            
+                print("X_alpha, range:", i0[idxX],iN[idxX])
+                print(X_alpha)
+                print("Y_alpha, range:", i0[idxY],iN[idxY])
+                print(Y_alpha)
+                print("Z_alpha, range:", i0[idxZ],iN[idxZ])
+                print(Z_alpha)
+                print("Alpha")
+                print(Alpha)            
+
+                print("I'm here2",  Alpha[-1] - Alpha[-2])
                 Alpha = Alpha[:-1]
 
+
+            """
+            print("")
+            print("dST:", dST[idxX],dST[idxY],dST[idxZ])
+            print("Alph0:",alpha0)
+            print("alphaN:",alphaN)
+            print("Alpha Bounds:",alpha_bounds[ray_idx])            
+            print("X_alpha, range:", i0[idxX],iN[idxX])
+            print(X_alpha)
+            print("Y_alpha, range:", i0[idxY],iN[idxY])
+            print(Y_alpha)
+            print("Z_alpha, range:", i0[idxZ],iN[idxZ])
+            print(Z_alpha)
+            print("Alpha")
+            print(Alpha)            
+            """
+            
             
             #Loops through the alphas and calculates pixel length and pixel index
             dAlpha = Alpha[1:] - Alpha[:-1]
@@ -768,12 +830,18 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
             z_ind = ((src[idxZ] + mAlpha*dST[idxZ] - g.Zb[0])/g.dZ).astype(int)
            
             length = (distance[ray_idx]*dAlpha).astype(np.float32)
+
+            """
+            print("X ind:", x_ind)
+            print("Y ind:", y_ind)
+            print("Z ind:", z_ind)
+            print("Length:", length)
+            """
             
             #Stores the index and intersection length in flat, raveled, or
             #unraveled form
             if flat == True:
                 fN = f0 + length.size
-                
                 flat_ind[f0:fN] = np.ravel_multi_index((x_ind,y_ind,z_ind),g.nPixels)
                 flat_len[f0:fN] = length
                 f0 += length.size

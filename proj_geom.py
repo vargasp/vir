@@ -114,8 +114,10 @@ def geom_circular(DetsY, Views, geom="par", src_iso=None, det_iso=None, DetsZ=No
             y_src = DetsY[:,np.newaxis]
             y_trg = DetsY[:,np.newaxis]
 
-        src_iso = np.max(DetsY) * 1e4
-        det_iso = np.max(DetsY) * 1e4
+        if det_iso is None:
+            src_iso = np.max(DetsY) * 100
+        if src_iso is None:
+            det_iso = np.max(DetsY) * 100
         
     else:
         raise ValueError("Cannot process geom: ", geom)
