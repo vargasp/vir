@@ -137,7 +137,7 @@ nPixels = (nPix,nPix,1)
 dPix = 1.0
 nDets = nPix*4
 dDet = .1
-nTheta = 1
+nTheta = 64
 det_lets = 1
 src_lets = 1
 
@@ -155,7 +155,8 @@ h = sd.list2array(a, nPixels, flat=True)
 i = sd.list2array(b, nPixels, ravel=True)
 j = sd.list2array(c, nPixels, ravel=False)
 
-vt.CreateImage(h[:,:,0])
+h = h /h.max() 
+vt.CreateImage(h[:,:,0].clip(.999,1))
 vt.CreateImage(i[:,:,0])
 vt.CreateImage(j[:,:,0])
 

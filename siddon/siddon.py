@@ -671,87 +671,20 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
     alpha_max = np.min(m_max, axis=-1)
     alpha_bounds = np.stack([alpha_min,alpha_max], axis = -1)
 
-    #Calculates the idices bounds
-    """
-    i0 = np.where(dST > 0.0, \
-                  np.floor(g.nPixels+1 - (pN-alpha_min[...,np.newaxis]*dST - trg)/g.dPixels).astype(int),\
-                  np.floor(g.nPixels+1 - (pN-alpha_max[...,np.newaxis]*dST - trg)/g.dPixels).astype(int))
-    iN = np.where(dST > 0.0, \
-                  np.ceil((trg + alpha_max[...,np.newaxis]*dST - p0)/g.dPixels).astype(int),\
-                  np.ceil((trg + alpha_min[...,np.newaxis]*dST - p0)/g.dPixels).astype(int))
-    """
+    #Calculates the index bounds
+    #Rounds values to an index if it within epsilon (error due to floating point arithmitic)
+    i0p = (g.nPixels+1) - (pN-alpha_min[...,np.newaxis]*dST - src)/g.dPixels
+    i0n = (g.nPixels+1) - (pN-alpha_max[...,np.newaxis]*dST - src)/g.dPixels
+    iNp = (src + alpha_max[...,np.newaxis]*dST - p0)/g.dPixels
+    iNn = (src + alpha_min[...,np.newaxis]*dST - p0)/g.dPixels
 
-
-    i0p = 1 + g.nPixels - (pN-alpha_min[...,np.newaxis]*dST - src)/g.dPixels
-    i0n = 1 + g.nPixels - (pN-alpha_max[...,np.newaxis]*dST - src)/g.dPixels
-    iNp = 0 + (src + alpha_max[...,np.newaxis]*dST - p0)/g.dPixels
-    iNn = 0 + (src + alpha_min[...,np.newaxis]*dST - p0)/g.dPixels
-
-    i0p = np.where( np.isclose(i0p, np.round(i0p), atol=epsilon), np.round(i0p),  np.floor(i0p)).astype(int)
-    i0n = np.where( np.isclose(i0n, np.round(i0n), atol=epsilon), np.round(i0n),  np.floor(i0n)).astype(int)
-    iNp = np.where( np.isclose(iNp, np.round(iNp), atol=epsilon), np.round(iNp),  np.ceil(iNp)).astype(int)
-    iNn = np.where( np.isclose(iNn, np.round(iNn), atol=epsilon), np.round(iNn),  np.ceil(iNn)).astype(int)
-
-    
+    i0p = np.where(np.isclose(i0p, np.round(i0p), atol=epsilon), np.round(i0p),  np.floor(i0p)).astype(int)
+    i0n = np.where(np.isclose(i0n, np.round(i0n), atol=epsilon), np.round(i0n),  np.floor(i0n)).astype(int)
+    iNp = np.where(np.isclose(iNp, np.round(iNp), atol=epsilon), np.round(iNp),  np.ceil(iNp)).astype(int)
+    iNn = np.where(np.isclose(iNn, np.round(iNn), atol=epsilon), np.round(iNn),  np.ceil(iNn)).astype(int)
     
     i0 = np.where(dST > 0.0, i0p, i0n)
-    iN = np.where(dST > 0.0, iNp, iNn)
-
-
-    """
-    idx = np.where(i0 < 0)
-    print('Idx:',idx)
-    print('src:', src[idx[:2]])
-    print('trg:', trg[idx[:2]])
-    print(alpha_min[idx[:2]])
-    print(alpha_max[idx[:2]])
-    print("dST:", dST[idx[:2]])
-    """
-    #print(g.nPixels - (pN - alpha_min[idx[:2]][:,np.newaxis]*dST[idx] - src[idx])/g.dPixels)
-    #print(alpha_min[idx[:2]][:,np.newaxis]*dST[idx] - src[idx])
-
-    #print(g.nPixels - (pN-alpha_min[idx[:2]][:,np.newaxis]*dST[idx] - src[idx[:2]])/g.dPixels)
-    #print(g.nPixels - (pN-alpha_max[idx[:2]][:,np.newaxis]*dST[idx] - src[idx[:2]])/g.dPixels)
-
-
-    #return i0, iN
-
-    """
-    i0 = np.where(dST > 0.0, \
-                  (g.nPixels - (pN-alpha_min[...,np.newaxis]*dST - src)/g.dPixels),\
-                  (g.nPixels - (pN-alpha_max[...,np.newaxis]*dST - src)/g.dPixels))
-    iN = np.where(dST > 0.0, \
-                  ((src + alpha_max[...,np.newaxis]*dST - p0)/g.dPixels),\
-                  ((src + alpha_min[...,np.newaxis]*dST - p0)/g.dPixels))
-
-
-    i0 = np.ceil(i0).astype(int)
-    iN = np.ceil(iN).astype(int)
-    """
-
-        
-    
-    #print()
-    #print("src:", src, "trg:", trg)
-    #print("dST:", dST)
-    #print("p0:", p0,"pN:", pN)
-    #print("i0:", i0, "iN:", iN)
-    #print()
-    
-    #print("i0 (int):", i0,"iN (int):", iN)
-
-
-    
-    #np.set_printoptions(precision=10)
-    #print("alpha0:", alpha0)
-    #print("alphaN:", alphaN)    
-    #print("alpha_min:", alpha_min,"alpha_max:", alpha_max)
-    #print("g.nPixels+1:", g.nPixels+1)
-    #print('{0:.16f}'.format(alpha_min[0]))
-    
-    
-    #print()
-    
+    iN = np.where(dST > 0.0, iNp, iNn)    
     
     #Loops through the rays intersecting the source and target
     for ray_idx, ray in np.ndenumerate(Rays):
@@ -765,6 +698,9 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
 
             #Compute the alpha values of the intersections of the line with all
             #the relevant planes in the grid.
+            #Does not store them in ascending order since this not a critiera for
+            #np.sort. There may be potential performance increases with pre-sorting
+            #and using a different sorting algorithm
             if dST[idxX] != 0.0:
                 X_alpha = (g.Xb[i0[idxX]:iN[idxX]] - src[idxX])/dST[idxX]
             else:
@@ -784,42 +720,10 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
             Alpha = np.sort(np.concatenate([alpha_bounds[ray_idx], X_alpha, Y_alpha, Z_alpha]))
 
             if np.isclose(Alpha[0], Alpha[1]):
-                print("I'm here1")
                 Alpha = Alpha[1:]
             
             if np.isclose(Alpha[-1], Alpha[-2]):
-                print("")
-                print("dST:", dST[idxX],dST[idxY],dST[idxZ])
-                print("Alpha Bounds:",alpha_bounds[ray_idx])            
-                print("X_alpha, range:", i0[idxX],iN[idxX])
-                print(X_alpha)
-                print("Y_alpha, range:", i0[idxY],iN[idxY])
-                print(Y_alpha)
-                print("Z_alpha, range:", i0[idxZ],iN[idxZ])
-                print(Z_alpha)
-                print("Alpha")
-                print(Alpha)            
-
-                print("I'm here2",  Alpha[-1] - Alpha[-2])
                 Alpha = Alpha[:-1]
-
-
-            """
-            print("")
-            print("dST:", dST[idxX],dST[idxY],dST[idxZ])
-            print("Alph0:",alpha0)
-            print("alphaN:",alphaN)
-            print("Alpha Bounds:",alpha_bounds[ray_idx])            
-            print("X_alpha, range:", i0[idxX],iN[idxX])
-            print(X_alpha)
-            print("Y_alpha, range:", i0[idxY],iN[idxY])
-            print(Y_alpha)
-            print("Z_alpha, range:", i0[idxZ],iN[idxZ])
-            print(Z_alpha)
-            print("Alpha")
-            print(Alpha)            
-            """
-            
             
             #Loops through the alphas and calculates pixel length and pixel index
             dAlpha = Alpha[1:] - Alpha[:-1]
@@ -830,13 +734,6 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
             z_ind = ((src[idxZ] + mAlpha*dST[idxZ] - g.Zb[0])/g.dZ).astype(int)
            
             length = (distance[ray_idx]*dAlpha).astype(np.float32)
-
-            """
-            print("X ind:", x_ind)
-            print("Y ind:", y_ind)
-            print("Z ind:", z_ind)
-            print("Length:", length)
-            """
             
             #Stores the index and intersection length in flat, raveled, or
             #unraveled form
