@@ -54,6 +54,7 @@ def read_tiff_rows(infiles,rows=None,cols=None):
     #If only one file name is provided wrap it in list to make it iterable
     if isinstance(infiles,str):
         infiles = [infiles]
+    angles = len(infiles)
 
     im_obj = Image.open(infiles[0])
     w,h = im_obj.size
@@ -83,9 +84,11 @@ def read_tiff_rows(infiles,rows=None,cols=None):
     
     #Loop though the filenames, extract the subset data, and save it to the array
     for z, infile in enumerate(infiles):
-        im_obj = Image.open(infile)
-        
+        print(f'\r{(z+1):{int(np.log10(angles))+1}} of {angles} ', end='')
+        im_obj = Image.open(infile)        
         im_arr[z,:,:] = np.array(im_obj.crop(box=[cols[0],rows[0],cols[1],rows[1]]))
+
+    print()
 
     return im_arr
 
