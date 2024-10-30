@@ -6,7 +6,6 @@ Created on Thu Dec  7 19:30:07 2023
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
 
 from scipy.spatial import transform
 from scipy.ndimage import map_coordinates

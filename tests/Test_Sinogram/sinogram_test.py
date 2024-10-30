@@ -34,7 +34,10 @@ phantom = np.zeros([nX*f, nY*f])
 phantom[56*f:72*f,56*f:72*f] = 1
 phantom = np.tile(phantom, (f*nZ,1,1))
 phantom = phantom.transpose([1,2,0])
-phantom *= np.arange(f*nZ)
+
+z_vals = np.zeros(16)
+z_vals[4:12]=np.arange(1,9)
+phantom *= np.tile(z_vals,4*f)
 
 nX, nY, nZ = phantom.shape
 

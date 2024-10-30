@@ -285,6 +285,7 @@ def forward_project_wobble(phantom, angs, phi, theta, center=None):
     if center is None:
         center = (nX/2.-.5, nY/2.-.5, 0.5)
 
+    
     sino = np.zeros([angs.size,nZ,nX])
     
     coords = af.coords_array((nX,nY,nZ), ones=True)
