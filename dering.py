@@ -71,7 +71,7 @@ def polar_filter(img, kernel_max, axis, steps=3):
     return lf_img
 
 
-def dering(img,thresh_min=None,thresh_max=None,thresh_art_max=30,\
+def dering(img,thresh_min=None,thresh_max=None,thresh_art_max=30, steps=3, \
            thresh_art_min=-30, azimuthal_kernel=11,radial_kernel=21, return_art=False):
 
     img = img.astype(float)
@@ -93,7 +93,7 @@ def dering(img,thresh_min=None,thresh_max=None,thresh_art_max=30,\
     pImg = warp_polar(tImg, output_shape=[nThetas,nRadii]) 
 
     #Radial median filtering in polar coordinates
-    fImg = polar_filter(pImg, radial_kernel, 1)
+    fImg = polar_filter(pImg, radial_kernel, 1, steps=steps)
     
     #Subtract median image to calculate artifact image.
     #Thresholded artifact image
@@ -101,7 +101,7 @@ def dering(img,thresh_min=None,thresh_max=None,thresh_art_max=30,\
 
     #Azimuthal filtering in polar coordinates
     #dImg = medfilt(fImg, [azimuthal_kernel,1])
-    dImg = polar_filter(fImg, azimuthal_kernel, 0)
+    dImg = polar_filter(fImg, azimuthal_kernel, 0, steps=steps)
 
     #Artifact Image transformed into cartesian coordinates
     ring_art = polar_to_cart(dImg,nX,nY, theta_step= 360.0/nThetas)

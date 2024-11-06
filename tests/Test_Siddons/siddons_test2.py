@@ -12,24 +12,28 @@ import matplotlib.pyplot as plt
 
 import vir
 import vir.siddon as sd
-import vt
 
 
 def print_sdlist(sdlist):
     arrs = ['x:','y:','z:']
  
-    for i, arr in enumerate(arrs):
-        print(arr, end='')
-        for j in sdlist[0][i][:-1]:
-            print(f'{j:6},', end = '')
-        
-        print(f'{sdlist[0][i][-1]:6}')
+    if sdlist[0] != None:    
+        for i, arr in enumerate(arrs):
+            print(arr, end='')
 
-    print('d:', end='')
-    for j in sdlist[0][3][:-1]:
-        print(f' {j:1.3f},', end = '')
+
+            for j in sdlist[0][i][:-1]:
+                print(f'{j:6},', end = '')
+            
+            print(f'{sdlist[0][i][-1]:6}')
+
+        print('d:', end='')
     
-    print(f' {sdlist[0][3][-1]:2.3f}')
+    
+        for j in sdlist[0][3][:-1]:
+            print(f' {j:1.3f},', end = '')
+        
+        print(f' {sdlist[0][3][-1]:2.3f}')
 
 
 
@@ -53,8 +57,8 @@ def plot_params(nPix, dPix, src, trg):
 nPix = (12,10,1)
 dPix = (1.0, 1,1)
 
-src = np.array((-5.5, -5.0,0))
-trg = np.array((5.5,-5.0, 0))
+src = np.array((-0.5, -6.0,0))
+trg = np.array((5.5,5.0, 0))
 
 
 sdlist = sd.siddons(trg, src, nPixels=nPix, dPixels=dPix)
@@ -67,6 +71,8 @@ plt.plot(xS,yS, color="red", linewidth=1)
 plt.xticks(np.linspace(x0-dPix[0],xN+dPix[0], int(np.round((xN - x0)/dPix[0])+3)))
 plt.yticks(np.linspace(y0-dPix[1],yN+dPix[1], int(np.round((yN - y0)/dPix[1])+3)))
 plt.grid()
+plt.xlabel('X')
+plt.ylabel('Y')
 plt.show()
 
 

@@ -6,7 +6,6 @@ Created on Thu Dec  7 19:30:07 2023
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
 
 from scipy.spatial import transform
 from scipy.ndimage import map_coordinates
@@ -138,6 +137,49 @@ def rotateMat(angs, center=None, seq='XYZ', extrinsic=True, rank=2):
         T = transMat(center, rank=rank)
         
         return  T @ R @ np.linalg.inv(T)
+
+
+def scaleMat(scale,center=None, rank=None):
+    """
+    Creates an affine translation matrix for scaling
+
+    Parameters
+    ----------
+    scale : float or arraylike
+        The sclaing vector. Values < 1 shink the image, while vales > 1 expand
+        the image
+    rank : int, optional
+        The rank of the matrix. The default is "None" which is the lowest rank
+
+    Returns
+    -------
+    T : (rank, rank) np.array
+        The translation matrix in format: for coords = x; (x,y); and (x,y,z)
+        |x 0| if x   |x 0 0| if (x,y)   |x 0 0 0| if (x,y,z)
+        |0 1|        |0 y 0|            |0 y 0 0|
+                     |0 0 1|            |0 0 z 0|
+                                        |0 0 0 1|
+    """
+    
+    #Converts scale vector to an np.array
+    scale = np.array(scale)
+
+    #Calculates the dimension of the coords vector
+    if center is not None:
+        center = np.array(center)
+        center *= (1.0 - scale)
+
+    #Increases the rank by one
+    scale = np.append(scale,1)    
+    
+    #Determines the rank of the matrix
+    if rank is None:
+        rank = scale.size
+    
+    #Creates the tranlation matrix
+    T = transMat(center, rank=rank)
+    
+    return T @ np.diag(scale)
 
 
 def coords_array(shape,ones=False):

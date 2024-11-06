@@ -6,100 +6,129 @@ Created on Fri Jul 23 22:16:09 2021
 @author: vargasp
 """
 
+import os
+filename = os.environ.get('PYTHONSTARTUP')
+if filename and os.path.isfile(filename):
+    with open(filename) as fobj:
+        startup_file = fobj.read()
+    exec(startup_file)
+    
 
+import time
 import numpy as np
-import matplotlib.pyplot as plt
-import time
-import importlib
-
-import vir
 import vir.siddon as sd
-import time
 
 
+nPix = 4
+nPixels = (nPix,nPix,1)
+dPix = .75
 
-nPix = (4,4,1)
+
+trg = np.array([3.0,.25,.25])
+src = np.array([-3.0,.25,.25])
+
+#sd.calc_grid_lines(5,4,4,1.0,1,1.5)
+    
+print(sd.siddons(src, trg, nPixels=nPixels, dPixels=dPix, flat=True, ravel=False))
+
+sd.siddon_c(src,trg,nPixels,dPix)
+
+#a = sd.siddons(src,trg,nPixels,dPix)
+#print(a)
+
+nPix = 4
 dPix = 1.0
 
-src = (-2, .5, 0.0)
-trg = (2, .5, 0.0)
-print(sd.siddons(trg, src, nPixels=nPix, dPixels=dPix))
 
 
-src = (-2, -.5, 0.0)
-trg = (2, -.5, 0.0)
-print(sd.siddons(trg, src, nPixels=nPix, dPixels=dPix))
+iArray = np.zeros([4,4,4], np.float32)
+iArray[1:3,1:3,1:3] = 1.0
+dArray = np.zeros([4,4,4], np.float32)
 
-src = (-200, 2., 0.0)
-trg = (20, 2., 0.0)
-print(sd.siddons(trg, src, nPixels=nPix, dPixels=dPix))
+sd.forward_project_c(iArray, dArray, nPix, dPix)
 
+print(dArray)
 
-src = (-2, 2, 0.0)
-trg = (2, -2, 0.0)
-print(sd.siddons(trg, src, nPixels=nPix, dPixels=dPix))
+"""
 
-
-srcs[-10,]
-
-
-
-print(sd.siddons(trg, src, nPixels=nPix, dPixels=dPix, origin=0.0,\
-            ravel=False, flat=False))
-    
-    
-    
-    
-    
-src = (10, 1.5, 0.0)
-trg = (-10, 1.5, 0.0)
-b = sd.siddons(trg, src, nPixels=nPix, dPixels=dPix, origin=0.0,\
-            ravel=False, flat=False)
-
-    
-
-print(b)
-        
-    
-
-
-nPix = (4,4,1)
-dPix = 1.0
-
-src = (10.5, 1.5, 0.0)
-trg = (-10.5, 1.5, 0.0)
-a = sd.siddons(trg, src, nPixels=nPix, dPixels=dPix, origin=0.0,\
-            ravel=False, flat=False)
-    
-    
-    
-    
-    
-    
-    
-    
-#Sheep Lgan Cicular
 nPix = 4
 nPixels = (nPix,nPix,1)
 dPix = 1.0
+
+importlib.reload(sd)
+
+trgs = np.array([2.0,.25,.25])
+srcs = np.array([-2.1,.25,.25])
+a = sd.siddons(srcs,trgs,nPixels, dPix, flat=True)
+srcs = np.array([-2.0,.25,.25])
+a = sd.siddons(srcs,trgs,nPixels, dPix, flat=True)
+srcs = np.array([-1.9,.25,.25])
+a = sd.siddons(srcs,trgs,nPixels, dPix, flat=True)
+
+srcs = np.array([-2.0,.25,.25])
+trgs = np.array([1.9,.25,.25])
+a = sd.siddons(srcs,trgs,nPixels, dPix, flat=True)
+trgs = np.array([2.0,.25,.25])
+a = sd.siddons(srcs,trgs,nPixels, dPix, flat=True)
+trgs = np.array([2.1,.25,.25])
+a = sd.siddons(srcs,trgs,nPixels, dPix, flat=True)
+
+
+trgs = np.array([-2.0,.25,.25])
+srcs = np.array([2.1,.25,.25])
+a = sd.siddons(srcs,trgs,nPixels, dPix, flat=True)
+srcs = np.array([2.0,.25,.25])
+a = sd.siddons(srcs,trgs,nPixels, dPix, flat=True)
+srcs = np.array([1.9,.25,.25])
+a = sd.siddons(srcs,trgs,nPixels, dPix, flat=True)
+
+
+
+srcs = np.array([2.0,.25,.25])
+trgs = np.array([-1.9,.25,.25])
+a = sd.siddons(srcs,trgs,nPixels, dPix, flat=True)
+trgs = np.array([-2.0,.25,.25])
+a = sd.siddons(srcs,trgs,nPixels, dPix, flat=True)
+trgs = np.array([-2.1,.25,.25])
+a = sd.siddons(srcs,trgs,nPixels, dPix, flat=True)
+
+
+
+
+
+
+
+
+    
+#Sheep Lgan Cicular
+nPix = 128
+nPixels = (nPix,nPix,1)
+dPix = 1.0
 nDets = nPix
-dDet = 1.0
-nTheta = 8
+dDet = .5
+nTheta = 16
 det_lets = 1
 src_lets = 1
 
 d = vir.Detector1d(nDets=nDets,dDet=dDet, det_lets=det_lets)
 
-Thetas = np.linspace(0,2*np.pi,nTheta)
-srcs, trgs = sd.circular_geom_st(d.Dets, Thetas,geom="par")
+Thetas = np.linspace(0,np.pi,nTheta,endpoint=False)
+srcs, trgs = pg.geom_circular(d.Dets, Thetas,geom="par")
+srcs[:,:,0] = -64
+trgs[:,:,0] = 64
 
-
+importlib.reload(sd)
 a = sd.siddons(srcs,trgs,nPixels, dPix, flat=True)
 b = sd.siddons(srcs,trgs,nPixels, dPix, ravel=True)
 c = sd.siddons(srcs,trgs,nPixels, dPix, ravel=False)
 h = sd.list2array(a, nPixels, flat=True)
 i = sd.list2array(b, nPixels, ravel=True)
 j = sd.list2array(c, nPixels, ravel=False)
+
+
+vt.CreateImage(h[:,:,0])
+
+
 
 print((h - i)[:,:,0])
 print((h - j)[:,:,0])
@@ -126,14 +155,14 @@ print((h - j)[:,:,0])
 
 a = sd.siddons(srcs,trgs,nPixels, dPix, flat=True)
 sd.list_ave(a, flat=True, ravel=True, nPixels=nPixels, nRays=32)
+"""
 
 
-
-test = sd.list_flip(c.copy(),x=2,y=None,z=None,ravel=False,nPixels=nPixels)
-test2 = sd.list_flip(b.copy(),x=2,y=None,z=None,ravel=True,nPixels=nPixels)
-
+#test = sd.list_flip(c.copy(),x=2,y=None,z=None,ravel=False,nPixels=nPixels)
+#test2 = sd.list_flip(b.copy(),x=2,y=None,z=None,ravel=True,nPixels=nPixels)
 
 
+"""
 
 X = -256
 Y = 0
@@ -171,17 +200,7 @@ sd.list_ave(a, ravel=False, nPixels=nPixels, axis=None)
 
 b = sd.list2array(a, nPixels, ravel=False, ave=True)
 
-
-
-
-
-
-
-sd.siddons3(srcs,trgs,nPixels, dPix, ravel=False)
-
-
-inter_pix1,inter_len1 = sd.siddons_list2arrays(a)
-inter_pix1A,inter_len1A = sd.average_inter(a)
+"""
 
 
 
@@ -191,8 +210,7 @@ inter_pix1A,inter_len1A = sd.average_inter(a)
 
 
 
-
-
+"""
 
 
 #Sheep Lgan Cicular
@@ -210,8 +228,8 @@ d = vir.Detector1d(nDets=nDets,dDet=dDet, det_lets=det_lets)
 Thetas = np.linspace(0,np.pi,nTheta*src_lets)
 Thetas = np.reshape(Thetas,(nTheta,src_lets))
 
-srcs, trgs = sd.circular_geom_st(d.Det2_lets, Thetas, 128)
-a = sd.siddons2(srcs,trgs,nPixels, dPix)
+srcs, trgs = pg.geom_circular(d.Det2_lets, Thetas,geom="par")
+a = sd.siddons(srcs,trgs,nPixels, dPix)
 inter_pix1,inter_len1 = sd.siddons_list2arrays(a)
 inter_pix1A,inter_len1A = sd.average_inter(a)
 
@@ -222,8 +240,8 @@ d = vir.Detector1d(nDets=nDets,dDet=dDet, det_lets=det_lets)
 Thetas = np.linspace(0,np.pi,nTheta*src_lets)
 Thetas = np.reshape(Thetas,(nTheta,src_lets))
 
-srcs, trgs = sd.circular_geom_st(d.Det2_lets, Thetas, 128)
-a = sd.siddons2(srcs,trgs,nPixels, dPix)
+srcs, trgs = pg.geom_circulart(d.Det2_lets, Thetas,geom="par")
+a = sd.siddons(srcs,trgs,nPixels, dPix)
 inter_pix2,inter_len2 = sd.siddons_list2arrays(a)
 inter_pix2A,inter_len2A = sd.average_inter(a,ave_axes=(3,1))
 
@@ -424,5 +442,5 @@ src = [500, 311.8166274539262, 235.9766274539262]
 trg = [-147.0, -0.72, -76.55999999999999]
 a = sd.siddons(trg,src,nPixels, dPixel, return_format='ravel_idx')
 
-
+"""
 

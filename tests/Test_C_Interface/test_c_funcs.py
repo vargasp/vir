@@ -64,6 +64,7 @@ def c_function5(nAx0, nAx1):
     c_test.Func5(ctypes.c_int(nAx0),ctypes.c_int(nAx1),ctypes.c_void_p(f2_array.ctypes.data))
 
 
+
 def c_function6():
     f_arr1 =  np.arange(10, dtype=np.float32)
     f_arr_c1 = ctypes.c_void_p(f_arr1.ctypes.data)
@@ -191,6 +192,36 @@ def c_function10(int_var, float_var):
     i_c = ctypes.pointer(i)
     c_test.Func10(i_c, ctypes.c_float(float_var))
     print(int_var, i, i_c, i.value)
+
+
+import psutil
+
+def c_function_mem():
+    N = 1024*1024*128*4
+
+    process = psutil.Process()
+    m1 = process.memory_info().rss/1024/1024/1024
+
+    f_arr3 =  np.arange(N, dtype=np.float32)
+    c_float_p = ctypes.POINTER(ctypes.c_float)
+    f_arr_c3 = f_arr3.ctypes.data_as(c_float_p)
+    
+    process = psutil.Process()
+    m2 = process.memory_info().rss/1024/1024/1024
+    print(m2-m1)
+    
+    f_arr2 =  np.arange(N, dtype=np.float32)
+    f_arr_c2 = np.ctypeslib.as_ctypes(f_arr2)
+    process = psutil.Process()
+    m3 = process.memory_info().rss/1024/1024/1024
+    print(m3-m2)
+
+    f_arr1 =  np.arange(N, dtype=np.float32)
+    f_arr_c1 = ctypes.c_void_p(f_arr1.ctypes.data)
+    process = psutil.Process()
+    m4 = process.memory_info().rss/1024/1024/1024
+    print(m4-m3)
+
 
 #Tests library call and printing
 #c_function0()

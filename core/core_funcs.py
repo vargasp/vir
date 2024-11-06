@@ -34,7 +34,7 @@ def np_array(v,d,dtype=float):
     return v
                  
 
-def censpace(n,d=1.0,c=0.0):
+def censpace(n,d=1.0,c=0.0,dtype=float):
     """
     Return evenly spaced numbers over a specified interval of d centered at c
     (returned values are sample center locations)
@@ -56,10 +56,10 @@ def censpace(n,d=1.0,c=0.0):
     (n) numpy ndarray 
         The evenly spaced array
     """
-    return np.linspace(-n+1,n-1,n)*d/2.0 + c
+    return np.linspace(-n+1,n-1,n,dtype=dtype)*d/2.0 + c
 
 
-def boundspace(n,d=1.0,c=0.0):
+def boundspace(n,d=1.0,c=0.0,dtype=float):
     """
     Return evenly spaced numbers over a specified interval of d centered at c
     (returned values are sample boundary locations)
@@ -78,7 +78,7 @@ def boundspace(n,d=1.0,c=0.0):
     (n) numpy ndarray 
         The evenly spaced array
     """
-    return np.linspace(-n,n,n+1)*d/2.0 + c
+    return np.linspace(-n,n,n+1,dtype=dtype)*d/2.0 + c
 
 
 def cart2circ(x, y):
@@ -232,7 +232,7 @@ class Grid3d:
     ZZ : (nX, nY, nZ) numpy ndarray 
         The Z coordinate arrays
     """    
-    def __init__(self,nPixels=512,dPixels=1.0,origin=0.0):
+    def __init__(self,nPixels=512,dPixels=1.0,origin=0.0,dtype=float):
         """
         Parameters
         ----------
@@ -248,23 +248,23 @@ class Grid3d:
         self.nPixels = np_array(nPixels,3,dtype=int)
         self.nX,self.nY,self.nZ = self.nPixels
         
-        self.dPixels = np_array(dPixels,3,dtype=float)
+        self.dPixels = np_array(dPixels,3,dtype=dtype)
         self.dX,self.dY,self.dZ = self.dPixels
 
-        self.origin = np_array(origin,3,dtype=float)
+        self.origin = np_array(origin,3,dtype=dtype)
         self.oX,self.oY,self.oZ = self.origin
                  
         #Creates the grid of voxel locations
-        self.X = censpace(self.nX,d=self.dX,c=self.oX)
-        self.Y = censpace(self.nY,d=self.dY,c=self.oY)
-        self.Z = censpace(self.nZ,d=self.dZ,c=self.oZ)
+        self.X = censpace(self.nX,d=self.dX,c=self.oX,dtype=dtype)
+        self.Y = censpace(self.nY,d=self.dY,c=self.oY,dtype=dtype)
+        self.Z = censpace(self.nZ,d=self.dZ,c=self.oZ,dtype=dtype)
         
         #Creates the grid of intersecting lines
-        self.Xb = boundspace(self.nX,d=self.dX,c=self.oX)
-        self.Yb = boundspace(self.nY,d=self.dY,c=self.oY)
-        self.Zb = boundspace(self.nZ,d=self.dZ,c=self.oZ)
+        self.Xb = boundspace(self.nX,d=self.dX,c=self.oX,dtype=dtype)
+        self.Yb = boundspace(self.nY,d=self.dY,c=self.oY,dtype=dtype)
+        self.Zb = boundspace(self.nZ,d=self.dZ,c=self.oZ,dtype=dtype)
         
-        self.XX, self.YY, self.ZZ = np.meshgrid(self.X,self.Y,self.Z)
+        #self.XX, self.YY, self.ZZ = np.meshgrid(self.X,self.Y,self.Z)
 
 
 class Detector1d:
