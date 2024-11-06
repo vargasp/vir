@@ -28,7 +28,7 @@ def worker_func(i):
     
     mpct.ps_info(out='Worker', m=[m])
 
-    time.sleep(.1) # Some heavy computations
+    time.sleep(60) # Some heavy computations
     #return np.asscalar(np.sum(X_np[i,:]))
     return (np.sum(X_np[i,:])).item()
 
@@ -63,14 +63,14 @@ def mp_unlock(data):
     # Here we pass X and X_shape to the initializer of each worker.
     # (Because X_shape is not a shared variable, it will be copied to each
     # child process.)
-    with Pool(processes=4, initializer=init_worker, initargs=(X, X_shape)) as pool:
+    with Pool(processes=16, initializer=init_worker, initargs=(X, X_shape)) as pool:
         result = pool.map(worker_func, range(X_shape[0]))
         result = np.array(result)
     mpct.ps_info(out='Function', m=[m0,m1])
         
     # Should print the same results.
-    print(' Results:\n', result)
-    print('Delta Results:\n', result - np.sum(X_np, 1))
+    #print(' Results:\n', result)
+    #print('Delta Results:\n', result - np.sum(X_np, 1))
     
 #Writeable Array    
 def mp_lock(data):
@@ -93,10 +93,10 @@ def mp_lock(data):
     # child process.)
     with Pool(processes=4, initializer=init_worker, initargs=(X.get_obj(), X_shape)) as pool:
         result = pool.map(worker_func, range(X_shape[0]))
-        print('Results (pool):\n', np.array(result))
+        #print('Results (pool):\n', np.array(result))
         
     # Should print the same results.
-    print('Results (numpy):\n', np.sum(X_np, 1))
+    #print('Results (numpy):\n', np.sum(X_np, 1))
 
  
 
@@ -133,12 +133,33 @@ def mp_unlock_args(data_arrays):
     
     Y = 1
     # Start the process pool and do the computation.
-    with Pool(processes=4, initializer=init_workers, initargs=(X, Y)) as pool:
+    with Pool(processes=16, initializer=init_workers, initargs=(X, Y)) as pool:
         result = pool.map(workers_func, range(data.shape[0]))
-        print('Results (pool):\n', np.array(result))
+        #print('Results (pool):\n', np.array(result))
         
     # Should print the same results.
-    print('Results (numpy):\n', np.sum(X_np, 1))
+    #print('Results (numpy):\n', np.sum(X_np, 1))
      
  
+#Star Map
+def workers_func_smp1(i,j):
+    print(i,j)
+    return i*j
+
+def workers_func_smp2(i):
+    print(i)
+    return i
+
+
+def mp_star_mp():
+    
+    
+    args = ((0,1), (3,4))
+
+    with Pool(processes=16) as pool:
+        result = pool.starmap(workers_func_smp1, args)
+
+    with Pool(processes=16) as pool:
+        result = pool.starmap(workers_func_smp2, args)
+     
  

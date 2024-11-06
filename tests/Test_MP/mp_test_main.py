@@ -21,7 +21,7 @@ if __name__ == '__main__':
 
 """
 
-
+"""
 
 m1 = mpct.ps_mem()
 X_shape = (16, 1024*1024*32)
@@ -38,10 +38,12 @@ if __name__ == '__main__':
 
 mpct.ps_info(out='Parent', m=[m1,m2])
 
-
+"""
 
 """
 if __name__ == '__main__':
     mp_mod.mp_lock(data)
 """
 
+if __name__ == '__main__':
+    mp_mod.mp_star_mp()
