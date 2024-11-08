@@ -12,7 +12,7 @@ import vir.affine_transforms as af
 import vir.sinogram as sg
 import vt
 
-from scipy.ndimage import affine_transform, shift, rotate
+from scipy.ndimage import affine_transform, shift, rotate, zoom
 from skimage.transform import rotate as rotate2
 
 
@@ -26,6 +26,7 @@ nZ = 64
 
 phantom2d = np.zeros([nX, nY])
 phantom2d[32:96,32:96] = 1
+phantom2_1d = phantom2d[...,np.newaxis]
 phantom3d = np.tile(phantom2d, (nZ,1,1))
 phantom3d = phantom3d.transpose([1,2,0])
 phantom3d *= np.arange(nZ)
@@ -76,11 +77,17 @@ plt.imshow(test3,origin='lower')
 plt.show()
 
 
-R = af.rotateMat(np.pi/8, center=np.array(phantom2d.shape)/2.0 - 0.5)
-R = np.linalg.inv(R)
-RC = (R @ coords)
-test = af.coords_transform(phantom2d, RC)
+S = af.scaleMat((1.10,1.10))
+S = np.linalg.inv(S)
+SC = (S @ coords)
+test = af.coords_transform(phantom2d, SC)
+test3 = zoom(phantom2d, (1.10,1.10), order=1)[:nX,:nY]
+
 plt.imshow(test,origin='lower')
+plt.show()
+plt.imshow(test3,origin='lower')
+plt.show()
+plt.imshow(test3 - test,origin='lower')
 plt.show()
 
 
@@ -90,29 +97,34 @@ plt.show()
 2.1d
 """
 coords = af.coords_array((nX,nY,1), ones=True)
-coords[:,:,2,:] = 32
-test = af.coords_transform(phantom, coords)
-plt.imshow(test[:,:,0],origin='lower')
-
-
-T = af.transMat((64,64,0))
+coords[:,:,2,:] = 0
+T = af.transMat((16,16,0))
+T = np.linalg.inv(T)
 TC = (T @ coords)
-test = af.coords_transform(phantom, TC)
-plt.imshow(test[:,:,0],origin='lower')
+test = af.coords_transform(phantom2_1d, TC)
+plt.imshow(test,origin='lower')
+plt.show()
 
 
-R = af.rotateMat((0,45,0), center=np.array(phantom.shape)/2.0)
+R = af.rotateMat((0,0,np.pi/8), center=np.array(phantom2_1d.shape)/2.0 - 0.5)
+R = np.linalg.inv(R)
 RC = (R @ coords)
-test = af.coords_transform(phantom, RC)
-plt.imshow(test[:,:,0],origin='lower')
+test = af.coords_transform(phantom2_1d, RC)
+plt.imshow(test,origin='lower')
+plt.show()
 
 
-coords = af.coords_array((nX,nY,1), ones=True)
-T = af.transMat((0,0,32),rank=None)
-R = af.rotateMat((0,45,0), center=np.array(phantom.shape)/2.0)
-RTC = (R @ T @ coords)
-test = af.coords_transform(phantom, RTC)
-plt.imshow(test[:,:,0],origin='lower')
+S = af.scaleMat((1.10,1.10,.1), center=np.array(phantom2_1d.shape)/2.0 - 0.5)
+S = np.linalg.inv(S)
+SC = (S @ coords)
+test = af.coords_transform(phantom2_1d, SC)
+plt.imshow(test,origin='lower')
+plt.show()
+
+
+
+
+
 
 
 

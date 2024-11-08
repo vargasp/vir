@@ -164,20 +164,27 @@ def scaleMat(scale,center=None, rank=None):
     #Converts scale vector to an np.array
     scale = np.array(scale)
 
-    #Calculates the dimension of the coords vector
-    if center is not None:
-        center = np.array(center)
-        center *= (1.0 - scale)
-
-    #Increases the rank by one
-    scale = np.append(scale,1)    
-    
     #Determines the rank of the matrix
     if rank is None:
-        rank = scale.size
+        rank = scale.size + 1
+
+    #Calculates the dimension of the coords vector
+    if center is not None:
+        center = np.array(center, dtype=float)
+        center *= (1.0 - scale)
+    else:
+        center = np.zeros(scale.size)
+
+    print(center)
+    #Increases the rank by one
+    scale = np.append(scale,1)     
     
     #Creates the tranlation matrix
     T = transMat(center, rank=rank)
+
+    print(center)
+    print(T)
+    print(np.diag(scale))
     
     return T @ np.diag(scale)
 
