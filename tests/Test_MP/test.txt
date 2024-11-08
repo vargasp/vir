@@ -1,0 +1,53 @@
+Parent Data Address: 140732708941840
+Function Data Address: 140732708941840
+Function X_np Address: 140728413974528
+Initialize: CPU#:  97, pid: 501571, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+WorkerX_np Address: 140728413974528
+Worker: CPU#: 102, pid: 501571, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+Initialize: CPU#:  97, pid: 501576, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+WorkerX_np Address: 140728413974528
+Worker: CPU#:  97, pid: 501576, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+Initialize: CPU#: 355, pid: 501573, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+WorkerX_np Address: 140728413974528
+Worker: CPU#: 360, pid: 501573, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+Initialize: CPU#: 354, pid: 501565, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+WorkerX_np Address: 140728413974528
+Worker: CPU#: 357, pid: 501565, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+Initialize: CPU#:  97, pid: 501563, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+WorkerX_np Address: 140728413974528
+Worker: CPU#:  96, pid: 501563, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+Initialize: CPU#: 354, pid: 501572, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+WorkerX_np Address: 140728413974528
+Worker: CPU#: 359, pid: 501572, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+Initialize: CPU#: 355, pid: 501567, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+WorkerX_np Address: 140728413974528
+Worker: CPU#: 356, pid: 501567, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+Initialize: CPU#: 377, pid: 501568, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+WorkerX_np Address: 140728413974528
+Worker: CPU#: 377, pid: 501568, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+Initialize: CPU#: 354, pid: 501577, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+WorkerX_np Address: 140728413974528
+Worker: CPU#: 354, pid: 501577, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+Initialize: CPU#: 355, pid: 501578, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+WorkerX_np Address: 140728413974528
+Worker: CPU#: 355, pid: 501578, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+Initialize: CPU#: 125, pid: 501570, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+WorkerX_np Address: 140728413974528
+Worker: CPU#: 125, pid: 501570, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+Initialize: CPU#: 376, pid: 501566, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+WorkerX_np Address: 140728413974528
+Worker: CPU#: 376, pid: 501566, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+Initialize: CPU#: 112, pid: 501575, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+WorkerX_np Address: 140728413974528
+Worker: CPU#: 112, pid: 501575, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+Initialize: CPU#: 112, pid: 501569, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+WorkerX_np Address: 140728413974528
+Worker: CPU#: 114, pid: 501569, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+Initialize: CPU#: 113, pid: 501579, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+WorkerX_np Address: 140728413974528
+Worker: CPU#: 113, pid: 501579, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+Initialize: CPU#: 377, pid: 501574, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+WorkerX_np Address: 140728413974528
+Worker: CPU#: 378, pid: 501574, ppid: 496140, Mem RSS: 4.07GB, 4.07GB
+Function: CPU#:  96, pid: 496140, ppid: 472060, Mem RSS: 4.10GB, 8.10GB, 8.11GB
+Parent: CPU#:  96, pid: 496140, ppid: 472060, Mem RSS: 0.10GB, 4.10GB, 4.11GB
