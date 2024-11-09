@@ -175,16 +175,11 @@ def scaleMat(scale,center=None, rank=None):
     else:
         center = np.zeros(scale.size)
 
-    print(center)
     #Increases the rank by one
     scale = np.append(scale,1)     
     
     #Creates the tranlation matrix
     T = transMat(center, rank=rank)
-
-    print(center)
-    print(T)
-    print(np.diag(scale))
     
     return T @ np.diag(scale)
 
