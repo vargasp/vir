@@ -86,6 +86,28 @@ plt.imshow(test3 - test,origin='lower')
 plt.show()
 
 
+coords = af.coords_array((nX,nY), ones=True)
+test = af.coords_transform(phantom2d, coords)
+plt.imshow(test,origin='lower')
+
+T = af.transMat((16,0))
+R = af.rotateMat(np.pi/8, center=np.array(phantom2d.shape)/2.0 - 0.5)
+RT = R @ T
+RT = np.linalg.inv(RT)
+RTC = (RT @ coords)
+TR = T @ R
+TR = np.linalg.inv(TR)
+TRC = (TR @ coords)
+
+testRT = af.coords_transform(phantom2d, RTC)
+testTR = af.coords_transform(phantom2d, TRC)
+plt.imshow(testRT,origin='lower')
+plt.show()
+plt.imshow(testTR,origin='lower')
+plt.show()
+
+
+
 
 """
 2.1d
