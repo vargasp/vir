@@ -470,7 +470,8 @@ class Geom:
     """
     
     def __init__(self,nViews=512, coverage=2.0*np.pi, angle0=0.0, pitch=0.0, \
-                 endpoint=False, src_iso=np.inf, src_det=np.inf,fan_angle=0.0):
+                 endpoint=False, src_iso=np.inf, src_det=np.inf,fan_angle=0.0,
+                 zTran=0.0):
         """
         Parameters
         ----------
@@ -503,6 +504,7 @@ class Geom:
         self.src_iso = src_iso
         self.src_det = src_det
         self.fan_angle = fan_angle
+        self.zTran = zTran
 
         self.Views, self.dView = np.linspace(self.angle0, \
                 self.angle0+self.coverage,self.nViews, \
@@ -528,7 +530,7 @@ class Geom:
             self.geom = "Parallel beam"
         
         #Trajectory Parameters
-        self.dZ = self.pitch / self.nAngles
+        self.dZ = self.zTran / self.nAngles
         self.Z = censpace(self.nViews, self.dZ)
         
 
@@ -562,6 +564,28 @@ class Geom:
         else:
             self.nRotations = coverage / (2.0*np.pi)
 
+
+    def interpZ(self,intZ,angle,nRows):
+        nProjs = int(np.ceil((self.nViews-angle)/self.nAngles)) #Number projections at projection angle
+        Views = np.arange(nProjs, dtype=int)*self.nAngles + angle #Views indices at projection angle
+
+        idxL = np.zeros(Views.size, dtype=int)
+        idxU = np.zeros(Views.size, dtype=int)
+ 
+        dxL = np.zeros(Views.size, dtype=float)
+        dxU = np.zeros(Views.size, dtype=float)
+
+        acqZ = np.add.outer(self.Z[Views], censpace(nRows))
+        for i, view in enumerate(Views):
+            idx = np.array(np.searchsorted(acqZ[i,:],intZ)) 
+            idxL[i] = (idx-1).clip(0,nRows-1)
+            idxU[i] = idx.clip(0,nRows-1)
+
+            dxL[i] = acqZ[i,idxL] - intZ
+            dxU[i] = acqZ[i,idxU] - intZ
+        
+        return Views, idxL, idxU, dxL, dxU
+    
 
     def bins(self,nBins):
         dBin = self.fan_angle/nBins*self.src_det
