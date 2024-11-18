@@ -566,23 +566,28 @@ class Geom:
 
 
     def interpZ(self,intZ,angle,nRows):
+        intZ = np.array(intZ)
+        
+        
         nProjs = int(np.ceil((self.nViews-angle)/self.nAngles)) #Number projections at projection angle
         Views = np.arange(nProjs, dtype=int)*self.nAngles + angle #Views indices at projection angle
 
-        idxL = np.zeros(Views.size, dtype=int)
-        idxU = np.zeros(Views.size, dtype=int)
+        idxL = np.zeros((Views.size,intZ.size), dtype=int)
+        idxU = np.zeros((Views.size,intZ.size), dtype=int)
  
-        dxL = np.zeros(Views.size, dtype=float)
-        dxU = np.zeros(Views.size, dtype=float)
+        dxL = np.zeros((Views.size,intZ.size), dtype=float)
+        dxU = np.zeros((Views.size,intZ.size), dtype=float)
 
         acqZ = np.add.outer(self.Z[Views], censpace(nRows))
         for i, view in enumerate(Views):
             idx = np.array(np.searchsorted(acqZ[i,:],intZ)) 
-            idxL[i] = (idx-1).clip(0,nRows-1)
-            idxU[i] = idx.clip(0,nRows-1)
-
-            dxL[i] = acqZ[i,idxL] - intZ
-            dxU[i] = acqZ[i,idxU] - intZ
+            idxL[i,:] = (idx-1).clip(0,nRows-1)
+            idxU[i,:] = idx.clip(0,nRows-1)
+    
+            dxL[i,:] = acqZ[i,idxL[i,:]] - intZ
+            dxU[i,:] = acqZ[i,idxU[i,:]] - intZ
+        
+        
         
         return Views, idxL, idxU, dxL, dxU
     
