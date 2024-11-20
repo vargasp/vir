@@ -565,31 +565,79 @@ class Geom:
             self.nRotations = coverage / (2.0*np.pi)
 
 
-    def interpZ(self,intZ,angle,nRows):
+    def interpZ(self,intZ,angle,nRows,all_views=False):
+        """
+        Calculates the indices and distance of the closest detector rows and 
+        their distancs at a specific aquiared angle to slice(s) of interest in
+        z.
+
+        Parameters
+        ----------
+        intZ : scalar or array_like
+            The z locations of interest in a helical sinogram.
+        angle : int
+            The index of the angle in the trajectory.
+        nRows : int
+            The number of rows in the detector.
+        all_views : bool, optional
+            Returns all of the parameters for every rotation at the desired
+            angle. The default is False.
+
+        Returns
+        -------
+        idxV : int or np array of ints
+            The view index(es) of the corresponding to the angle.
+        idxL : int or np array of ints
+            The index(es) of the closest row(s) below the slice of interest.
+        idxU : int or np array of ints
+            The index(es) of the closest row(s) above the slice of interest.
+        dL : float or np array of float
+            The distance of the closest row(s) below to the slice of interest.
+        dU : float or np array of float
+            The distance of the closest row(s) above to the slice of interest.
+        """
         intZ = np.array(intZ)
         
+        #Number projections at projection angle
+        nProjs = int(np.ceil((self.nViews-angle)/self.nAngles))
         
-        nProjs = int(np.ceil((self.nViews-angle)/self.nAngles)) #Number projections at projection angle
-        Views = np.arange(nProjs, dtype=int)*self.nAngles + angle #Views indices at projection angle
+        #Views indices at projection angle
+        idxV = np.arange(nProjs, dtype=int)*self.nAngles + angle 
 
-        idxL = np.zeros((Views.size,intZ.size), dtype=int)
-        idxU = np.zeros((Views.size,intZ.size), dtype=int)
+        #Indices of z slices directly below and above interpolated slice
+        idxL = np.zeros((idxV.size,intZ.size), dtype=int)
+        idxU = np.zeros((idxV.size,intZ.size), dtype=int)
  
-        dxL = np.zeros((Views.size,intZ.size), dtype=float)
-        dxU = np.zeros((Views.size,intZ.size), dtype=float)
+        #Distance slice below and above are from the interpolated slice
+        dL = np.zeros((idxV.size,intZ.size), dtype=float)
+        dU = np.zeros((idxV.size,intZ.size), dtype=float)
 
-        acqZ = np.add.outer(self.Z[Views], censpace(nRows))
-        for i, view in enumerate(Views):
+        #Acquired Zs at each projection view
+        acqZ = np.add.outer(self.Z[idxV], censpace(nRows))
+        
+        #Loops through all of the projection angles and finds the nearest slice
+        #below, above, and the distances to the interpolated slice
+        for i, view in enumerate(idxV):
             idx = np.array(np.searchsorted(acqZ[i,:],intZ)) 
             idxL[i,:] = (idx-1).clip(0,nRows-1)
             idxU[i,:] = idx.clip(0,nRows-1)
     
-            dxL[i,:] = acqZ[i,idxL[i,:]] - intZ
-            dxU[i,:] = acqZ[i,idxU[i,:]] - intZ
+            dL[i,:] = acqZ[i,idxL[i,:]] - intZ
+            dU[i,:] = acqZ[i,idxU[i,:]] - intZ
         
+        #Finds the first projection angle with the slices closest to the 
+        #interpolated slice
+        if not all_views:
+            idxZ = range(intZ.size)
+            idx = np.argmin(np.abs(dL) + np.abs(dU),axis=0)
+            
+            idxV = idxV[idx]
+            idxL = idxL[idx,idxZ]
+            idxU = idxU[idx,idxZ]
+            dL = dL[idx,idxZ]
+            dU = dU[idx,idxZ]
         
-        
-        return Views, idxL, idxU, dxL, dxU
+        return idxV, idxL, idxU, dL, dU
     
 
     def bins(self,nBins):
