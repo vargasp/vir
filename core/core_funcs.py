@@ -629,7 +629,8 @@ class Geom:
         #interpolated slice
         if not all_views:
             idxZ = range(intZ.size)
-            idx = np.argmin(np.abs(dL) + np.abs(dU),axis=0)
+            #idx = np.argmin(np.abs(dL) + np.abs(dU),axis=0)
+            idx = np.argmin(np.where(dU>=0,dU,np.inf) - np.where(dL<=0,dL,-np.inf))
             
             idxV = idxV[idx]
             idxL = idxL[idx,idxZ]
