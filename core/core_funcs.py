@@ -598,6 +598,8 @@ class Geom:
         """
         intZ = np.array(intZ)
         
+        angle = angle % self.nAngles
+        
         #Number projections at projection angle
         nProjs = int(np.ceil((self.nViews-angle)/self.nAngles))
         
@@ -614,7 +616,6 @@ class Geom:
 
         #Acquired Zs at each projection view
         acqZ = np.add.outer(self.Z[idxV], censpace(nRows))
-        
         #Loops through all of the projection angles and finds the nearest slice
         #below, above, and the distances to the interpolated slice
         for i, view in enumerate(idxV):
