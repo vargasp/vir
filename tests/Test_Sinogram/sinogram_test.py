@@ -46,11 +46,13 @@ angs = np.linspace(0,np.pi*2,nAng,endpoint=False)
 
 sino0 = sg.forward_project_wobble(phantom, angs, 0, 0, center=(nX/2.-.5,nY/2.-.5,0.5))
 sino0 = vir.rebin(sino0, [nAng, nZ, nX])
-sino10 = sg.forward_project_wobble(phantom, angs, 0, 10/180*np.pi, center=(nX/2.-.5,nY/2.-.5,0.5))
+sino10 = sg.forward_project_wobble(phantom, angs, 0, 20/180*np.pi, center=(nX/2.-.5,nY/2.-.5,0.5))
 sino10 = vir.rebin(sino10, [nAng, nZ, nX])
 
-plt.imshow(sino0[0,:,:], origin='lower')
-plt.imshow(sino10[0,:,:], origin='lower')
+plt.imshow(sino0[128,:,:], origin='lower')
+plt.show()
+plt.imshow(sino10[128,:,:], origin='lower')
+plt.show()
 
 
 """

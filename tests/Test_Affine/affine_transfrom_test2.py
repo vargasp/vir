@@ -188,6 +188,12 @@ plt.show()
 
 
 
+
+
+
+
+
+
 phantom = np.zeros([nX*f, nY*f])
 phantom[56*f:72*f,56*f:72*f] = 1
 phantom = np.tile(phantom, (nZ,1,1))

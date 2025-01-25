@@ -223,8 +223,13 @@ def estimate_wobble(sino,angs):
     for row in range(nRows):
         a = [(nCols-1)/2., (np.max(cg[:,row]) - np.min(cg[:,row]))/2., angs[np.argmax(angs)]]                               
 
+        print(a)
+
         #cf_p, pcov = curve_fit(sine_wave, angs, cg[:,row], p0=a, bounds=bounds)
-        cf_p, pcov = curve_fit(sine_wave, angs, cg[:,row], p0=a)
+        if np.isnan(a[1]):
+            cf_p = [0,0,0]
+        else:
+            cf_p, pcov = curve_fit(sine_wave, angs, cg[:,row], p0=a)
                 
         wave_properties[:,row] = cf_p[:3]
 
