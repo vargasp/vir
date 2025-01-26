@@ -129,9 +129,11 @@ def fit_sine_wave(sino, angs):
     if nRows == 1:
         return curve_fit(sine_wave, angs, cg, p0=a)[0]
     else:
-        res = np.empty([nRows,3])
+        res = np.empty([nRows,4])
         for row in range(nRows):
-            res[row,:] = curve_fit(sine_wave, angs, cg[:,row], p0=[a[0],a[1][row],a[2]])[0]
+            results = curve_fit(sine_wave, angs, cg[:,row], p0=[a[0],a[1][row],a[2]])
+            res[row,:3] = results[0]
+            res[row,3] = np.diagonal(results[1]).sum()
         
         return res
                 
@@ -145,13 +147,13 @@ def plot_fit(sino,angs):
     cf_p, pcov = curve_fit(sine_wave, angs, cg, p0=a)
     
     y = sine_wave(angs, cf_p[0], cf_p[1], cf_p[2])
-    print(cf_p)
+    print(cf_p, np.diagonal(pcov).sum())
     plt.plot(angs,cg)
     plt.plot(angs,y)
     plt.show()
     
-    plt.plot(angs,y-cg)
-    plt.show()
+    #plt.plot(angs,y-cg)
+    #plt.show()
     
 
 
