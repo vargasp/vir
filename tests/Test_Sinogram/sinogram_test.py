@@ -19,26 +19,74 @@ from skimage.transform import radon
 from scipy.ndimage import affine_transform
 
 
+def phantom1(f):
+    
+    nX = 128
+    nY = 128
+    nZ = 64
+
+    phantom = np.zeros([nX*f, nY*f, nZ*f])
+    phantom[56*f:72*f,56*f:72*f,8*f:56*f] = 1
+    
+    return phantom
+
+
+def phantom3(f):
+    
+    nX = 128
+    nY = 128
+    nZ = 64
+
+    phantom = np.zeros([nX*f, nY*f])
+    phantom[56*f:72*f,56*f:72*f] = 1
+    phantom = np.tile(phantom, (f*nZ,1,1))
+    phantom = phantom.transpose([1,2,0])
+
+    z_vals = np.zeros(16)
+    z_vals[4:12]=np.arange(1,9)
+    phantom *= np.tile(z_vals,4*f)
+    
+    return phantom
+
+
+def calib_det(sino3d, view, t=0, r=0):
+    nViews, nRows, nCols = sino3d.shape
+
+    coords = af.coords_array((1,nRows,nCols), ones=True)
+    coords[:,:,0,:] = view
+
+    T = af.transMat((0,0,t))
+    R = af.rotateMat((r,0,0), center=np.array([1.0,nRows,nCols])/2.0 - 0.5)
+    TRC = (np.linalg.inv(T @ R) @ coords)
+
+    return af.coords_transform(sino3d, TRC)
+
+def calib_wob(sino3d, Angs, ang, phi, theta, center):
+    nViews, nRows, nCols = sino3d.shape
+
+    coords = af.coords_array((1,nRows,nCols), ones=True)
+    coords[:,:,0,:] = np.interp(ang,Angs,np.arange(nViews))
+
+    ang = ang+theta
+    r = phi*np.cos(ang)
+    z = np.sin(np.pi/2 - phi)
+    h_xy = np.cos(np.pi/2 - phi) 
+    
+    x = np.cos(ang)*h_xy
+    s = np.sqrt(x**2 + z**2)
+
+    
+    
+    S = af.scaleMat((1,1/s,1))
+    R = af.rotateMat((r,0,0), center=center)
+    SRC = (np.linalg.inv(S @ R) @ coords)
+
+    return np.squeeze(af.coords_transform(sino3d, SRC))
 
 
 
-nX = 128
-nY = 128
-nZ = 64
 f = 1
-
-"""
-3d
-"""
-phantom = np.zeros([nX*f, nY*f])
-phantom[56*f:72*f,56*f:72*f] = 1
-phantom = np.tile(phantom, (f*nZ,1,1))
-phantom = phantom.transpose([1,2,0])
-
-z_vals = np.zeros(16)
-z_vals[4:12]=np.arange(1,9)
-phantom *= np.tile(z_vals,4*f)
-
+phantom = phantom1(1)
 nX, nY, nZ = phantom.shape
 
 nAng = 256*f
@@ -48,6 +96,86 @@ sino0 = sg.forward_project_wobble(phantom, angs, 0, 0, center=(nX/2.-.5,nY/2.-.5
 sino0 = vir.rebin(sino0, [nAng, nZ, nX])
 sino10 = sg.forward_project_wobble(phantom, angs, 0, 20/180*np.pi, center=(nX/2.-.5,nY/2.-.5,0.5))
 sino10 = vir.rebin(sino10, [nAng, nZ, nX])
+
+
+
+nViews, nRows, nCols = sino10.shape
+phi = 20/180*np.pi
+theta = np.pi/2
+center = np.array([0.0,0.5,nCols/2.-.5])
+
+view = 64
+ang = angs[view]
+
+test =  calib_wob(sino10, angs, ang, phi, np.pi/2, center)
+plt.imshow((test - sino0[view,:,:]), origin='lower')
+plt.show()
+
+
+
+plt.plot(test[:,63:65])
+plt.show()
+
+
+
+
+plt.plot(test[:,64] - sino0[view,:,64])
+plt.show()
+
+
+
+
+
+plt.imshow(test, origin='lower')
+plt.show()
+
+
+
+plt.imshow(sino10[view,:,:], origin='lower')
+plt.show()
+
+
+
+
+plt.plot(test[:,64] - sino0[view,:,64])
+plt.show()
+
+
+
+
+
+plt.imshow(sino0[view,:,:], origin='lower')
+plt.show()
+
+plt.imshow(test - sino0[view,:,:], origin='lower')
+plt.show()
+
+
+
+
+
+
+
+plt.imshow(sino10[view,:,:], origin='lower')
+plt.show()
+
+
+
+
+plt.imshow(test,origin='lower')
+plt.show()
+    
+
+
+correct 
+
+
+
+
+
+
+
+
 
 plt.imshow(sino0[128,:,:], origin='lower')
 plt.show()
