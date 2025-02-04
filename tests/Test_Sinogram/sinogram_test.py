@@ -94,20 +94,30 @@ angs = np.linspace(0,np.pi*2,nAng,endpoint=False)
 
 sino0 = sg.forward_project_wobble(phantom, angs, 0, 0, center=(nX/2.-.5,nY/2.-.5,0.5))
 sino0 = vir.rebin(sino0, [nAng, nZ, nX])
+
+
 sino10 = sg.forward_project_wobble(phantom, angs, 0, 20/180*np.pi, center=(nX/2.-.5,nY/2.-.5,0.5))
 sino10 = vir.rebin(sino10, [nAng, nZ, nX])
+
+plt.imshow(sino10[0,:,:],origin='lower')
+plt.show()
+plt.imshow(sino10[32,:,:],origin='lower')
+plt.show()
+plt.imshow(sino10[64,:,:],origin='lower')
+plt.show()
+
 
 
 
 nViews, nRows, nCols = sino10.shape
 phi = 20/180*np.pi
-theta = np.pi/2
+theta = 0
 center = np.array([0.0,0.5,nCols/2.-.5])
 
-view = 64
+view = 0
 ang = angs[view]
 
-test =  calib_wob(sino10, angs, ang, phi, np.pi/2, center)
+test =  calib_wob(sino10, angs, ang, phi, theta, center)
 plt.imshow((test - sino0[view,:,:]), origin='lower')
 plt.show()
 

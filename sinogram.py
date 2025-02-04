@@ -298,8 +298,8 @@ def forward_project_wobble(phantom, angs, phi, theta, center=None):
     coords = af.coords_array((nX,nY,nZ), ones=True)
 
     for i, ang in enumerate(angs):
-        R = af.rotateMat((theta,phi,ang), center=center)
-        RC = (R @ coords)
+        R = af.rotateMat((theta,phi,ang), center=center, seq='XYZ')
+        RC = (np.linalg.inv(R) @ coords)
         sino[i,:,:] = af.coords_transform(phantom, np.round(RC,6)).sum(axis=1).T
     
     return sino    
