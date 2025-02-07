@@ -284,25 +284,59 @@ def correct_wobble(sino, angs, phi, theta, center=None):
     return sino_corect
 
 
-def forward_project_wobble(phantom, angs, phi, theta, center=None):
+def forward_project_wobble(phantom, Angs, angX, angY, center=None):
+    """
+    Creates a sinogram from a 3d phatom with a precession motion artifact. 
 
-    
+    Parameters
+    ----------
+    phantom : (nX, nY, nZ) np.array
+        A 3d phantom.
+    Angs : (nAngs) np.array
+        The array of angles of rotation.
+    angX : float
+        The initial rotation angle in the X dimension.
+    angY : float
+        The initial rotation angle in the Y dimension.
+    center : (3) array_like, optional
+        The center of rotation location. The default is "None" which
+        corresponds to the center of the image.
+
+    Returns
+    -------
+    sino : (nAngs, nY, nZ) np.array
+        The forward projected sinogram with a precession artifact.
+    """
+
     nX, nY, nZ = phantom.shape
 
     if center is None:
-        center = (nX/2.-.5, nY/2.-.5, 0.5)
+        center = (nX/2.-0.5, nY/2.-0.5, nZ/2.-0.5)
 
     
-    sino = np.zeros([angs.size,nZ,nX])
-    
+    sino = np.zeros([Angs.size,nZ,nX])
     coords = af.coords_array((nX,nY,nZ), ones=True)
 
-    for i, ang in enumerate(angs):
-        R = af.rotateMat((theta,phi,ang), center=center, seq='XYZ')
-        RC = (np.linalg.inv(R) @ coords)
+    for i, ang in enumerate(Angs):
+        R = af.rotateMat((angX,angY,ang), center=center, seq='XYZ')
+        RC = (R @ coords)
+        
         sino[i,:,:] = af.coords_transform(phantom, np.round(RC,6)).sum(axis=1).T
     
     return sino    
+
+
+def add_detector_tilt_shift(sino3d, r, x):
+    
+    nAngs, nRows, nCols = sino3d.shape
+    
+    coords = af.coords_array((nAngs,nRows,nCols), ones=True)
+
+    T = af.transMat((0,0,x))
+    R = af.rotateMat((r,0,0), center=(nAngs/2-0.5,nRows/2-0.5,nCols/2-0.5))
+    RTC = (np.linalg.inv(R @ T) @ coords)
+
+    return af.coords_transform(sino3d, np.round(RTC,6))
 
 
 

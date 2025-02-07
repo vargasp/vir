@@ -20,10 +20,7 @@ from scipy.ndimage import affine_transform
 
 
 def phantom1(f):
-    
-    nX = 128
-    nY = 128
-    nZ = 64
+    nX,nY,nZ = (128,128,64)
 
     phantom = np.zeros([nX*f, nY*f, nZ*f])
     phantom[56*f:72*f,56*f:72*f,8*f:56*f] = 1
@@ -32,10 +29,7 @@ def phantom1(f):
 
 
 def phantom3(f):
-    
-    nX = 128
-    nY = 128
-    nZ = 64
+    nX,nY,nZ = (128,128,64)
 
     phantom = np.zeros([nX*f, nY*f])
     phantom[56*f:72*f,56*f:72*f] = 1
@@ -49,116 +43,211 @@ def phantom3(f):
     return phantom
 
 
-def calib_det(sino3d, view, t=0, r=0):
-    nViews, nRows, nCols = sino3d.shape
+def calib_det_orient_TM(r, x, center):
+    T = af.transMat((0,0,x))
+    R = af.rotateMat((r,0,0), center=center)
 
+    return T, R
+
+
+def calib_det_orient(sino3d, Angs, ang, r, x):
+    nAngs, nRows, nCols = sino3d.shape
+    
     coords = af.coords_array((1,nRows,nCols), ones=True)
-    coords[:,:,0,:] = view
+    coords[:,:,0,:] = np.interp(ang,Angs,np.arange(nViews))
+    
+    center = np.array([1.0,nRows,nCols])/2.0 - 0.5
+    T, R = calib_det_orient_TM(-r, -x, center)
+    
+    TRC = np.linalg.inv(T @ R) @ coords
+    return np.squeeze(af.coords_transform(sino3d, TRC))
 
-    T = af.transMat((0,0,t))
-    R = af.rotateMat((r,0,0), center=np.array([1.0,nRows,nCols])/2.0 - 0.5)
-    TRC = (np.linalg.inv(T @ R) @ coords)
 
-    return af.coords_transform(sino3d, TRC)
+def calib_precesion_TM(ang, phi, theta, center):
+    r = phi*np.cos(ang + theta)
+    z = np.sin(np.pi/2 - phi)
+    h_xy = np.cos(np.pi/2 - phi) 
+    
+    x = np.cos(ang + theta)*h_xy
+    s = np.sqrt(x**2 + z**2)
 
-def calib_wob(sino3d, Angs, ang, phi, theta, center):
+    S = af.scaleMat((1,1/s,1))
+    R = af.rotateMat((r,0,0), center=center)
+    
+    return S, R
+
+
+def calib_precesion(sino3d, Angs, ang, phi, theta, center):
     nViews, nRows, nCols = sino3d.shape
 
     coords = af.coords_array((1,nRows,nCols), ones=True)
     coords[:,:,0,:] = np.interp(ang,Angs,np.arange(nViews))
 
-    ang = ang+theta
-    r = phi*np.cos(ang)
-    z = np.sin(np.pi/2 - phi)
-    h_xy = np.cos(np.pi/2 - phi) 
-    
-    x = np.cos(ang)*h_xy
-    s = np.sqrt(x**2 + z**2)
+    S, R = calib_precesion_TM(ang, phi, theta, center)
 
-    
-    
-    S = af.scaleMat((1,1/s,1))
-    R = af.rotateMat((r,0,0), center=center)
-    SRC = (np.linalg.inv(S @ R) @ coords)
-
+    SRC = np.linalg.inv(S @ R) @ coords
     return np.squeeze(af.coords_transform(sino3d, SRC))
 
 
+def calib_both(sino3d, Angs, ang, phi, theta, center, rd, xd):
+    nAngs, nRows, nCols = sino3d.shape
+    
+    coords = af.coords_array((1,nRows,nCols), ones=True)
+    coords[:,:,0,:] = np.interp(ang,Angs,np.arange(nViews))
 
-f = 1
+    #Detector Transforms
+    center_det = np.array([1.0,nRows,nCols])/2.0 - 0.5
+    Td, Rd = calib_det_orient_TM(-rd, -xd, center_det)
+    
+    #Precession Transforms
+    Sp, Rp = calib_precesion_TM(ang, phi, theta, center)
+    
+    SRTR = np.linalg.inv(Sp @ Rp @ Td @ Rd) @ coords
+    return np.squeeze(af.coords_transform(sino3d, SRTR))
+    
+
+
 phantom = phantom1(1)
 nX, nY, nZ = phantom.shape
 
-nAng = 256*f
-angs = np.linspace(0,np.pi*2,nAng,endpoint=False)
+nAng = 256
+Angs = np.linspace(0,np.pi*2,nAng,endpoint=False)
 
-sino0 = sg.forward_project_wobble(phantom, angs, 0, 0, center=(nX/2.-.5,nY/2.-.5,0.5))
+
+#Sinograms with different wobbles parameters
+center=(nX/2.-.5,nY/2.-.5,0.5)
+
+sino0 = sg.forward_project_wobble(phantom, Angs, 0, 0, center=center)
 sino0 = vir.rebin(sino0, [nAng, nZ, nX])
 
+angX = 20/180*np.pi
+angY = 0
+sino20x = sg.forward_project_wobble(phantom, Angs, angX, angY, center=center)
+sino20x = vir.rebin(sino20x, [nAng, nZ, nX])
 
-sino10 = sg.forward_project_wobble(phantom, angs, 0, 20/180*np.pi, center=(nX/2.-.5,nY/2.-.5,0.5))
-sino10 = vir.rebin(sino10, [nAng, nZ, nX])
+angX = 0
+angY = 20/180*np.pi
+sino20y = sg.forward_project_wobble(phantom, Angs, angX, angY, center=center)
+sino20y = vir.rebin(sino20y, [nAng, nZ, nX])
 
-plt.imshow(sino10[0,:,:],origin='lower')
-plt.show()
-plt.imshow(sino10[32,:,:],origin='lower')
-plt.show()
-plt.imshow(sino10[64,:,:],origin='lower')
-plt.show()
-
-
+angX = 20/180*np.pi
+angY = 20/180*np.pi
+sino20xy = sg.forward_project_wobble(phantom, Angs, angX, angY, center=center)
+sino20xy = vir.rebin(sino20xy, [nAng, nZ, nX])
 
 
-nViews, nRows, nCols = sino10.shape
+#Correct sinograms with different wobbles parameters
+nViews, nRows, nCols = sino0.shape
+                    
+phi = 20/180*np.pi
+theta = np.pi/2
+center = np.array([0.0,0.5,nCols/2.-.5])
+for view in [0,32,64]:
+    ang = Angs[view]
+    test =  calib_precesion(sino20x, Angs, ang, phi, theta, center)
+    plt.imshow((test - sino0[view,:,:]), origin='lower')
+    plt.show()
+
+
+phi = 20/180*np.pi
+theta = 0
+center = np.array([0.0,0.5,nCols/2.-.5])
+for view in [0,32,64]:
+    ang = Angs[view]
+    test =  calib_precesion(sino20y, Angs, ang, phi, theta, center)
+    plt.imshow((test - sino0[view,:,:]), origin='lower')
+    plt.show()
+
+#WRONG
+phi =np.sqrt((.349)**2*2)
+theta = np.pi/4
+center = np.array([0.0,0.5,nCols/2.-.5])
+for view in [0,32,64]:
+    ang = Angs[view]
+    test =  calib_precesion(sino20xy, Angs, ang, phi, theta, center)
+    plt.imshow((test - sino0[view,:,:]), origin='lower')
+    plt.show()
+
+
+#Sinograms with different detector tilts/shifts
+r = 20/180*np.pi
+s = 0
+sino_dr =  sg.add_detector_tilt_shift(sino0, r, s)
+    
+r = 0
+s = 15.25
+sino_ds =  sg.add_detector_tilt_shift(sino0, r, s)
+
+r = 23/180*np.pi
+s = 15.25
+sino_drs =  sg.add_detector_tilt_shift(sino0, r, s)
+
+
+#Correct sinograms with different detector tilts/shifts
+r = 20/180*np.pi
+s = 0
+for view in np.arange(16)*16:
+    ang = Angs[view]
+    test =  calib_det_orient(sino_dr, Angs, ang, r, s)
+    plt.imshow((test - sino0[view,:,:]), origin='lower')
+    plt.show()
+
+r = 0
+s = 15.25
+for view in np.arange(16)*16:
+    ang = Angs[view]
+    test =  calib_det_orient(sino_ds, Angs, ang, r, s)
+    plt.imshow((test - sino0[view,:,:]), origin='lower')
+    plt.show()
+
+r = 23/180*np.pi
+s = 15.25
+for view in np.arange(16)*16:
+    ang = Angs[view]
+    test =  calib_det_orient(sino_drs, Angs, ang, r, s)
+    plt.imshow((test - sino0[view,:,:]), origin='lower')
+    plt.show()
+
+
+#Sinograms with different detector tilts/shifts and wobble
+r = 20/180*np.pi
+s = 0
+sino_dr =  sg.add_detector_tilt_shift(sino20x, r, s)
+    
+r = 0
+s = 15.25
+sino_ds =  sg.add_detector_tilt_shift(sino20x, r, s)
+
+r = 23/180*np.pi
+s = 15.25
+sino_drs =  sg.add_detector_tilt_shift(sino20x, r, s)
+
+
+#Sinograms with different detector tilts/shifts and wobble
+r = 23/180*np.pi
+s = 5.2
+phi = 20/180*np.pi
+theta = np.pi/2
+center = np.array([0.0,0.5,nCols/2.-.5])
+
+sino_T =  sg.add_detector_tilt_shift(sino20x, r, s)
+for view in np.arange(16)*16:
+    ang = Angs[view]
+    test =  calib_both(sino_T, Angs, ang, phi, theta, center, r, s)    
+    plt.imshow((test - sino0[view,:,:]), origin='lower')
+    plt.show()
+
+
 phi = 20/180*np.pi
 theta = 0
 center = np.array([0.0,0.5,nCols/2.-.5])
 
-view = 0
-ang = angs[view]
-
-test =  calib_wob(sino10, angs, ang, phi, theta, center)
-plt.imshow((test - sino0[view,:,:]), origin='lower')
-plt.show()
-
-
-
-plt.plot(test[:,63:65])
-plt.show()
-
-
-
-
-plt.plot(test[:,64] - sino0[view,:,64])
-plt.show()
-
-
-
-
-
-plt.imshow(test, origin='lower')
-plt.show()
-
-
-
-plt.imshow(sino10[view,:,:], origin='lower')
-plt.show()
-
-
-
-
-plt.plot(test[:,64] - sino0[view,:,64])
-plt.show()
-
-
-
-
-
-plt.imshow(sino0[view,:,:], origin='lower')
-plt.show()
-
-plt.imshow(test - sino0[view,:,:], origin='lower')
-plt.show()
+sino_T =  sg.add_detector_tilt_shift(sino20y, r, s)
+for view in np.arange(16)*16:
+    ang = Angs[view]
+    test =  calib_both(sino_T, Angs, ang, phi, theta, center, r, s)    
+    plt.imshow((test - sino0[view,:,:]), origin='lower')
+    plt.show()
 
 
 
@@ -166,18 +255,7 @@ plt.show()
 
 
 
-plt.imshow(sino10[view,:,:], origin='lower')
-plt.show()
 
-
-
-
-plt.imshow(test,origin='lower')
-plt.show()
-    
-
-
-correct 
 
 
 
