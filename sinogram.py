@@ -339,4 +339,63 @@ def add_detector_tilt_shift(sino3d, r, x):
     return af.coords_transform(sino3d, np.round(RTC,6))
 
 
+def calib_det_orient_TM(r, x, center):
+    T = af.transMat((0,0,x))
+    R = af.rotateMat((r,0,0), center=center)
+    return T, R
+
+
+def calib_det_orient(sino3d, Angs, ang, r, x):
+    nViews, nRows, nCols = sino3d.shape
+    
+    coords = af.coords_array((1,nRows,nCols), ones=True)
+    coords[:,:,0,:] = np.interp(ang,Angs,np.arange(nViews))
+    
+    center = np.array([1.0,nRows,nCols])/2.0 - 0.5
+    T, R = calib_det_orient_TM(-r, -x, center)
+    
+    TRC = np.linalg.inv(T @ R) @ coords
+    return np.squeeze(af.coords_transform(sino3d, TRC))
+
+
+def calib_precesion_TM(ang, phi, theta, center):
+    r = phi*np.cos(ang + theta)
+    z = np.sin(np.pi/2 - phi)
+    h_xy = np.cos(np.pi/2 - phi) 
+    
+    x = np.cos(ang + theta)*h_xy
+    s = np.sqrt(x**2 + z**2)
+
+    S = af.scaleMat((1,1/s,1))
+    R = af.rotateMat((r,0,0), center=center)
+    return S, R
+
+
+def calib_precesion(sino3d, Angs, ang, phi, theta, center):
+    nViews, nRows, nCols = sino3d.shape
+
+    coords = af.coords_array((1,nRows,nCols), ones=True)
+    coords[:,:,0,:] = np.interp(ang,Angs,np.arange(nViews))
+
+    S, R = calib_precesion_TM(ang, phi, theta, center)
+
+    SRC = np.linalg.inv(S @ R) @ coords
+    return np.squeeze(af.coords_transform(sino3d, SRC))
+
+
+def calib_orientations(sino3d, Angs, ang, phi, theta, center, rd, xd):
+    nViews, nRows, nCols = sino3d.shape
+    
+    coords = af.coords_array((1,nRows,nCols), ones=True)
+    coords[:,:,0,:] = np.interp(ang,Angs,np.arange(nViews))
+
+    #Detector Transforms
+    center_det = np.array([1.0,nRows,nCols])/2.0 - 0.5
+    Td, Rd = calib_det_orient_TM(-rd, -xd, center_det)
+    
+    #Precession Transforms
+    Sp, Rp = calib_precesion_TM(ang, phi, theta, center)
+    
+    SRTR = np.linalg.inv(Sp @ Rp @ Td @ Rd) @ coords
+    return np.squeeze(af.coords_transform(sino3d, SRTR))
 
