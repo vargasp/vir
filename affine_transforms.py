@@ -35,7 +35,7 @@ def rankIdn(A, rank):
     n,m = A.shape
     
     if rank > n or rank >m:
-        I = np.identity(rank)
+        I = np.identity(rank,dtype=np.float32)
         n,m  = min(n,rank), min(m,rank)
         I[:n,:m] = A[:n,:m]
         return I
@@ -72,7 +72,7 @@ def transMat(coords,rank=None):
         rank = n+1
     
     #Creates the tranlation matrix
-    T = np.identity(rank)
+    T = np.identity(rank, dtype=np.float32)
     T[:n,-1] = coords
     
     return T
@@ -127,7 +127,7 @@ def rotateMat(angs, center=None, seq='XYZ', extrinsic=True, rank=2):
     
     #Calcuatd a 3x3 rotation matrix (centered at the 0,0)
     R = transform.Rotation.from_euler(seq, angs, degrees=False)
-    R = R.as_matrix().squeeze()
+    R = R.as_matrix().squeeze().astype(np.float32)
     R = rankIdn(R, rank)
 
     #Returns the R matrix or changes the center of rotation if center is provided
@@ -196,9 +196,9 @@ def coords_array(shape,ones=False):
         print("Dimensions must be between 1 and 3")
 
     if ones:
-        coords = np.concatenate([coords,np.ones(shape)[np.newaxis,...]], axis = 0, dtype=float)
+        coords = np.concatenate([coords,np.ones(shape)[np.newaxis,...]], axis = 0, dtype=np.float32)
     else:
-        coords = np.stack(coords, axis = 0, dtype=float)
+        coords = np.stack(coords, axis = 0, dtype=np.float32)
 
     coords = np.moveaxis(coords,0, -2)
     coords = np.ascontiguousarray(coords)

@@ -28,6 +28,16 @@ def phantom1(f):
     return phantom
 
 
+def phantom2(f):
+    nX,nY,nZ = (128,128,1024)
+
+    phantom = np.zeros([nX*f, nY*f, nZ*f])
+    phantom[56*f:72*f,56*f:72*f,8*f:56*f] = 1
+    
+    return phantom
+
+
+
 def phantom3(f):
     nX,nY,nZ = (128,128,64)
 
@@ -183,6 +193,20 @@ for view in np.arange(16)*16:
     test =  sg.calib_both(sino_T, Angs, ang, phi, theta, center, r, s)    
     plt.imshow((test - sino0[view,:,:]), origin='lower')
     plt.show()
+
+
+
+
+"""#Helical"""
+phantom = phantom2(1)
+nX, nY, nZ = phantom.shape
+
+nAng = 256
+Angs = np.linspace(0,np.pi*2,nAng,endpoint=False)
+
+
+
+
 
 
 
