@@ -78,9 +78,6 @@ def forward_project_phantom_misalign(phantom, Views, \
     return sino    
 
 
-
-
-
 def calib_proj_orient_TM(r, x, center):
     T = af.transMat((0,0,x))
     R = af.rotateMat((r,0,0), center=center)
@@ -100,8 +97,16 @@ def calib_precesion_TM(ang, phi, theta, center):
     return S, R
 
 
-def calib_proj_orient(sino3d, Angs, ang, x, rZ, cenZ_y, phi, theta, cenA_y, pitch=0):
+def calib_proj_orient(sino3d, Angs, transX=0.0, rZ=0.0, cenZ_y=None, phi=0.0, theta=0.0, cenA_y=None, pitch=0):
     nViews, nRows, nCols = sino3d.shape
+    
+    if cenA_y is None:
+        cenA_y = nRows/2.-0.5
+    center_A = np.array((0.0, cenA_y, nCols/2.-0.5))
+
+    if cenZ_y is None:
+        cenZ_y = nRows/2.-0.5
+    center_Z = np.array((0.0, cenZ_y, nCols/2.-0.5))
     
     dView = (Views[-1] - Views[0])/(nViews-1)
     dZ = pitch*nRows*dView/(np.pi*2)
@@ -117,12 +122,11 @@ def calib_proj_orient(sino3d, Angs, ang, x, rZ, cenZ_y, phi, theta, cenA_y, pitc
         ang = Angs[i]
 
         #Center of of rotation transforms
-        center_Z = np.array([0.0,cenZ_y-Z[i],nCols/2.0 - 0.5])
-        T_Z, R_Z = calib_proj_orient_TM(-rZ, -x, center_Z)
+        center_Z[1] = cenZ_y-Z[i]
+        T_Z, R_Z = calib_proj_orient_TM(-rZ, -transX, center_Z)
 
-        
         #Precession Transforms
-        center_A = np.array([0.0,cenA_y,nCols/2.0 - 0.5])
+        center_A[1] = cenA_y-Z[i]
         S_A, R_A = calib_precesion_TM(ang, phi, theta, center_A)
         
         SRTR = np.linalg.inv(S_A @ R_A @ T_Z @ R_Z) @ coords
@@ -186,7 +190,7 @@ sino0 = forward_project_phantom_misalign(phantom, Views, \
 view_sinos(sino0)
 
 #Correction
-sino0C = calib_proj_orient(sino0.copy(),Views,1,0,-angY_Z,center_Z[2],0,0,0)
+sino0C = calib_proj_orient(sino0.copy(),Views,rZ=-angY_Z, cenZ_y=center_Z[2])
 view_sinos(sino0C, sino)
 
 
@@ -201,7 +205,8 @@ sino1 = forward_project_phantom_misalign(phantom, Views, \
 view_sinos(sino1)
 
 #Correction
-sino1C = calib_proj_orient(sino1.copy(),Views,1,0,-angY_Z,center_Z[2],angY_A,0,center_A[2])
+sino1C = calib_proj_orient(sino1.copy(),Views,rZ=-angY_Z,cenZ_y=center_Z[2],\
+                           phi=angY_A,cenA_y=center_A[2])
 view_sinos(sino1C, sino)
 
 
@@ -218,7 +223,9 @@ sino2 = forward_project_phantom_misalign(phantom, Views, trans_X=trans_X,\
 view_sinos(sino2)
 
 #Correction
-sino2C = calib_proj_orient(sino2.copy(),Views,1,-trans_X,-angY_Z,center_Z[2],angY_A,0,center_A[2])
+sino2C = calib_proj_orient(sino2.copy(),Views,transX=-trans_X,\
+                           rZ=-angY_Z,cenZ_y=center_Z[2],\
+                           phi=angY_A,cenA_y=center_A[2])
 view_sinos(sino2C, sino)
 
 
@@ -231,23 +238,27 @@ view_sinos(sinoH)
 
 """Axis of rotaion, rotated with respect to z-axis"""
 sinoH0 = sino_par2hel(sino0, 128, nAngs, 1)
-sino0HC = calib_proj_orient(sinoH0.copy(),Views,1,0,-angY_Z,center_Z[2],0,0,0,1)
+sino0HC = calib_proj_orient(sinoH0.copy(),Views,rZ=-angY_Z,cenZ_y=center_Z[2],\
+                            pitch=1)
 view_sinos(sino0HC, sinoH)
 
 
 """Axis of rotaion, rotated with respect to z-axis and precessing"""
 sinoH1 = sino_par2hel(sino1, 128, nAngs, 1)
-sinoH1C = calib_proj_orient(sinoH1.copy(),Views,1,0,-angY_Z,center_Z[2],angY_A,0,center_A[2],1)
+sinoH1C = calib_proj_orient(sinoH1.copy(),Views, \
+                            angX_Z=angX_Z,angY_Z=angY_Z,center_Z=center_Z,\
+                            angX_A=angX_A,angY_A=angY_A,center_A=center_A,\
+                            pitch=1)
 view_sinos(sinoH1C, sinoH)
 
 
+"""Axis of rotaion - rotated and translated with respect to z-axis and precessing"""
+sinoH2 = sino_par2hel(sino2, 128, nAngs, 1)
+sinoH2C = calib_proj_orient(sinoH2.copy(), Views, trans_X=trans_X,\
+                            angX_Z=angX_Z,angY_Z=angY_Z,center_Z=center_Z,\
+                            angX_A=angX_A,angY_A=angY_A,center_A=center_A,\
+                            pitch=1)
+view_sinos(sinoH2C, sinoH)
 
 
-
-sinoH0 = sino_par2hel(sino2, 128, nAngs, 1)
-
-
-for view in np.arange(16)*16:
-    plt.imshow(sinoH0[view,:,:], origin='lower')
-    plt.show() 
 
