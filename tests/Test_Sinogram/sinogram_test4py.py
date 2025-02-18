@@ -72,8 +72,8 @@ def forward_project_phantom_misalign(phantom, Views, \
         R_A = af.rotateMat((angX_A,angY_A,view), center=center_A, seq='XYZ')
 
         #Apply transforms and project view
-        RRTC = (R_A @ R_Z @ T @ coords)
-        sino[i,:,:] = af.coords_transform(phantom, np.round(RRTC,6)).sum(axis=1).T
+        RRTC = np.round(R_A @ R_Z @ T @ coords,6)
+        sino[i,:,:] = af.coords_transform(phantom, RRTC).sum(axis=1).T
     
     return sino    
 
@@ -97,7 +97,8 @@ def calib_precesion_TM(ang, phi, theta, center):
     return S, R
 
 
-def calib_proj_orient(sino3d, Angs, transX=0.0, rZ=0.0, cenZ_y=None, phi=0.0, theta=0.0, cenA_y=None, pitch=0):
+def calib_proj_orient(sino3d, Angs, transX=0.0, rZ=0.0, cenZ_y=None,\
+                      phi=0.0, theta=0.0, cenA_y=None, pitch=0):
     nViews, nRows, nCols = sino3d.shape
     
     if cenA_y is None:
@@ -135,23 +136,27 @@ def calib_proj_orient(sino3d, Angs, transX=0.0, rZ=0.0, cenZ_y=None, phi=0.0, th
     return sino3d
 
 
-def sino_par2hel(sinoP, nRows, nAngs, pitch):
+def sino_par2hel(sinoP, nRows, nAngs, pitch, transD=0.0, rD=0.0):
     nViews, nRowsP, nCols = sinoP.shape
     
     dView = (Views[-1] - Views[0])/(nViews-1)
     dZ = pitch*nRows*dView/(np.pi*2)
     c =nRowsP/2 - nRows/2 +1
     Z = vir.censpace(nViews,c=c,d=dZ)
-    
-    coords = af.coords_array((1,nRows,nCols), ones=True)
+
+    center=(0.0,nRows/2-0.5,nCols/2-0.5)
+    T, R = calib_proj_orient_TM(rD, transD, center)  
     sinoH = np.zeros([Views.size,nRows,nCols], dtype=np.float32)
 
-    R = af.rotateMat((0,0,0), center=(nAngs/2-0.5,nRows/2-0.5,nCols/2-0.5))
 
     for i in range(nViews):
-        T = af.transMat((-i,-Z[i],0))
-        print(Z[i])
+        coords = af.coords_array((1,nRows,nCols), ones=True)
+        coords[:,:,0,:] = i
+        coords[:,:,1,:] = coords[:,:,1,:] + Z[i]
+        
+        #T = af.transMat((-i,-Z[i],0))
         RTC = (np.linalg.inv(R @ T) @ coords)
+        #RTC = (np.linalg.inv(R) @ coords)
     
         sinoH[i,:,:] = af.coords_transform(sinoP, np.round(RTC,6))
 
@@ -210,7 +215,6 @@ sino1C = calib_proj_orient(sino1.copy(),Views,rZ=-angY_Z,cenZ_y=center_Z[2],\
 view_sinos(sino1C, sino)
 
 
-
 """Axis of rotaion - rotated and translated with respect to z-axis and precessing"""
 trans_X = 10
 angX_Z,angY_Z = (0.0,0.1)
@@ -230,10 +234,13 @@ view_sinos(sino2C, sino)
 
 
 
-
 """#Helical"""
-sinoH = sino_par2hel(sino, 128, nAngs, 1)
-view_sinos(sinoH)
+sinoH10 = sino_par2hel(sino, 128, nAngs, 1, transD=50,rD=.2)
+view_sinos(sinoH10)
+sinoH0 = sino_par2hel(sino, 128, nAngs, 1, transD=0,rD=0)
+view_sinos(sinoH0)
+
+view_sinos(sinoH10, sinoH0)
 
 
 """Axis of rotaion, rotated with respect to z-axis"""
@@ -245,18 +252,17 @@ view_sinos(sino0HC, sinoH)
 
 """Axis of rotaion, rotated with respect to z-axis and precessing"""
 sinoH1 = sino_par2hel(sino1, 128, nAngs, 1)
-sinoH1C = calib_proj_orient(sinoH1.copy(),Views, \
-                            angX_Z=angX_Z,angY_Z=angY_Z,center_Z=center_Z,\
-                            angX_A=angX_A,angY_A=angY_A,center_A=center_A,\
+sinoH1C = calib_proj_orient(sinoH1.copy(),Views,rZ=-angY_Z,cenZ_y=center_Z[2],\
+                            phi=angY_A,cenA_y=center_A[2],\
                             pitch=1)
 view_sinos(sinoH1C, sinoH)
 
 
 """Axis of rotaion - rotated and translated with respect to z-axis and precessing"""
 sinoH2 = sino_par2hel(sino2, 128, nAngs, 1)
-sinoH2C = calib_proj_orient(sinoH2.copy(), Views, trans_X=trans_X,\
-                            angX_Z=angX_Z,angY_Z=angY_Z,center_Z=center_Z,\
-                            angX_A=angX_A,angY_A=angY_A,center_A=center_A,\
+sinoH2C = calib_proj_orient(sinoH2.copy(), Views, transX=-trans_X,\
+                            rZ=-angY_Z,cenZ_y=center_Z[2],\
+                            phi=angY_A,cenA_y=center_A[2],\
                             pitch=1)
 view_sinos(sinoH2C, sinoH)
 
