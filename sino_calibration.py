@@ -70,6 +70,19 @@ def forward_project_phantom_misalign(phantom, Views, \
     return sino    
 
 
+def add_detector_tilt_shift(sino3d, r, x):
+    
+    nAngs, nRows, nCols = sino3d.shape
+    
+    coords = af.coords_array((nAngs,nRows,nCols), ones=True)
+
+    center = np.array([1.0,nRows,nCols])/2.0 - 0.5
+    T, R = proj_orient_TM(r, x, center)
+    RTC = (np.linalg.inv(R @ T) @ coords)
+
+    return af.coords_transform(sino3d, np.round(RTC,6))
+
+
 def proj_orient_TM(r, x, center):
     T = af.transMat((0,0,x))
     R = af.rotateMat((r,0,0), center=center)
@@ -89,12 +102,35 @@ def precesion_TM(ang, phi, theta, center):
     return S, R
 
 
+def calib_det_orient(sino3d, Angs, ang, r, x):
+    nViews, nRows, nCols = sino3d.shape
+    
+    coords = af.coords_array((1,nRows,nCols), ones=True)
+    coords[:,:,0,:] = np.interp(ang,Angs,np.arange(nViews))
+    
+    center = np.array([1.0,nRows,nCols])/2.0 - 0.5
+    T, R = proj_orient_TM(-r, -x, center)
+    
+    TRC = np.linalg.inv(T @ R) @ coords
+    return np.squeeze(af.coords_transform(sino3d, TRC))
+
+
+def calib_precesion(sino3d, Angs, ang, phi, theta, center):
+    nViews, nRows, nCols = sino3d.shape
+
+    coords = af.coords_array((1,nRows,nCols), ones=True)
+    coords[:,:,0,:] = np.interp(ang,Angs,np.arange(nViews))
+
+    S, R = precesion_TM(ang, phi, theta, center)
+
+    SRC = np.linalg.inv(S @ R) @ coords
+    return np.squeeze(af.coords_transform(sino3d, SRC))
+
 
 def calib_proj_orient_view(sino3d, Views, view, z,\
                            transX=0.0, rZ=0.0, cenZ_y=None,\
                            phi=0.0, theta=0.0, cenA_y=None, \
-                           transD=0.0, rD=0.0,\
-                           pitch=0):
+                           transD=0.0, rD=0.0):
 
     nViews, nRows, nCols = sino3d.shape
 
@@ -129,11 +165,6 @@ def calib_proj_orient_view(sino3d, Views, view, z,\
     return np.squeeze(af.coords_transform(sino3d, SRTR))
 
 
-
-
-
-
-
 def calib_proj_orient(sino3d, Views, transX=0.0, rZ=0.0, cenZ_y=None,\
                       phi=0.0, theta=0.0, cenA_y=None, transD=0.0, rD=0.0,\
                       pitch=0):
@@ -149,7 +180,6 @@ def calib_proj_orient(sino3d, Views, transX=0.0, rZ=0.0, cenZ_y=None,\
     
     center_D=(0.0,nRows/2-0.5,nCols/2-0.5)
     T_D, R_D = proj_orient_TM(rD, transD, center_D)  
-    
     
     
     dView = (Views[-1] - Views[0])/(nViews-1)
