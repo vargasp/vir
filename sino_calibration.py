@@ -10,6 +10,8 @@ import numpy as np
 
 import vir
 import vir.affine_transforms as af
+from scipy.ndimage import sobel
+import vt
 
 
 def forward_project_phantom_misalign(phantom, Views, \
@@ -207,3 +209,141 @@ def calib_proj_orient(sino3d, Views, transX=0.0, rZ=0.0, cenZ_y=None,\
         sino3d[i,:,:] = np.squeeze(af.coords_transform(sino3d, SRTR))
     
     return sino3d
+
+
+def hsino_calibrate(sino,nAngs,pitch,transX,rZ,cenZ_y,phi,theta,cenA_y,rD,cL=38,\
+          Z=0,par=False):
+    nViews, nRows, nCols = sino.shape
+    Views = np.linspace(0,nViews/nAngs*np.pi*2,nViews,endpoint=False)
+        
+    p_sino = np.zeros([nViews,nCols])
+    h_sino = np.zeros([nViews+int(nAngs/2),nCols,2])
+    
+    coords = af.coords_array((1,3,nCols), ones=True)
+    coords[:,0,1,:] = cL
+    coords[:,1,1,:] = cL + pitch*nRows/2.0
+
+    
+    center_det = np.array([1.0,nRows,nCols])/2.0 - 0.5
+    x=0
+    T_det, R_D = proj_orient_TM(rD, x, center_det)
+    
+    for i, view in enumerate(Views):
+        dZ1 = pitch*nRows*view/(2*np.pi)       
+        dZ2 = pitch*nRows*(view-np.pi)/(2*np.pi) 
+        coords[:,0,0,:] = i
+        coords[:,1,0,:] = i - nAngs/2.0
+        coords[:,2,0,:] = i
+        coords[:,2,1,:] = Z - dZ1
+
+        #Center of of rotation transforms        
+        center_Z = np.array((0.0, cenZ_y-dZ1, nCols/2.-0.5))
+        T_Z, R_Z = proj_orient_TM(-rZ, -transX, center_Z)
+    
+        center_A = np.array((0.0, cenA_y-dZ1, nCols/2.-0.5))
+        S_A, R_A = precesion_TM(view, phi, theta, center_A)
+    
+        SRTR1 = np.linalg.inv(R_D @ S_A @ R_A @T_Z @ R_Z) 
+        h_sino[i,:,0] = np.squeeze(af.coords_transform(sino, SRTR1 @ coords[:,[0],:,:]))
+        p_sino[i,:] = np.squeeze(af.coords_transform(sino, SRTR1@ coords[:,[2],:,:]))
+
+        #Center of of rotation transforms        
+        center_Z = np.array((0.0, cenZ_y-dZ2, nCols/2.-0.5))
+        T_Z, R_Z = proj_orient_TM(-rZ, -transX, center_Z)
+    
+        center_A = np.array((0.0, cenA_y-dZ2, nCols/2.-0.5))
+        S_A, R_A = precesion_TM(view-np.pi, phi, theta, center_A)
+        
+        SRTR2 = np.linalg.inv(R_D @ S_A @ R_A @T_Z @ R_Z) @ coords[:,[1],:,:]
+        h_sino[i,:,1] =  np.squeeze(af.coords_transform(sino, SRTR2))[::-1]
+
+
+    if par is True:
+        return h_sino[int(nAngs/2):-int(nAngs/2),:,:],p_sino
+    else:
+        return h_sino[int(nAngs/2):-int(nAngs/2),:,:]
+
+
+
+def rmse(sino):
+    return np.sqrt(np.sum((sino[:,:,0] - sino[:,:,1])**2)/sino[:,:,0].size)
+
+def plot_calib_args(*args):
+    sino = args[0]
+    
+    args = list(args)
+    for i in range(1,10):
+        if type(args[i]) is not np.ndarray: args[i] = [args[i]]
+    
+    nAngsV = np.array(args[1])
+    pitchV = np.array(args[2])
+    transXV = np.array(args[3])
+    rZV = np.array(args[4])
+    cenZ_yV = np.array(args[5])
+    phiV = np.array(args[6])
+    thetaV = np.array(args[7])
+    cenA_yV = np.array(args[8])
+    rDV = np.array(args[9])
+    
+    rmat = np.zeros([nAngsV.size,pitchV.size,transXV.size,\
+                     rZV.size,cenZ_yV.size,\
+                     phiV.size,thetaV.size,cenA_yV.size,rDV.size,2])
+    
+    for i, nAngs in enumerate(nAngsV):
+        for j, pitch in enumerate(pitchV):
+            for k, transX in enumerate(transXV):
+                for l, rZ in enumerate(rZV):
+                    for m, cenZ_y in enumerate(cenZ_yV):
+                        for n, phi in enumerate(phiV):
+                            for o, theta in enumerate(thetaV):
+                                for p, cenA_y in enumerate(cenA_yV):
+                                    for q, rD in enumerate(rDV):
+    
+                                        test2 = hsino_calibrate(sino,nAngs,pitch,transX,rZ,cenZ_y,phi,theta,cenA_y,rD)
+                                        rmat[i,j,k,l,m,n,o,p,q,0] = rmse(sobel(test2,axis=0))
+                                        rmat[i,j,k,l,m,n,o,p,q,1] = rmse(sobel(test2,axis=1))
+
+
+    rmat = rmat.squeeze()
+    i0,i1 = np.argmin(rmat, axis=0)
+    mx0,mx1 = np.max(rmat, axis=0)
+    mn0,mn1 = np.min(rmat, axis=0)
+
+    if nAngsV.size >1:
+        print("nAngs 0:",nAngsV[i0], "Idx:",i0, "RMSE:",mn0, "Range:",mx0-mn0)
+        #print("pitch 1:",pitchV[i1], "Idx:",i1, "RMSE:",mn1, "Range:",mx1-mn1)
+        vt.CreatePlot(rmat[:,0],xs=nAngsV,xtitle='nAngs')
+    if pitchV.size >1:
+        print("pitch 0:",pitchV[i0], "Idx:",i0, "RMSE:",mn0, "Range:",mx0-mn0)
+        #print("pitch 1:",pitchV[i1], "Idx:",i1, "RMSE:",mn1, "Range:",mx1-mn1)
+        vt.CreatePlot(rmat[:,0],xs=pitchV,xtitle='pitch')
+    if transXV.size >1:
+        print("transX 0:",transXV[i0], "Idx:",i0, "RMSE:",mn0, "Range:",mx0-mn0)
+        #print("transX 1:",transXV[i1], "Idx:",i1, "RMSE:",mn1, "Range:",mx1-mn1)
+        vt.CreatePlot(rmat[:,0],xs=transXV,xtitle='transX')
+    if rZV.size >1:
+        print("rZ 0:",rZV[i0], "Idx:",i0, "RMSE:",mn0, "Range:",mx0-mn0)
+        #print("rZ 1:",rZV[i1], "Idx:",i1, "RMSE:",mn1, "Range:",mx1-mn1)
+        vt.CreatePlot(rmat[:,0],xs=rZV,xtitle='rZ')
+    if cenZ_yV.size >1:
+        print("cenZ_y 0:",cenZ_yV[i0], "Idx:",i0, "RMSE:",mn0, "Range:",mx0-mn0)
+        #print("cenZ_y 1:",cenZ_yV[i1], "Idx:",i1, "RMSE:",mn1, "Range:",mx1-mn1)
+        vt.CreatePlot(rmat[:,0],xs=cenZ_yV,xtitle='cenZ_y')
+    if phiV.size >1:
+        print("phi 0:",phiV[i0], "Idx:",i0, "RMSE:",mn0, "Range:",mx0-mn0)
+        #print("phi 1:",phiV[i1], "Idx:",i1, "RMSE:",mn1, "Range:",mx1-mn1)
+        vt.CreatePlot(rmat[:,0],xs=phiV,xtitle='phi')
+    if thetaV.size >1:
+        print("theta 0:",thetaV[i0], "Idx:",i0, "RMSE:",mn0, "Range:",mx0-mn0)
+        #print("theta 1:",thetaV[i1], "Idx:",i1, "RMSE:",mn1, "Range:",mx1-mn1)
+        vt.CreatePlot(rmat[:,0],xs=thetaV,xtitle='theta')
+    if cenA_yV.size >1:
+        print("cenA_y 0:",cenA_yV[i0], "Idx:",i0, "RMSE:",mn0, "Range:",mx0-mn0)
+        #print("cenA_y 1:",cenA_yV[i1], "Idx:",i1, "RMSE:",mn1, "Range:",mx1-mn1)
+        vt.CreatePlot(rmat[:,0],xs=cenA_yV,xtitle='cenA_y')
+    if rDV.size >1:
+        print("rDV 0:",rDV[i0], "Idx:",i0, "RMSE:",mn0, "Range:",mx0-mn0)
+        #print("cenA_y 1:",cenA_yV[i1], "Idx:",i1, "RMSE:",mn1, "Range:",mx1-mn1)
+        vt.CreatePlot(rmat[:,0],xs=rDV,xtitle='rDV')
+    return rmat
+
