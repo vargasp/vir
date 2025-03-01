@@ -312,38 +312,56 @@ def plot_calib_args(*args):
     if nAngsV.size >1:
         print("nAngs 0:",nAngsV[i0], "Idx:",i0, "RMSE:",mn0, "Range:",mx0-mn0)
         #print("pitch 1:",pitchV[i1], "Idx:",i1, "RMSE:",mn1, "Range:",mx1-mn1)
-        vt.CreatePlot(rmat[:,0],xs=nAngsV,xtitle='nAngs')
+        vt.CreatePlot(rmat[:,0],xs=nAngsV,xtitle='nAngs',ytitle='RMSE')
     if pitchV.size >1:
         print("pitch 0:",pitchV[i0], "Idx:",i0, "RMSE:",mn0, "Range:",mx0-mn0)
         #print("pitch 1:",pitchV[i1], "Idx:",i1, "RMSE:",mn1, "Range:",mx1-mn1)
-        vt.CreatePlot(rmat[:,0],xs=pitchV,xtitle='pitch')
+        vt.CreatePlot(rmat[:,0],xs=pitchV,xtitle='pitch',ytitle='RMSE')
     if transXV.size >1:
         print("transX 0:",transXV[i0], "Idx:",i0, "RMSE:",mn0, "Range:",mx0-mn0)
         #print("transX 1:",transXV[i1], "Idx:",i1, "RMSE:",mn1, "Range:",mx1-mn1)
-        vt.CreatePlot(rmat[:,0],xs=transXV,xtitle='transX')
+        vt.CreatePlot(rmat[:,0],xs=transXV,xtitle='transX',ytitle='RMSE')
     if rZV.size >1:
         print("rZ 0:",rZV[i0], "Idx:",i0, "RMSE:",mn0, "Range:",mx0-mn0)
         #print("rZ 1:",rZV[i1], "Idx:",i1, "RMSE:",mn1, "Range:",mx1-mn1)
-        vt.CreatePlot(rmat[:,0],xs=rZV,xtitle='rZ')
+        vt.CreatePlot(rmat[:,0],xs=rZV,xtitle='rZ',ytitle='RMSE')
     if cenZ_yV.size >1:
         print("cenZ_y 0:",cenZ_yV[i0], "Idx:",i0, "RMSE:",mn0, "Range:",mx0-mn0)
         #print("cenZ_y 1:",cenZ_yV[i1], "Idx:",i1, "RMSE:",mn1, "Range:",mx1-mn1)
-        vt.CreatePlot(rmat[:,0],xs=cenZ_yV,xtitle='cenZ_y')
+        vt.CreatePlot(rmat[:,0],xs=cenZ_yV,xtitle='cenZ_y',ytitle='RMSE')
     if phiV.size >1:
         print("phi 0:",phiV[i0], "Idx:",i0, "RMSE:",mn0, "Range:",mx0-mn0)
         #print("phi 1:",phiV[i1], "Idx:",i1, "RMSE:",mn1, "Range:",mx1-mn1)
-        vt.CreatePlot(rmat[:,0],xs=phiV,xtitle='phi')
+        vt.CreatePlot(rmat[:,0],xs=phiV,xtitle='phi',ytitle='RMSE')
     if thetaV.size >1:
         print("theta 0:",thetaV[i0], "Idx:",i0, "RMSE:",mn0, "Range:",mx0-mn0)
         #print("theta 1:",thetaV[i1], "Idx:",i1, "RMSE:",mn1, "Range:",mx1-mn1)
-        vt.CreatePlot(rmat[:,0],xs=thetaV,xtitle='theta')
+        vt.CreatePlot(rmat[:,0],xs=thetaV,xtitle='theta',ytitle='RMSE')
     if cenA_yV.size >1:
         print("cenA_y 0:",cenA_yV[i0], "Idx:",i0, "RMSE:",mn0, "Range:",mx0-mn0)
         #print("cenA_y 1:",cenA_yV[i1], "Idx:",i1, "RMSE:",mn1, "Range:",mx1-mn1)
-        vt.CreatePlot(rmat[:,0],xs=cenA_yV,xtitle='cenA_y')
+        vt.CreatePlot(rmat[:,0],xs=cenA_yV,xtitle='cenA_y',ytitle='RMSE')
     if rDV.size >1:
         print("rDV 0:",rDV[i0], "Idx:",i0, "RMSE:",mn0, "Range:",mx0-mn0)
         #print("cenA_y 1:",cenA_yV[i1], "Idx:",i1, "RMSE:",mn1, "Range:",mx1-mn1)
-        vt.CreatePlot(rmat[:,0],xs=rDV,xtitle='rDV')
+        vt.CreatePlot(rmat[:,0],xs=rDV,xtitle='rDV',ytitle='RMSE')
     return rmat
+
+
+#from scipy.optimize import minimize
+#params = (nAngs,pitch,transX,rZ,cenZ_y,phi,theta,cenA_y,rD)
+#results = minimize(min_claib, params, args=(sino),method='Nelder-Mead')
+
+def min_params(params, sino):
+    nAngs,pitch,transX,rZ,cenZ_y,phi,theta,cenA_y,rD = params
+    
+
+    hsino = hsino_calibrate(sino,nAngs,pitch,transX,rZ,cenZ_y,phi,theta,cenA_y,rD)
+
+    return rmse(hsino)
+    
+
+
+
+
 
