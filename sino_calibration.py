@@ -342,7 +342,7 @@ def plot_calib_args(*args):
         #print("cenA_y 1:",cenA_yV[i1], "Idx:",i1, "RMSE:",mn1, "Range:",mx1-mn1)
         vt.CreatePlot(rmat[:,0],xs=cenA_yV,xtitle='cenA_y')
     if rDV.size >1:
-        print("rDV 0:",rDV[i0], "Idx:",i0, "RMSE:",mn0, "Range:",mx0-mn0)
+        print("rDV0:",rDV[i0], "Idx:",i0, "RMSE:",mn0, "Range:",mx0-mn0)
         #print("cenA_y 1:",cenA_yV[i1], "Idx:",i1, "RMSE:",mn1, "Range:",mx1-mn1)
         vt.CreatePlot(rmat[:,0],xs=rDV,xtitle='rDV')
     return rmat
