@@ -15,8 +15,8 @@ import vir.sino_calibration as sc
 from vir.phantoms import discrete_circle
 
 def gen_phantom(f):
-    #phantom = np.load('/Users/pvargas21/Desktop/derenzo_phantom3d512_512_128.npy')
-    phantom = np.load('C:\\Users\\varga\\Desktop\\Samples\\derenzo_phantom3d512_512_128.npy')
+    phantom = np.load('/Users/pvargas21/Desktop/derenzo_phantom3d512_512_128.npy')
+    #phantom = np.load('C:\\Users\\varga\\Desktop\\Samples\\derenzo_phantom3d512_512_128.npy')
     
     phantom = phantom + discrete_circle(radius=175, upsample=10)[:,:,np.newaxis]
     p_mid = phantom[367:398,239:273,:].copy()
@@ -26,7 +26,7 @@ def gen_phantom(f):
     p_mid[-10:,-5:,:] = 1.0
     phantom[241:272,239:273] = p_mid
     
-    return np.tile(phantom.astype(np.float32),[1,1,4])
+    return np.tile(phantom.astype(np.float32),[1,1,5])
    
 
 
@@ -72,14 +72,92 @@ sinoTRaRz = sc.forward_project_phantom_misalign(phantom, Views, trans_X=trans_X,
     
     
     
+
+"""XY Planes Images"""
+vt.CreateImage(phantom[127,118:138,182:202].T, title='Phantom YZ-Plane Middle (Zoomed Center)',\
+           xtitle='Detector Cols',ytitle='Detector Rows',\
+           coords=(-10,10,-266,-246),aspect=1)
+    
+vt.CreateImage(phantom[127,118:138,438:458].T, title='Phantom YZ-Plane Middle (Zoomed Center)',\
+           xtitle='Detector Cols',ytitle='Detector Rows',\
+           coords=(-10,10,-10,10),aspect=1)
+
+vt.CreateImage(phantom[127,118:138,694:714].T, title='Phantom YZ-Plane Middle (Zoomed Center)',\
+           xtitle='Detector Cols',ytitle='Detector Rows',\
+           coords=(-10,10,246,266),aspect=1)
+    
+    
+    
+"""XY Planes Images"""
+vt.CreateImage(phantom[:,:,192], title='Phantom XY-Plane Bottom',\
+       xtitle='X Bins',ytitle='Y Bins',\
+       coords=(-128,128,-128,128),aspect=1)
+    
+vt.CreateImage(phantom[:,:,448], title='Phantom XY-Plane Middle',\
+       xtitle='X Bins',ytitle='Y Bins',\
+       coords=(-128,128,-128,128),aspect=1)
+    
+vt.CreateImage(phantom[:,:,704], title='Phantom XY-Plane Top',\
+       xtitle='X Bins',ytitle='Y Bins',\
+       coords=(-128,128,-128,128),aspect=1)
+    
+    
+vt.CreateImage(phantom[118:138,118:138,192], title='Phantom XY-Plane Bottom (Zoomed Center)',\
+       xtitle='X Bins',ytitle='Y Bins',\
+       coords=(-10,10,-10,10),aspect=1)
+    
+vt.CreateImage(phantom[118:138,118:138,448], title='Phantom XY-Plane Middle (Zoomed Center)',\
+       xtitle='X Bins',ytitle='Y Bins',\
+       coords=(-10,10,-10,10),aspect=1)
+    
+vt.CreateImage(phantom[118:138,118:138,704], title='Phantom XY-Plane Top (Zoomed Center)',\
+       xtitle='X Bins',ytitle='Y Bins',\
+       coords=(-10,10,-10,10),aspect=1) 
+
+
+vt.CreateImage(phantom[181:201,118:138,192], title='Phantom XY-Plane Bottom (Zoomed Edge)',\
+       xtitle='X Bins',ytitle='Y Bins',\
+       coords=(-10,10,53,73),aspect=1)    
+
+vt.CreateImage(phantom[181:201,118:138,448], title='Phantom XY-Plane Middle (Zoomed Edge)',\
+       xtitle='X Bins',ytitle='Y Bins',\
+       coords=(-10,10,53,73),aspect=1)
+
+vt.CreateImage(phantom[181:201,118:138,704], title='Phantom XY-Plane Top (Zoomed Edge)',\
+       xtitle='X Bins',ytitle='Y Bins',\
+       coords=(-10,10,53,73),aspect=1)
+    
+
     
     
     
     
-    vt.CreateImage(sino[0,:,:], title='Projection View 0',\
-               xtitle='Detector Cols',ytitle='Detector Rows',\
-               coords=(-128,128,0,nViews),aspect=1)
+vt.CreateImage(phantom[:,:,448+64], title='Phantom XY-Plane Top',\
+       xtitle='Detector Cols',ytitle='Detector Rows',\
+       coords=(-10,10,374,394),aspect=1)
+
     
+vt.CreateImage(phantom[118:138,118:138,374:394].T, title='Phantom YZ-Plane Middle',\
+           xtitle='Detector Cols',ytitle='Detector Rows',\
+           coords=(-10,10,374,394),aspect=1)
+
+
+    
+vt.CreateImage(phantom[127,118:138,118:138].T, title='Phantom YZ-Plane Middle',\
+           xtitle='Detector Cols',ytitle='Detector Rows',\
+           coords=(-10,10,374,394),aspect=1)
+
+    
+    
+    
+    
+
+    
+    
+vt.CreateImage(sino[0,:,:], title='Projection View 0',\
+           xtitle='Detector Cols',ytitle='Detector Rows',\
+           coords=(-128,128,0,nViews),aspect=1)
+
     
     
     
