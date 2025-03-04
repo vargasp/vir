@@ -5,6 +5,7 @@ Created on Sat Mar  1 09:01:01 2025
 
 @author: pvargas21
 """
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -14,22 +15,25 @@ import vir.sino_calibration as sc
 from vir.phantoms import discrete_circle
 
 
-
-
-"""Paralell"""
-phantom = np.load('C:\\Users\\varga\\Desktop\\Wobble\wobble_phantom.npy')
-nX, nY, nZ = phantom.shape
+data_dir = '/Users/pvargas21/Desktop/Wobble/'
+    
 
 """Paralell"""
-sino1 = np.load('C:\\Users\\varga\\Desktop\\Wobble\sinoP1.npy')
-sino2 = np.load('C:\\Users\\varga\\Desktop\\Wobble\sinoP2.npy')
+phantom1 = np.load(data_dir+'wobble_phantom1.npy')
+phantom2 = np.load(data_dir+'wobble_phantom2.npy')
+nX, nY, nZ = phantom1.shape
 
-nAngs, nRows, nDets = sino.shape
+"""Paralell"""
+sinoP1 = np.load(data_dir+'sinoP1.npy')
+sinoP2 = np.load(data_dir+'sinoP2.npy')
+
+nAngs, nRows, nDets = sinoP1.shape
 Angs = np.linspace(0, 2*np.pi,nAngs,endpoint=False, dtype=np.float32)
 
 """Axis of rotaion, rotated with respect to z-axis"""
 trans_X = 10.5
-sinoT = np.load('C:\\Users\\varga\\Desktop\\Wobble\sinoT.npy')    
+sinoT1 = np.load(data_dir+'sinoT1.npy')    
+sinoT2 = np.load(data_dir+'sinoT2.npy')    
     
     
 """Axis of rotaion, rotated with respect to z-axis"""
