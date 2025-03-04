@@ -76,7 +76,7 @@ view_sinos(sino)
 
 """Axis of rotaion, rotated with respect to z-axis"""
 angX_Z,angY_Z = (0.0,0.1)
-center_Z = (nX/2.-0.5, nY/2.-0.5, .5)
+center_Z = (nX/2.-0.5, nY/2.-0.5, 127)
 sino0 = sc.forward_project_phantom_misalign(phantom, Views, \
                                         angX_Z=angX_Z,angY_Z=angY_Z,center_Z=center_Z)
 view_sinos(sino0)

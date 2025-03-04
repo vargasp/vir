@@ -78,36 +78,7 @@ p2 = np.load('/Users/pvargas21/Desktop/Wobble/wobble_phantom2.npy')
 
 sP1 = np.load('/Users/pvargas21/Desktop/Wobble/sinoP1.npy')
 
-def Images(p):
-    nX, nY, nZ = p.shape
-    
-    Z = [128,384,640]
-    vert_label = ['Bottom','Middle','Top']
 
-    for (z,label)in zip(Z,vert_label):
-        """XY Planes Images"""
-        vt.CreateImage(p1[:,:,z], title='Phantom XY-Plane '+label,\
-           xtitle='X Bins',ytitle='Y Bins',\
-           coords=(-128,128,-128,128),aspect=1)
-        
-        vt.CreateImage(p1[118:138,118:138,z], title='Phantom XY-Plane '+label+' (Zoomed Center)',\
-           xtitle='X Bins',ytitle='Y Bins',\
-           coords=(-10,10,-10,10),aspect=1)
-    
-        vt.CreateImage(p1[182:202,118:138,z], title='Phantom XY-Plane '+label+' (Zoomed Edge)',\
-               xtitle='X Bins',ytitle='Y Bins',\
-               coords=(-10,10,54,74),aspect=1)    
-
-        """YZ Planes Images"""
-        vt.CreateImage(p1[128,118:138,(z-10):(z+10)].T, title='Phantom YZ-Plane '+label+' (Zoomed Center)',\
-           xtitle='Y Bins',ytitle='Z Bins',\
-           coords=(-10,10,z-nZ/2-10,z-nZ/2+10),aspect=1)
-
-        vt.CreateImage(p1[192,118:138,(z-10):(z+10)].T, title='Phantom YZ-Plane '+label+' (Zoomed Edge)',\
-           xtitle='Y Bins',ytitle='Z Bins',\
-           coords=(54,74,z-nZ/2-10,z-nZ/2+10),aspect=1)
-
-        
             
 
 nAngs, nRows, nCols = sP1.shape

@@ -93,10 +93,11 @@ def gen_phantom(f):
    
 
 """Paralell"""
-phantom1, phantom2 = gen_phantom(1)
-np.save('C:\\Users\\varga\\Desktop\\Wobble\\wobble_phantom1',phantom1)
-np.save('C:\\Users\\varga\\Desktop\\Wobble\\wobble_phantom2',phantom2)
-#phantom = np.load('C:\\Users\\varga\\Desktop\\Wobble\wobble_phantom.npy')
+#phantom1, phantom2 = gen_phantom(1)
+#np.save('C:\\Users\\varga\\Desktop\\Wobble\\wobble_phantom1',phantom1)
+#np.save('C:\\Users\\varga\\Desktop\\Wobble\\wobble_phantom2',phantom2)
+phantom1 = np.load('C:\\Users\\varga\\Desktop\\Wobble\wobble_phantom1.npy')
+phantom2 = np.load('C:\\Users\\varga\\Desktop\\Wobble\wobble_phantom2.npy')
 nX, nY, nZ = phantom1.shape
 
 
@@ -108,15 +109,16 @@ sino1 = sc.forward_project_phantom_misalign(phantom1, Views)
 sino2 = sc.forward_project_phantom_misalign(phantom2, Views)
 np.save('C:\\Users\\varga\\Desktop\\Wobble\sinoP1', sino1)
 np.save('C:\\Users\\varga\\Desktop\\Wobble\sinoP2', sino2)
-    
-"""Axis of rotaion, rotated with respect to z-axis"""
+
+
+"""Axis translation respect to z-axis"""
 trans_X = 10.5
 sinoT1 = sc.forward_project_phantom_misalign(phantom1, Views, trans_X=trans_X)    
 sinoT2 = sc.forward_project_phantom_misalign(phantom2, Views, trans_X=trans_X)
 np.save('C:\\Users\\varga\\Desktop\\Wobble\sinoT1', sinoT1)
 np.save('C:\\Users\\varga\\Desktop\\Wobble\sinoT2', sinoT2)
 
-    
+
 """Axis of rotaion, rotated with respect to z-axis"""
 angX_Z,angY_Z = (0.0,0.05)
 center_Z = (nX/2.-0.5, nY/2.-0.5, 127)
@@ -128,22 +130,26 @@ np.save('C:\\Users\\varga\\Desktop\\Wobble\sinoRz1', sinoRz1)
 np.save('C:\\Users\\varga\\Desktop\\Wobble\sinoRz2', sinoRz2)
 
 
-
-
-
 """Precessing"""
-angX_A,angY_A = (0.0,0.04)
-center_A = (nX/2.-0.5, nY/2.-0.5, 64-.5)
-sinoRa = sc.forward_project_phantom_misalign(phantom, Views, \
+angX_A,angY_A = (0.0,0.075)
+center_A = (nX/2.-0.5, nY/2.-0.5, 383)
+sinoRa1 = sc.forward_project_phantom_misalign(phantom1, Views, \
                                         angX_A=angX_A,angY_A=angY_A,center_A=center_A)
-np.save('C:\\Users\\varga\\Desktop\\Wobble\sinoRa', sinoRa)
-    
-    
+sinoRa2 = sc.forward_project_phantom_misalign(phantom2, Views, \
+                                        angX_A=angX_A,angY_A=angY_A,center_A=center_A)
+np.save('C:\\Users\\varga\\Desktop\\Wobble\sinoRa1', sinoRa1)
+np.save('C:\\Users\\varga\\Desktop\\Wobble\sinoRa2', sinoRa2)
+
+
 """Axis of rotaion - rotated and translated with respect to z-axis and precessing"""
-sinoTRaRz = sc.forward_project_phantom_misalign(phantom, Views, trans_X=trans_X,\
+sinoTRaRz1 = sc.forward_project_phantom_misalign(phantom1, Views, trans_X=trans_X,\
                                         angX_Z=angX_Z,angY_Z=angY_Z,center_Z=center_Z,\
                                         angX_A=angX_A,angY_A=angY_A,center_A=center_A)    
-np.save('C:\\Users\\varga\\Desktop\\Wobble\sinoTRaRz', sinoTRaRz)
+sinoTRaRz2 = sc.forward_project_phantom_misalign(phantom2, Views, trans_X=trans_X,\
+                                        angX_Z=angX_Z,angY_Z=angY_Z,center_Z=center_Z,\
+                                        angX_A=angX_A,angY_A=angY_A,center_A=center_A)    
+np.save('C:\\Users\\varga\\Desktop\\Wobble\sinoTRaRz1', sinoTRaRz1)
+np.save('C:\\Users\\varga\\Desktop\\Wobble\sinoTRaRz2', sinoTRaRz2)
     
     
     

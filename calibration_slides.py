@@ -14,37 +14,93 @@ import vir
 import vir.sino_calibration as sc
 from vir.phantoms import discrete_circle
 
+def Images(p):
+    nX, nY, nZ = p.shape
+    
+    Z = [128,384,640]
+    vert_label = ['Bottom','Middle','Top']
+
+    for (z,label)in zip(Z,vert_label):
+        """XY Planes Images"""
+        vt.CreateImage(p[:,:,z], title='Phantom XY-Plane '+label,\
+           xtitle='X Bins',ytitle='Y Bins',\
+           coords=(-128,128,-128,128),aspect=1)
+        
+        vt.CreateImage(p[118:138,118:138,z], title='Phantom XY-Plane '+label+' (Zoomed Center)',\
+           xtitle='X Bins',ytitle='Y Bins',\
+           coords=(-10,10,-10,10),aspect=1)
+    
+        vt.CreateImage(p[182:202,118:138,z], title='Phantom XY-Plane '+label+' (Zoomed Edge)',\
+               xtitle='X Bins',ytitle='Y Bins',\
+               coords=(-10,10,54,74),aspect=1)    
+
+        """YZ Planes Images"""
+        vt.CreateImage(p[128,118:138,(z-10):(z+10)].T, title='Phantom YZ-Plane '+label+' (Zoomed Center)',\
+           xtitle='Y Bins',ytitle='Z Bins',\
+           coords=(-10,10,z-nZ/2-10,z-nZ/2+10),aspect=1)
+
+        vt.CreateImage(p[192,118:138,(z-10):(z+10)].T, title='Phantom YZ-Plane '+label+' (Zoomed Edge)',\
+           xtitle='Y Bins',ytitle='Z Bins',\
+           coords=(54,74,z-nZ/2-10,z-nZ/2+10),aspect=1)
+
+def Sinos(s):
+    nAngs, nRows, nCols = s.shape
+        
+    vt.CreateImage(s[0,:,:], title='Projection View 0',\
+           xtitle='Detector Cols',ytitle='Detector Rows',\
+           coords=(-nCols/2,nCols/2,-nRows/2,nRows/2),aspect=1)
+    
+    Z = [128,384,640]
+    vert_label = ['Bottom','Middle','Top']
+
+    for (z,label)in zip(Z,vert_label):
+        vt.CreateImage(s[:,z,:], title='Sinogram '+label,\
+           xtitle='Detector Cols',ytitle='Angles',\
+           coords=(-nCols/2,nCols/2,0,nAngs),aspect=1)
+
+    sino = s[:,np.add.outer(np.array(Z), np.arange(-5,5)).flatten(),:]
+    
+    tomopy(sino)
+    return 
+
 
 data_dir = '/Users/pvargas21/Desktop/Wobble/'
+data_dir = 'C:\\Users\\varga\\Desktop\\Wobble\\'
     
 
-"""Paralell"""
-phantom1 = np.load(data_dir+'wobble_phantom1.npy')
-phantom2 = np.load(data_dir+'wobble_phantom2.npy')
-nX, nY, nZ = phantom1.shape
+"""Phantom"""
+phantom = np.load(data_dir+'wobble_phantom1.npy') + \
+    np.load(data_dir+'wobble_phantom2.npy')/10
 
-"""Paralell"""
-sinoP1 = np.load(data_dir+'sinoP1.npy')
-sinoP2 = np.load(data_dir+'sinoP2.npy')
+"""Parallel"""
+sinoP = np.load(data_dir+'sinoP1.npy') + \
+    np.load(data_dir+'sinoP2.npy')/10
+sinoT = np.load(data_dir+'sinoT1.npy') + \
+    np.load(data_dir+'sinoT2.npy')    
+sinoRz = np.load(data_dir+'sinoRz1.npy') + \
+    np.load(data_dir+'sinoRz2.npy')
+sinoRa = np.load(data_dir+'sinoRa1.npy') + \
+    np.load(data_dir+'sinoRa2.npy') 
 
-nAngs, nRows, nDets = sinoP1.shape
+
+nX, nY, nZ = phantom.shape
+nAngs, nRows, nCols = sinoP.shape
 Angs = np.linspace(0, 2*np.pi,nAngs,endpoint=False, dtype=np.float32)
 
 """Axis of rotaion, rotated with respect to z-axis"""
 trans_X = 10.5
-sinoT1 = np.load(data_dir+'sinoT1.npy')    
-sinoT2 = np.load(data_dir+'sinoT2.npy')    
-    
+sinoTC = sc.calib_proj_orient(sinoT.copy(),Angs,transX=-trans_X)
+Sinos(sinoTC)
+
+
     
 """Axis of rotaion, rotated with respect to z-axis"""
 angX_Z,angY_Z = (0.0,0.05)
 center_Z = (nX/2.-0.5, nY/2.-0.5, .5)
-sinoRz = np.load('C:\\Users\\varga\\Desktop\\Wobble\sinoRz.npy')   
 
 """Precessing"""
 angX_A,angY_A = (0.0,0.04)
 center_A = (nX/2.-0.5, nY/2.-0.5, 64-.5)
-sinoRa = np.load('C:\\Users\\varga\\Desktop\\Wobble\sinoRa.npy')   
 
 
 """Axis of rotaion - rotated and translated with respect to z-axis and precessing"""
@@ -52,79 +108,11 @@ sinoTRaRz = np.load('C:\\Users\\varga\\Desktop\\Wobble\sinoTRaRz.npy', )
     
     
 
-"""XY Planes Images"""
-vt.CreateImage(phantom[127,118:138,182:202].T, title='Phantom YZ-Plane Middle (Zoomed Center)',\
-           xtitle='Detector Cols',ytitle='Detector Rows',\
-           coords=(-10,10,-266,-246),aspect=1)
-    
-vt.CreateImage(phantom[127,118:138,438:458].T, title='Phantom YZ-Plane Middle (Zoomed Center)',\
-           xtitle='Detector Cols',ytitle='Detector Rows',\
-           coords=(-10,10,-10,10),aspect=1)
 
-vt.CreateImage(phantom[127,118:138,694:714].T, title='Phantom YZ-Plane Middle (Zoomed Center)',\
-           xtitle='Detector Cols',ytitle='Detector Rows',\
-           coords=(-10,10,246,266),aspect=1)
-    
-    
-    
-"""XY Planes Images"""
-vt.CreateImage(phantom[:,:,192], title='Phantom XY-Plane Bottom',\
-       xtitle='X Bins',ytitle='Y Bins',\
-       coords=(-128,128,-128,128),aspect=1)
-    
-vt.CreateImage(phantom[:,:,448], title='Phantom XY-Plane Middle',\
-       xtitle='X Bins',ytitle='Y Bins',\
-       coords=(-128,128,-128,128),aspect=1)
-    
-vt.CreateImage(phantom[:,:,704], title='Phantom XY-Plane Top',\
-       xtitle='X Bins',ytitle='Y Bins',\
-       coords=(-128,128,-128,128),aspect=1)
-    
-    
-vt.CreateImage(phantom[118:138,118:138,192], title='Phantom XY-Plane Bottom (Zoomed Center)',\
-       xtitle='X Bins',ytitle='Y Bins',\
-       coords=(-10,10,-10,10),aspect=1)
-    
-vt.CreateImage(phantom[118:138,118:138,448], title='Phantom XY-Plane Middle (Zoomed Center)',\
-       xtitle='X Bins',ytitle='Y Bins',\
-       coords=(-10,10,-10,10),aspect=1)
-    
-vt.CreateImage(phantom[118:138,118:138,704], title='Phantom XY-Plane Top (Zoomed Center)',\
-       xtitle='X Bins',ytitle='Y Bins',\
-       coords=(-10,10,-10,10),aspect=1) 
-
-
-vt.CreateImage(phantom[181:201,118:138,192], title='Phantom XY-Plane Bottom (Zoomed Edge)',\
-       xtitle='X Bins',ytitle='Y Bins',\
-       coords=(-10,10,53,73),aspect=1)    
-
-vt.CreateImage(phantom[181:201,118:138,448], title='Phantom XY-Plane Middle (Zoomed Edge)',\
-       xtitle='X Bins',ytitle='Y Bins',\
-       coords=(-10,10,53,73),aspect=1)
-
-vt.CreateImage(phantom[181:201,118:138,704], title='Phantom XY-Plane Top (Zoomed Edge)',\
-       xtitle='X Bins',ytitle='Y Bins',\
-       coords=(-10,10,53,73),aspect=1)
     
 
     
-    
-    
-    
-vt.CreateImage(phantom[:,:,448+64], title='Phantom XY-Plane Top',\
-       xtitle='Detector Cols',ytitle='Detector Rows',\
-       coords=(-10,10,374,394),aspect=1)
-
-    
-vt.CreateImage(phantom[118:138,118:138,374:394].T, title='Phantom YZ-Plane Middle',\
-           xtitle='Detector Cols',ytitle='Detector Rows',\
-           coords=(-10,10,374,394),aspect=1)
-
-
-    
-vt.CreateImage(phantom[127,118:138,118:138].T, title='Phantom YZ-Plane Middle',\
-           xtitle='Detector Cols',ytitle='Detector Rows',\
-           coords=(-10,10,374,394),aspect=1)
+Sinos(sinoRz)
 
     
     
@@ -133,17 +121,10 @@ vt.CreateImage(phantom[127,118:138,118:138].T, title='Phantom YZ-Plane Middle',\
 
     
     
-vt.CreateImage(sino[0,:,:], title='Projection View 0',\
-           xtitle='Detector Cols',ytitle='Detector Rows',\
-           coords=(-128,128,0,nViews),aspect=1)
-
-    
-    
-    
 
     
 
-vt.animated_gif(sino, "sino_m", fps=48)
+vt.animated_gif(sinoRz, "sino_m", fps=128)
 
 
 
