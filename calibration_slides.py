@@ -21,6 +21,33 @@ import vir.sino_calibration as sc
 from vir.phantoms import discrete_circle
 
 
+def sino_par2hel(sinoP, nRows, nAngs, pitch, transD=0.0, rD=0.0):
+    nViews, nRowsP, nCols = sinoP.shape
+    
+    dView = (Views[-1] - Views[0])/(nViews-1)
+    dZ = pitch*nRows*dView/(np.pi*2)
+    c =nRowsP/2 - nRows/2 +1
+    Z = vir.censpace(nViews,c=c,d=dZ)
+
+    sinoH = np.zeros([Views.size,nRows,nCols], dtype=np.float32)
+
+
+    for i in range(nViews):
+        coords = af.coords_array((1,nRows,nCols), ones=True)
+        coords[:,:,0,:] = i
+        coords[:,:,1,:] = coords[:,:,1,:] + Z[i]
+        
+        center=(0.0,Z[i]+nRows/2-0.5,nCols/2-0.5)
+        T, R = sc.proj_orient_TM(rD, transD, center)  
+
+        RTC = (np.linalg.inv(R @ T) @ coords)
+
+        sinoH[i,:,:] = af.coords_transform(sinoP, np.round(RTC,6))
+
+    return sinoH
+
+
+
 def Images(p, Z = [128,384,640]):
     nX, nY, nZ = p.shape
     
@@ -112,8 +139,8 @@ def Plots(rec, recC, plabel):
 
 
 
-data_dir = '/Users/pvargas21/Desktop/Wobble/'
-#data_dir = 'C:\\Users\\varga\\Desktop\\Wobble\\'
+#data_dir = '/Users/pvargas21/Desktop/Wobble/'
+data_dir = 'C:\\Users\\varga\\Desktop\\Wobble\\'
     
 
 """Phantom"""
@@ -133,7 +160,7 @@ sinoTRaRz = np.load(data_dir+'sinoTRaRz1.npy') + \
     np.load(data_dir+'sinoTRaRz2.npy')/10 
 
 
-
+"""Correct Sinograms"""
 nX, nY, nZ = phantom.shape
 nAngs, nRows, nCols = sinoP.shape
 Angs = np.linspace(0, 2*np.pi,nAngs,endpoint=False, dtype=np.float32)
@@ -143,21 +170,23 @@ trans_X = 10.5
 sinoTC = sc.calib_proj_orient(sinoT.copy(),Angs,transX=-trans_X)
 Sinos(sinoTC)
 
-    
 """Axis of rotaion, rotated with respect to z-axis"""
 angX_Z,angY_Z = (0.0,0.05)
 center_Z = (nX/2.-0.5, nY/2.-0.5, 127)
 sinoRzC = sc.calib_proj_orient(sinoRz.copy(),Angs,rZ=-angY_Z,cenZ_y=center_Z[2])
 Sinos(sinoRzC)
 
-#638-383
 """Precessing""" 
 angX_A,angY_A = (0.0,0.075)
-center_A = (nX/2.-0.5, nY/2.-0.5, 383)
+center_A = (nX/2.-0.5, nY/2.-0.5, 383.0)
 sinoRaC = sc.calib_proj_orient(sinoRa.copy(),Angs,phi=angY_A,cenA_y=center_A[2])
+print(  np.sqrt(np.sum((sinoRaC - sinoP)**2)))
+
+
+
+
+Sinos(sinoRa)
 Sinos(sinoRaC)
-
-
 
 """Axis of rotaion - rotated and translated with respect to z-axis and precessing"""
 sinoTRaRzC = sc.calib_proj_orient(sinoTRaRz.copy(),Angs, transX=-trans_X,\
@@ -166,14 +195,18 @@ sinoTRaRzC = sc.calib_proj_orient(sinoTRaRz.copy(),Angs, transX=-trans_X,\
 Sinos(sinoTRaRzC)
 
 
-
+"""Reconstruct Sinograms"""
 recP = Recs(sinoP,Angs)
 recT = Recs(sinoT,Angs)
 recTC = Recs(sinoTC,Angs)
+recRa = Recs(sinoRa,Angs)
 recRaC = Recs(sinoRaC,Angs)
+recRz = Recs(sinoRz,Angs)
 recRzC = Recs(sinoRzC,Angs)
+recTRaRz = Recs(sinoTRaRz,Angs)
 recTRaRzC = Recs(sinoTRaRzC,Angs)
 
+"""Images"""
 Images(recP,  Z = [10,30,50])
 Images(recTC,  Z = [10,30,50])
 Images(recRzC,  Z = [10,30,50])
@@ -181,64 +214,39 @@ Images(recRaC,  Z = [10,30,50])
 Images(recTRaRzC,  Z = [10,30,50])
 
 
-
+"""Plots"""
 label = 'Translation Corrected'
 Plots(recP,recTC,label)
-
-
-    
-label = 'Ror Corrected'
-Plots(recP,recRaC,label)
-
-
-label = 'Ror Corrected'
+ 
+label = 'Z-rotation Corrected'
 Plots(recP,recRzC,label)
 
+label = 'Precession Corrected'
+Plots(recP,recRaC,label)
 
-    
+label = 'All Corrected'
+Plots(recP,recTRaRzC,label)
+
+
+"""Helical"""
+
+
+
+
+
+
+
+
+
+
+
+
+
+"""Animations"""
+
 
 vt.animated_gif(sinoRz, "sino_m", fps=128)
 
 
 
 vt.animated_gif(sino, "sino", fps=48)
-
-view_sinos(sino)
-
-ph
-
-plt.imshow(phantom[:,:,128],origin='lower')
-plt.show()
-
-
-
-
-
-plt.imshow(phantom[:,:,128])
-plt.show()
-
-
-plt.imshow(phantom[367:398,239:273,128],origin='lower')
-plt.show()
-
-
-plt.imshow(phantom[300:400,200:,126],origin='lower')
-plt.show()
-
-
-
-for i in np.arange(10,20):
-    plt.imshow(phantom[:,:,i])
-    plt.show()
-
-
-
-plt.plot(phantom[:,256,13])
-plt.show()
-
-
-
-
-
-plt.plot(phantom[:,256,128])
-plt.show()
