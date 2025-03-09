@@ -132,6 +132,20 @@ for i in np.arange(1,6):
     np.save('C:\\Users\\varga\\Desktop\\Wobble\sinoRz2-'+str(i), sinoRz2)
 
 
+"""Precessing"""
+for i in np.arange(1,6):
+    phi = i/180*np.pi
+
+    angX_A,angY_A = (0.0,phi)
+    center_A = (nX/2.-0.5, nY/2.-0.5, 383)
+    sinoRa1 = sc.forward_project_phantom_misalign(phantom1, Views, \
+                                            angX_A=angX_A,angY_A=angY_A,center_A=center_A)
+    sinoRa2 = sc.forward_project_phantom_misalign(phantom2, Views, \
+                                            angX_A=angX_A,angY_A=angY_A,center_A=center_A)
+    np.save('C:\\Users\\varga\\Desktop\\Wobble\sinoRa1-'+str(i), sinoRa1)
+    np.save('C:\\Users\\varga\\Desktop\\Wobble\sinoRa2-'+str(i), sinoRa2)
+    
+
 """Axis of rotaion - rotated and translated with respect to z-axis and precessing"""
 for i in np.arange(1,6):
     for j in np.arange(1,6):
@@ -147,25 +161,3 @@ for i in np.arange(1,6):
                                                 angX_A=angX_A,angY_A=angY_A,center_A=center_A)    
         np.save('C:\\Users\\varga\\Desktop\\Wobble\sinoTRaRz1-'+str(i)+str(j), sinoTRaRz1)
         np.save('C:\\Users\\varga\\Desktop\\Wobble\sinoTRaRz2-'+str(i)+str(j), sinoTRaRz2)
-    
-
-"""Precessing"""
-for i in np.arange(1,6):
-    phi = i/180*np.pi
-
-    angX_A,angY_A = (0.0,phi)
-    center_A = (nX/2.-0.5, nY/2.-0.5, 383)
-    sinoRa1 = sc.forward_project_phantom_misalign(phantom1, Views, \
-                                            angX_A=angX_A,angY_A=angY_A,center_A=center_A)
-    sinoRa2 = sc.forward_project_phantom_misalign(phantom2, Views, \
-                                            angX_A=angX_A,angY_A=angY_A,center_A=center_A)
-    np.save('C:\\Users\\varga\\Desktop\\Wobble\sinoRa1-'+str(i), sinoRa1)
-    np.save('C:\\Users\\varga\\Desktop\\Wobble\sinoRa2-'+str(i), sinoRa2)
-    
-
-
-    
-    
-
-
-            

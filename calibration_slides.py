@@ -19,22 +19,23 @@ import vt
 import vir
 import vir.sino_calibration as sc
 from vir.phantoms import discrete_circle
+import vir.affine_transforms as af
 
 
-def sino_par2hel(sinoP, nRows, nAngs, pitch, transD=0.0, rD=0.0):
-    nViews, nRowsP, nCols = sinoP.shape
+
+def sino_par2hel(sinoP, nRows, nViews, pitch, transD=0.0, rD=0.0):
+    nAngs, nRowsP, nCols = sinoP.shape
     
-    dView = (Views[-1] - Views[0])/(nViews-1)
-    dZ = pitch*nRows*dView/(np.pi*2)
-    c =nRowsP/2 - nRows/2 +1
+    dZ = pitch*nRows/nAngs
+    c = nRowsP/2 - nRows/2
     Z = vir.censpace(nViews,c=c,d=dZ)
 
-    sinoH = np.zeros([Views.size,nRows,nCols], dtype=np.float32)
+    sinoH = np.zeros([nViews,nRows,nCols], dtype=np.float32)
 
-
+    print(Z)
     for i in range(nViews):
         coords = af.coords_array((1,nRows,nCols), ones=True)
-        coords[:,:,0,:] = i
+        coords[:,:,0,:] = i%nAngs
         coords[:,:,1,:] = coords[:,:,1,:] + Z[i]
         
         center=(0.0,Z[i]+nRows/2-0.5,nCols/2-0.5)
@@ -45,7 +46,6 @@ def sino_par2hel(sinoP, nRows, nAngs, pitch, transD=0.0, rD=0.0):
         sinoH[i,:,:] = af.coords_transform(sinoP, np.round(RTC,6))
 
     return sinoH
-
 
 
 def Images(p, Z = [128,384,640]):
@@ -229,10 +229,21 @@ Plots(recP,recTRaRzC,label)
 
 
 """Helical"""
+nRowsH = 256
+nViews = 512*3
+pitch = 1
+test1 = sino_par2hel(sinoP, nRowsH, nViews, 1, transD=0.0, rD=0.0)
 
 
+test2 = sino_par2hel(sinoP, nRowsH, nViews, pitch, transD=0.0, rD=0.0)
+test3 = sino_par2hel(sinoP, nRowsH, nViews, pitch, transD=0.0, rD=0.0)
+print(np.sqrt(np.sum((sinoP[0,320:448,:]-test1)**2)))
+print(np.sqrt(np.sum((sinoP[0,320:448,:]-test2)**2)))
+print(np.sqrt(np.sum((sinoP[0,320:448,:]-test3)**2)))
 
 
+plt.imshow(test3[0,:,:])
+plt.imshow(sinoP[0,320:448,:])
 
 
 
