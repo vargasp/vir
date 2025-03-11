@@ -186,9 +186,9 @@ def calib_proj_orient(sino3d, Views, transX=0.0, rZ=0.0, cenZ_y=None,\
     
     dView = (Views[-1] - Views[0])/(nViews-1)
     dZ = pitch*nRows*dView/(np.pi*2)
-    #c = 128 - nRows/2 +1
-    #Z = vir.censpace(nViews,c=c,d=dZ)
-    Z =np.arange(nRows)*dZ
+    c = 128 - nRows/2
+    Z = vir.censpace(nViews,c=c,d=dZ)
+    #Z =np.arange(nRows)*dZ
     
     coords = af.coords_array((1,nRows,nCols), ones=True)
     #coords[:,:,0,:] = np.interp(ang,Angs,np.arange(nViews))

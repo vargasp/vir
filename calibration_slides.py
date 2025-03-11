@@ -21,6 +21,39 @@ import vir.sino_calibration as sc
 from vir.phantoms import discrete_circle
 import vir.affine_transforms as af
 
+def sino_hel2par_func(sinoH, nAngs, pitch, z):
+    nViews, nRows, nCols = sinoH.shape
+    nRots = nViews/nAngs
+
+    z = np.array(z)
+    zind = np.arange(z.size)
+
+    hel_geom = vir.Geom(nViews, coverage=nRots*2*np.pi, pitch=pitch,zTran=nRows*pitch)
+    sinoP = np.zeros([nAngs,z.size,nCols], dtype=np.float32)
+    
+    for ang in range(nAngs):
+        idxV,idxL,idxU,dxL,dxU = hel_geom.interpZ(z,ang,nRows, all_views=True)
+        idxp1 = np.argmax(np.where(dxL<=0,dxL,-np.inf),axis=0)
+        idxp2 = np.argmin(np.where(dxU>=0,dxU,np.inf),axis=0)
+
+        maxL = np.max(np.where(dxL<=0,dxL,-np.inf),axis=0)
+        minU = np.min(np.where(dxU>=0,dxU,np.inf),axis=0)
+        
+        for i in range(z.size):
+            idxp = np.argwhere(dxL[:,i] == maxL[i]).squeeze()
+            if idxp.size>1: idxp1[i] = idxp[np.argmin(np.abs(idxL[idxp,i] - nRows/2))]
+            idxp = np.argwhere(dxU[:,i] == minU[i]).squeeze()
+            if idxp.size>1: idxp2[i] = idxp[np.argmin(np.abs(idxU[idxp,i] - nRows/2))]
+
+
+        w = (dxU[idxp2,zind] - dxL[idxp1,zind])
+        w1 = (1 + dxL[idxp1,zind])/w
+        w2 = (1 - dxU[idxp2,zind])/w
+
+        sinoP[ang,:,:]= sinoH[idxV[idxp1],idxL[idxp1,zind],:]*w1[:,np.newaxis] + \
+                        sinoH[idxV[idxp2],idxL[idxp2,zind],:]*w2[:,np.newaxis]
+
+    return sinoP
 
 
 def sino_par2hel(sinoP, nRows, nViews, pitch, transD=0.0, rD=0.0):
@@ -32,7 +65,6 @@ def sino_par2hel(sinoP, nRows, nViews, pitch, transD=0.0, rD=0.0):
 
     sinoH = np.zeros([nViews,nRows,nCols], dtype=np.float32)
 
-    print(Z)
     for i in range(nViews):
         coords = af.coords_array((1,nRows,nCols), ones=True)
         coords[:,:,0,:] = i%nAngs
@@ -77,14 +109,13 @@ def Images(p, Z = [128,384,640]):
            coords=(54,74,z-nZ/2-10,z-nZ/2+10),aspect=1)
 
 
-def Sinos(s):
+def Sinos(s, Z = [128,384,640]):
     nAngs, nRows, nCols = s.shape
         
     vt.CreateImage(s[0,:,:], title='Projection View 0',\
            xtitle='Detector Cols',ytitle='Detector Rows',\
            coords=(-nCols/2,nCols/2,-nRows/2,nRows/2),aspect=1)
     
-    Z = [128,384,640]
     vert_label = ['Bottom','Middle','Top']
 
     for (z,label)in zip(Z,vert_label):
@@ -93,45 +124,41 @@ def Sinos(s):
            coords=(-nCols/2,nCols/2,0,nAngs),aspect=1)
 
 
-def Recs(s,Views):
+def Recs(s,Angs, Z = [128,384,640]):
     nAngs, nRows, nCols = s.shape
     
-    Z = [128,384,640]
     sino = s[:,np.add.outer(np.array(Z), np.arange(-10,10)).flatten(),:]
     recs = np.zeros([nCols,nCols,60])
     
     for i in range(60):
-        recs[:,:,i] = iradon(sino[:,i,:].T, theta=Views/np.pi*180, \
+        recs[:,:,i] = iradon(sino[:,i,:].T, theta=Angs/np.pi*180, \
                              filter_name='ramp')
 
     return recs
 
 
 
-def Plots(rec, recC, plabel):
+def Plots(recs, labels):
     Z = [10,30,50]
     vert_label = ['Bottom','Middle','Top']
-    labels = ['No degradation',plabel]
+    y = np.stack(recs,axis=-1)
 
     for (z,label)in zip(Z,vert_label):
-    
-        y = np.vstack([rec[128,118:138,z],recC[128,118:138,z]]).T
-        vt.CreatePlot(y,xs=vir.censpace(20),labels=labels, ylims=(0,1.1),\
+        vt.CreatePlot(y[128,118:138,z],xs=vir.censpace(20),labels=labels, ylims=(0,1.1),\
                       title='X Profile '+label+' (Zoomed Center)',\
                       xtitle='X Pixels', ytitle='Intensity')
 
-        y = np.vstack([rec[128,182:202,z],recC[128,182:202,z]]).T
-        vt.CreatePlot(y,xs=vir.censpace(20,c=64),labels=labels, ylims=(0,1.1), \
+        vt.CreatePlot(y[128,182:202,z],xs=vir.censpace(20,c=64),labels=labels, ylims=(0,1.1), \
                       title='X Profile '+label+' (Zoomed Edge)',\
                       xtitle='X Pixels', ytitle='Intensity')
 
-
-
-        y = np.vstack([rec[128,128,(z-10):(z+10)],recC[128,128,(z-10):(z+10)]]).T
-        vt.CreatePlot(y,xs=vir.censpace(20),labels=labels, ylims=(0,1.1), \
+        vt.CreatePlot(y[128,128,(z-10):(z+10)],xs=vir.censpace(20),labels=labels, ylims=(0,1.1), \
                       title='Z Profile '+label+' (Zoomed Center)',\
                       xtitle='Z Pixels', ytitle='Intensity')
 
+        vt.CreatePlot(y[128,192,(z-10):(z+10)],xs=vir.censpace(20),labels=labels, ylims=(0,1.1), \
+                      title='Z Profile '+label+' (Zoomed Edge)',\
+                      xtitle='Z Pixels', ytitle='Intensity')
 
 
 
@@ -230,28 +257,82 @@ Plots(recP,recTRaRzC,label)
 
 """Helical"""
 nRowsH = 256
-nViews = 512*3
-pitch = 1
-test1 = sino_par2hel(sinoP, nRowsH, nViews, 1, transD=0.0, rD=0.0)
+nRots = 6
+nViews = nAngs*nRots
+Views = np.linspace(0, nRots*2*np.pi,nViews,endpoint=False, dtype=np.float32)
+pitch = .5
+z = np.hstack([np.arange(-9,11)-256,np.arange(-9,11),np.arange(-9,11)+256])
+
+sinoH = sino_par2hel(sinoP, nRowsH, nViews, pitch)
+sinoHP = sino_hel2par_func(sinoH, nAngs, pitch, z)
+recHP = Recs(sinoHP,Angs,Z = [10,30,50])
+Plots([recP, recHP], ['No degradation','Par->Hel->Par'])
 
 
-test2 = sino_par2hel(sinoP, nRowsH, nViews, pitch, transD=0.0, rD=0.0)
-test3 = sino_par2hel(sinoP, nRowsH, nViews, pitch, transD=0.0, rD=0.0)
-print(np.sqrt(np.sum((sinoP[0,320:448,:]-test1)**2)))
-print(np.sqrt(np.sum((sinoP[0,320:448,:]-test2)**2)))
-print(np.sqrt(np.sum((sinoP[0,320:448,:]-test3)**2)))
+sinoHT = sino_par2hel(sinoT, nRowsH, nViews, pitch)
+sinoHPT = sino_hel2par_func(sinoHT, nAngs, pitch, z)
+recHPT = Recs(sinoHPT,Angs,Z = [10,30,50])
+sinoHTC = sc.calib_proj_orient(sinoHT.copy(), Views, transX=-trans_X, pitch=1)
+sinoHPTC = sino_hel2par_func(sinoHTC, nAngs, pitch, z)
+recHPTC = Recs(sinoHPTC,Angs,Z = [10,30,50])
+Plots([recHP, recHPTC], ['No degradation','Helical Translation Correction'])
+
+sinoHRz = sino_par2hel(sinoRz, nRowsH, nViews, pitch)
+sinoHPRz = sino_hel2par_func(sinoHRz, nAngs, pitch, z)
+recHPRz = Recs(sinoHPRz,Angs,Z = [10,30,50])
+sinoHRzC = sc.calib_proj_orient(sinoHRz.copy(), Views, rZ=-angY_Z,cenZ_y=center_Z[2]-256+.5,pitch=pitch)
+sinoHPRzC = sino_hel2par_func(sinoHRzC, nAngs, pitch, z)
+recHPRzC = Recs(sinoHPRzC,Angs,Z = [10,30,50])
+Plots([recHP, recHPRzC],  ['No degradation','Helical Rotation z Correction'])
 
 
-plt.imshow(test3[0,:,:])
-plt.imshow(sinoP[0,320:448,:])
+sinoHRa = sino_par2hel(sinoRa, nRowsH, nViews, pitch)
+sinoHPRa = sino_hel2par_func(sinoHRa.copy(), nAngs, pitch, z)
+recHPRa = Recs(sinoHPRa,Angs,Z = [10,30,50])
+sinoHRaC = sc.calib_proj_orient(sinoHRa.copy(), Views,phi=angY_A,cenA_y=center_A[2]-256+.5,pitch=pitch)
+sinoHPRaC = sino_hel2par_func(sinoHRaC, nAngs, pitch, z)
+recHPRaC = Recs(sinoHPRaC,Angs,Z = [10,30,50])
+plt.imshow(recHPRa[:,:,50])
+plt.imshow(recHPRaC[:,:,30])
+
+Plots([recHP,recHPRa,recHPRaC], ['No degradation','No Correction','Helical Rotation z Correction'])
+
+
+
+sinoHTRaRz = sino_par2hel(sinoTRaRz, nRowsH, nViews, pitch)
+
+
+
+hel_geom = vir.Geom(3072, coverage=nRots*2*np.pi, pitch=pitch,zTran=nRows*pitch)
+idxV,idxL,idxU,dxL,dxU = hel_geom.interpZ([0,1],ang,nRows, all_views=True)
+
+idxp1 = np.argmax(np.where(dxL<=0,dxL,-np.inf),axis=0)
+idxp2 = np.argmin(np.where(dxU>=0,dxU,np.inf),axis=0)
+
+
+maxL = np.max(np.where(dxL<=0,dxL,-np.inf),axis=0)
+minU = np.min(np.where(dxU>=0,dxU,np.inf),axis=0)
+
+for i in range(z.size):
+    idxp = np.argwhere(dxL[:,i] == maxL[i]).squeeze()
+    idxp1[i] = idxp[np.argmin(np.abs(idxL[idxp,i] - 128))]
+    idxp = np.argwhere(dxU[:,i] == minU[i]).squeeze()
+    idxp1[i] = idxp[np.argmin(np.abs(idxU[idxp,i] - 128))]
+
+
+
+w = (dxU[idxp2,zind] - dxL[idxp1,zind])
+w1 = (1 + dxL[idxp1,zind])/w
+w2 = (1 - dxU[idxp2,zind])/w
+
+sinoP[ang,:,:]= sinoH[idxV[idxp1],idxL[idxp1,zind],:]*w1[:,np.newaxis] + \
+                sinoH[idxV[idxp2],idxL[idxp2,zind],:]*w2[:,np.newaxis]
 
 
 
 
 
-
-
-
+                        
 
 """Animations"""
 
