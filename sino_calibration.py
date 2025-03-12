@@ -15,22 +15,33 @@ import vt
 
 
 def forward_project_phantom_misalign(phantom, Views, \
-                                     trans_X=0.0,trans_Y=0.0,trans_Z=0.0,
-                                     angX_Z=0.0, angY_Z=0.0, center_Z=None,\
-                                     angX_A=0.0, angY_A=0.0, center_A=None):
+                                     transX=0.0,transY=0.0,transZ=0.0,
+                                     angZx=0.0, angZy=0.0, centerZz=0.0,\
+                                     angAx=0.0, angAy=0.0, centerAz=0.0,
+                                     ret_phantom=False):
     """
-    Creates a sinogram from a 3d phatom with a precession motion artifact. 
+    Creates a paralell beam sinogram from a 3d phantom with a misalignments.
+    The phantom is projected in the XZ plane while rotating.
 
     Parameters
     ----------
     phantom : (nX, nY, nZ) np.array
         A 3d phantom.
     Views : (nViews) np.array
-        The array of angles of rotation.
-    angX : float
-        The initial rotation angle in the X dimension.
-    angY : float
-        The initial rotation angle in the Y dimension.
+        The array of angles of rotation. Rotation is counter clockwize in the
+        XY plane with the z-axis toward the viewer 
+    transX : float
+        Translates the axis of rotation in the X dimension.The default is 0.0
+        or no translation.
+    transY : float
+        Translates the axis of rotation in the Y dimension.The default is 0.0
+        or no translation. (Has no affect in paralell beam geometry)
+    angZx : float
+        Rotates the axis of rotation in YZ plane relative to the z-axis.The default is 0.0
+        or no rotation which aligns with z-axis. Postive values rotate counter clockwise in the YZ plane
+    angZy : float
+        Rotates the axis of rotation in XZ plane relative to the z-axis.The default is 0.0
+        or no rotation which aligns with z-axis. Postive values rotate counter clockwise in the XZ plane
     center : (3) array_like, optional
         The center of rotation location. The default is "None" which
         corresponds to the center of the image.
@@ -43,30 +54,32 @@ def forward_project_phantom_misalign(phantom, Views, \
 
     nX, nY, nZ = phantom.shape
 
-    if center_A is None:
-        center_A = (nX/2.-0.5, nY/2.-0.5, nZ/2.-0.5)
-
-    if center_Z is None:
-        center_Z = (nX/2.-0.5, nY/2.-0.5, nZ/2.-0.5)
+    centerA = np.array(phantom.shape)/2.0 - 0.5
+    centerA[2] += centerAz
+    
+    centerZ = np.array(phantom.shape)/2.0 - 0.5
+    centerZ[2] += centerZz
 
     
     sino = np.zeros([Views.size,nZ,nX], dtype=np.float32)
     coords = af.coords_array((nX,nY,nZ), ones=True)
 
     #Misalign phantom by translating axis of rotation with respect to z-axis
-    T = af.transMat((trans_X,trans_Y,trans_Z))
+    T = af.transMat((-transX,-transY,-transZ))
 
     #Misalign phantom by rotating axis of rotation with respect to z-axis
-    R_Z = af.rotateMat((angX_Z,angY_Z,0), center=center_Z, seq='XYZ')
+    R_Z = af.rotateMat((-angZx,angZy,0), center=centerZ, seq='XYZ')
 
     #Loop through views
     for i, view in enumerate(Views):
 
         #Rotate for tomographic projection and add precession misalignment  
-        R_A = af.rotateMat((angX_A,angY_A,view), center=center_A, seq='XYZ')
+        R_A = af.rotateMat((-angAx,angAy,-view), center=centerA, seq='XYZ')
 
         #Apply transforms and project view
         RRTC = np.round(R_A @ R_Z @ T @ coords,6)
+        
+        if ret_phantom: return af.coords_transform(phantom, RRTC)
         sino[i,:,:] = af.coords_transform(phantom, RRTC).sum(axis=1).T
     
     return sino    
