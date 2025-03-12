@@ -100,6 +100,7 @@ def precesion_TM(ang, phi, theta, center):
     s = np.sqrt(x**2 + z**2)
 
     S = af.scaleMat((1,1/s,1))
+
     R = af.rotateMat((r,0,0), center=center)
     return S, R
 
