@@ -181,28 +181,23 @@ def calib_proj_orient_view(sino3d, Views, view, z,\
     return np.squeeze(af.coords_transform(sino3d, SRTR))
 
 
-def calib_proj_orient(sino3d, Views, transX=0.0, rZ=0.0, cenZ_y=None,\
-                      phi=0.0, theta=0.0, cenA_y=None, transD=0.0, rD=0.0,\
+def calib_proj_orient(sino3d, Views, transX=0.0, rZ=0.0, centerZz=0.0,\
+                      phi=0.0, theta=0.0, centerAz=0.0, transD=0.0, rD=0.0,\
                       pitch=0):
     nViews, nRows, nCols = sino3d.shape
     
-    if cenA_y is None:
-        cenA_y = nRows/2.-0.5
-    center_A = np.array((0.0, cenA_y, nCols/2.-0.5))
 
-    if cenZ_y is None:
-        cenZ_y = nRows/2.-0.5
-    center_Z = np.array((0.0, cenZ_y, nCols/2.-0.5))
+    centerD = np.array((0.0, nRows/2.-0.5, nCols/2.-0.5))
+    centerA = centerD.copy()
+    centerZ = centerD.copy()
     
-    center_D=(0.0,nRows/2-0.5,nCols/2-0.5)
-    T_D, R_D = proj_orient_TM(rD, transD, center_D)  
+    T_D, R_D = proj_orient_TM(rD, transD, centerD)  
     
     
     dView = (Views[-1] - Views[0])/(nViews-1)
-    dZ = pitch*nRows*dView/(np.pi*2)
-    c = 128 - nRows/2
-    Z = vir.censpace(nViews,c=c,d=dZ)
-    #Z =np.arange(nRows)*dZ
+    dZ = pitch*nRows*dView/(np.pi*2)    
+    Z = vir.censpace(nViews,d=dZ)
+
     
     coords = af.coords_array((1,nRows,nCols), ones=True)
     #coords[:,:,0,:] = np.interp(ang,Angs,np.arange(nViews))
@@ -213,13 +208,12 @@ def calib_proj_orient(sino3d, Views, transX=0.0, rZ=0.0, cenZ_y=None,\
         view = Views[i]
 
         #Center of of rotation transforms
-        center_Z[1] = cenZ_y-Z[i]
-        #print(center_Z[1])
-        T_Z, R_Z = proj_orient_TM(-rZ, -transX, center_Z)
+        centerZ[1] = nRows/2.-0.5 + centerZz - Z[i]
+        T_Z, R_Z = proj_orient_TM(rZ, -transX, centerZ)
 
         #Precession Transforms
-        center_A[1] = cenA_y-Z[i]
-        S_A, R_A = precesion_TM(view, phi, theta, center_A)
+        centerA[1] = nRows/2.-0.5 + centerAz - Z[i]
+        S_A, R_A = precesion_TM(view, phi, theta, centerA)
         
         SRTR = np.linalg.inv(T_D @ R_D @ S_A @ R_A @ T_Z @ R_Z) @ coords
         sino3d[i,:,:] = np.squeeze(af.coords_transform(sino3d, SRTR))
