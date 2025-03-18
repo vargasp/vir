@@ -300,13 +300,15 @@ def h2psino_calibrate(sino,Views,pitch,transX,rZ,cenZ_y,phi,theta,cenA_y,rD,z=0)
     Z = vir.censpace(nViews,d=dZ)
     Z2 = vir.censpace(nViews,c=-pitch*nRows/2.0,d=dZ)
 
-    
+    print(coords.shape)
     for i, view in enumerate(Views):
+        #coords[:,0,0,:] = i
+        #coords[:,0,1,:] = z - (Z[i] - nRows/2-.5)
         coords[:,0,0,:] = i
-        coords[:,1,0,:] = i - nAngs/2.0
-        coords[:,0,1,:] = z - (Z[i] - nRows/2-.5)
-        coords[:,1,1,:] = z - (Z2[i] - nRows/2-.5) 
-
+        coords[:,0,1,:] = z -(Z[i]- nRows/2-.5)
+        coords[:,1,0,:] = i  - nAngs/2.0
+        coords[:,1,1,:] = z -(Z[i]- nRows/2-.5) + pitch*nRows/2.0
+        
         #Center of of rotation transforms        
         center_Z[1] = nRows/2.-0.5 + cenZ_y - Z[i]
         T_Z, R_Z = proj_orient_TM(rZ, -transX, center_Z)
@@ -320,9 +322,10 @@ def h2psino_calibrate(sino,Views,pitch,transX,rZ,cenZ_y,phi,theta,cenA_y,rD,z=0)
         T_Z, R_Z = proj_orient_TM(rZ, -transX, center_Z)
 
         SRTR2 = np.linalg.inv(R_D @T_Z @ R_Z) @ coords[:,[1],:,:]
-        p_sino[i,:,1] =  np.squeeze(af.coords_transform(sino, SRTR2)) #[...,::-1]
+        p_sino[i,:,1] =  np.squeeze(af.coords_transform(sino, SRTR2))[...,::-1]
 
 
+    print(np.interp(2*np.pi,Views,np.arange(nViews)))
     return p_sino
 
 
