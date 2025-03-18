@@ -515,8 +515,10 @@ class Geom:
         if np.isclose(nAngles,round(nAngles)):
             self.nAngles = round(nAngles)
         else:
-            raise ValueError("dView must equally divide 2pi ")  
-
+            self.nAngles =nAngles
+            #raise ValueError("dView must equally divide 2pi ")  
+            print("Warning! dView doesn't equally divide 2pi ")
+            
         #Geometry specific parameters
         if self.fan_angle != 0.0:
             if self.src_iso == np.inf:
