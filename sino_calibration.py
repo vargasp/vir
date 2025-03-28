@@ -220,16 +220,20 @@ def hsino_calibrate(sino,Views,pitch,transX,rZ,cenZ_y,phi,theta,cenA_y,rD,RowsIn
     center_det = np.array([1.0,nRows,nCols])/2.0 - 0.5
 
     
-    #p_sino = np.zeros([nViews,nCols])
+    p_sino = np.zeros([nViews,RowsInt.size,nCols,2])
     h_sino = np.zeros([nViews,RowsInt.size,nCols,2])
 
-    #coords = af.coords_array((1,3,nCols), ones=True)
-    #coords[:,0,1,:] = cL
-    #coords[:,1,1,:] = cL + pitch*nRows/2.0
     coords1 = af.coords_array((1,RowsInt.size,nCols), ones=True)
     coords2 = af.coords_array((1,RowsInt.size,nCols), ones=True)
     coords1[:,:,1,:] = np.tile(RowsInt, [nCols,1]).T
     coords2[:,:,1,:] = np.tile(RowsInt, [nCols,1]).T + pitch*nRows/2.0
+
+    coords3 = af.coords_array((1,RowsInt.size,nCols), ones=True)
+    coords4 = af.coords_array((1,RowsInt.size,nCols), ones=True)
+    coords3[:,:,1,:] = np.tile(RowsInt, [nCols,1]).T
+    coords4[:,:,1,:] = np.tile(RowsInt, [nCols,1]).T + pitch*nRows/2.0
+
+
 
     x=0
     T_det, R_D = proj_orient_TM(rD, x, center_det)
@@ -243,8 +247,12 @@ def hsino_calibrate(sino,Views,pitch,transX,rZ,cenZ_y,phi,theta,cenA_y,rD,RowsIn
     for i, view in enumerate(Views):
         coords1[:,:,0,:] = i
         coords2[:,:,0,:] = i - nAngs/2.0
-        #coords[:,2,0,:] = i
-        #coords[:,2,1,:] = Z - dZ1[i]
+
+        coords3[:,:,0,:] = i
+        coords4[:,:,0,:] = i - nAngs/2.0
+        coords3[:,:,1,:] = np.tile(RowsInt, [nCols,1]).T - Z1[i] 
+        coords4[:,:,1,:] = np.tile(RowsInt, [nCols,1]).T + pitch*nRows/2.0 - Z1[i]
+
 
         #Center of of rotation transforms        
         center_Z[1] = nRows/2.-0.5 + cenZ_y - Z1[i]
@@ -255,7 +263,9 @@ def hsino_calibrate(sino,Views,pitch,transX,rZ,cenZ_y,phi,theta,cenA_y,rD,RowsIn
     
         SRTR1 = np.linalg.inv(R_D @ S_A @ R_A @T_Z @ R_Z) @ coords1
         h_sino[i,:,:,0] = np.squeeze(af.coords_transform(sino, SRTR1))
-        #p_sino[i,:] = np.squeeze(af.coords_transform(sino, SRTR1@ coords[:,[2],:,:]))
+  
+        SRTR1 = np.linalg.inv(R_D @ S_A @ R_A @T_Z @ R_Z) @ coords3
+        p_sino[i,:,:,0] = np.squeeze(af.coords_transform(sino, SRTR1))
 
         #Center of of rotation transforms
         center_Z[1] = nRows/2.-0.5 + cenZ_y - Z2[i]
@@ -265,7 +275,10 @@ def hsino_calibrate(sino,Views,pitch,transX,rZ,cenZ_y,phi,theta,cenA_y,rD,RowsIn
         S_A, R_A = precesion_TM(view-np.pi, phi, theta, center_A)
         
         SRTR2 = np.linalg.inv(R_D @ S_A @ R_A @T_Z @ R_Z) @ coords2
-        h_sino[i,:,:,1] =  np.squeeze(af.coords_transform(sino, SRTR2))[...,::-1]
+        h_sino[i,:,:,1] = np.squeeze(af.coords_transform(sino, SRTR2))[...,::-1]
+
+        SRTR2 = np.linalg.inv(R_D @ S_A @ R_A @T_Z @ R_Z) @ coords4
+        p_sino[i,:,:,1] = np.squeeze(af.coords_transform(sino, SRTR2))[...,::-1]
 
 
     if par is True:
@@ -275,9 +288,10 @@ def hsino_calibrate(sino,Views,pitch,transX,rZ,cenZ_y,phi,theta,cenA_y,rD,RowsIn
         #return h_sino[int(nAngs/2):-int(nAngs/2),:,:]
         #return h_sino[int(nAngs/2+1):,40:-40,:]
         if crop is None:
-            return h_sino
+            return h_sino, p_sino
         else:
-            return h_sino[crop[0]:crop[1],:,crop[2]:crop[3],:]
+            return h_sino[crop[0]:crop[1],:,crop[2]:crop[3],:], \
+                   p_sino[crop[0]:crop[1],:,crop[2]:crop[3],:]
 
 
 def h2psino_calibrate(sino,Views,pitch,transX,rZ,cenZ_y,phi,theta,cenA_y,rD,z=0):
