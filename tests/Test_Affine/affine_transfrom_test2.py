@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import vir.affine_transforms as af
 import vir.sinogram as sg
 
-from scipy.ndimage import shift, rotate, zoom
+from scipy.ndimage import shift, rotate, zoom, affine_transform
 from skimage.transform import rotate as rotate2
 
 
@@ -37,12 +37,14 @@ plt.imshow(test,origin='lower')
 T = af.transMat((32,8))
 T = np.linalg.inv(T)
 TC = (T @ coords)
-test = af.coords_transform(phantom2d, TC)
+test1 = af.coords_transform(phantom2d, TC)
 test2 = shift(phantom2d, (32,8), order=1)
-plt.imshow(test,origin='lower')
+test3 = affine_transform(phantom2d, T)
+plt.imshow(test1,origin='lower')
 plt.show()
 plt.imshow(test2,origin='lower')
 plt.show()
+plt.imshow(test3,origin='lower')
 
 
 R = af.rotateMat(np.pi/8, center=np.array(phantom2d.shape)/2.0 - 0.5)

@@ -608,16 +608,17 @@ class Geom:
         #Views indices at projection angle
         idxV = np.arange(nProjs, dtype=int)*self.nAngles + angle 
 
+        #Acquired Zs at each projection view
+        acqZ = np.add.outer(self.Z[idxV], censpace(nRows))
+
         #Indices of z slices directly below and above interpolated slice
         idxL = np.zeros((idxV.size,intZ.size), dtype=int)
         idxU = np.zeros((idxV.size,intZ.size), dtype=int)
  
-        #Distance slice below and above are from the interpolated slice
+        #Distances the acquired slice is below and above the interpolated slice
         dL = np.zeros((idxV.size,intZ.size), dtype=float)
         dU = np.zeros((idxV.size,intZ.size), dtype=float)
 
-        #Acquired Zs at each projection view
-        acqZ = np.add.outer(self.Z[idxV], censpace(nRows))
         #Loops through all of the projection angles and finds the nearest slice
         #below, above, and the distances to the interpolated slice
         for i, view in enumerate(idxV):
