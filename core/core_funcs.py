@@ -631,18 +631,23 @@ class Geom:
         
         #Finds the first projection angle with the slices closest to the 
         #interpolated slice
-        if not all_views:
-            idxZ = range(intZ.size)
-            #idx = np.argmin(np.abs(dL) + np.abs(dU),axis=0)
-            idx = np.argmin(np.where(dU>=0,dU,np.inf) - np.where(dL<=0,dL,-np.inf))
-            
-            idxV = idxV[idx]
-            idxL = idxL[idx,idxZ]
-            idxU = idxU[idx,idxZ]
-            dL = dL[idx,idxZ]
-            dU = dU[idx,idxZ]
+        if  all_views:
+            return idxV, idxL, idxU, dL, dU
         
-        return idxV, idxL, idxU, dL, dU
+        else:
+            idxZ = range(intZ.size)
+            
+            #Find the indices of the closest rows below and above z
+            idxp1 = np.where(dL<=0,dL,-np.inf).argmax(axis=0)
+            idxp2 = np.where(dU>=0,dU,np.inf).argmin(axis=0)
+
+            idxV = np.stack([idxV[idxp1],idxV[idxp2]],axis=-1)
+            idxR = np.stack([idxL[idxp1,idxZ],idxU[idxp2,idxZ]],axis=-1)
+            d = np.stack([dL[idxp1,idxZ],dU[idxp2,idxZ]],axis=-1)
+            
+            return idxV, idxR, d
+
+
     
 
     def bins(self,nBins):
