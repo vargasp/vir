@@ -600,14 +600,31 @@ class Geom:
         """
         intZ = np.array(intZ)
         
+        """
+        OLD CODE that depeended on angle index
         angle = angle % self.nAngles
         
         #Number projections at projection angle
         nProjs = int(np.ceil((self.nViews-angle)/self.nAngles))
-        
+
         #Views indices at projection angle
         idxV = np.arange(nProjs, dtype=int)*self.nAngles + angle 
 
+        """
+
+        #Ensures the angle is [0, 2*pi)
+        angle = angle % (2.0*np.pi)
+
+        #Calculates all projection views at angle 
+        angles = np.arange(self.nRotations)*2.0*np.pi + angle
+        angles = angles[(angles < self.Views[-1]) | np.isclose(angles, self.Views[-1])]
+
+        #Calculates the indices of the views that equal or the closest below
+        #the projection view
+        idxV = np.searchsorted(self.Views, angles)
+        idxV = np.where(np.isclose(self.Views[idxV-1], angles), idxV-1, idxV)
+        #print(angle,idxV)
+        
         #Acquired Zs at each projection view
         acqZ = np.add.outer(self.Z[idxV], censpace(nRows))
 
