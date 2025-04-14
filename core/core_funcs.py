@@ -599,74 +599,119 @@ class Geom:
             The distance of the closest row(s) above to the slice of interest.
         """
         intZ = np.array(intZ)
-        
-        """
-        OLD CODE that depeended on angle index
-        angle = angle % self.nAngles
-        
-        #Number projections at projection angle
-        nProjs = int(np.ceil((self.nViews-angle)/self.nAngles))
-
-        #Views indices at projection angle
-        idxV = np.arange(nProjs, dtype=int)*self.nAngles + angle 
-
-        """
 
         #Ensures the angle is [0, 2*pi)
         angle = angle % (2.0*np.pi)
 
         #Calculates all projection views at angle 
-        angles = np.arange(self.nRotations)*2.0*np.pi + angle
-        angles = angles[(angles < self.Views[-1]) | np.isclose(angles, self.Views[-1])]
+        angles = np.arange(np.ceil(self.nRotations)+1)*2.0*np.pi + angle
+        #angles = angles[(angles < self.Views[-1]) | np.isclose(angles, self.Views[-1])]
 
         #Calculates the indices of the views that equal or the closest below
         #the projection view
-        idxV = np.searchsorted(self.Views, angles)
-        idxV = np.where(np.isclose(self.Views[idxV-1], angles), idxV-1, idxV)
-        #print(angle,idxV)
-        
+        idxVp = np.searchsorted(self.Views, angles, side='left')
+        idxVp = np.where(np.isclose(self.Views[idxVp-1], angles), idxVp-1, idxVp)
+        idxVp = idxVp % self.nViews
+
+        #Calculates the indices of the views that equal or the closest above
+        #the projection view
+        idxVn = np.where(np.isclose(self.Views[idxVp], angles), idxVp, idxVp-1)
+        idxVn = idxVn % self.nViews    
+
+        #Removes duplicate pairs
+        if idxVn[-1] == idxVn[-2] and idxVp[-1] == idxVp[-2]:
+            idxVn = idxVn[:-1]
+            idxVp = idxVp[:-1]
+
         #Acquired Zs at each projection view
-        acqZ = np.add.outer(self.Z[idxV], censpace(nRows))
+        acqZ_Vp = np.add.outer(self.Z[idxVp], censpace(nRows))
+        acqZ_Vn = np.add.outer(self.Z[idxVn], censpace(nRows))
 
         #Indices of z slices directly below and above interpolated slice
-        idxL = np.zeros((idxV.size,intZ.size), dtype=int)
-        idxU = np.zeros((idxV.size,intZ.size), dtype=int)
+        idxRn_Vp = np.zeros((idxVp.size,intZ.size), dtype=int)
+        idxRp_Vp = np.zeros((idxVp.size,intZ.size), dtype=int)
+        
+        idxRn_Vn = np.zeros((idxVn.size,intZ.size), dtype=int)
+        idxRp_Vn = np.zeros((idxVn.size,intZ.size), dtype=int)
  
         #Distances the acquired slice is below and above the interpolated slice
-        dL = np.zeros((idxV.size,intZ.size), dtype=float)
-        dU = np.zeros((idxV.size,intZ.size), dtype=float)
+        dRn_Vp = np.zeros((idxVp.size,intZ.size), dtype=float)
+        dRp_Vp = np.zeros((idxVp.size,intZ.size), dtype=float)
+        
+        dRn_Vn = np.zeros((idxVn.size,intZ.size), dtype=float)
+        dRp_Vn = np.zeros((idxVn.size,intZ.size), dtype=float)
 
+        #Distances between angles 
+        dVn = np.tile(self.Views[idxVn] - angles,[intZ.size,1]).T
+        dVp = np.tile(self.Views[idxVp] - angles,[intZ.size,1]).T
+
+        #dVp = np.where(dVp < 0, dVp % (2*np.pi), dVp)
+        dVp = dVp % (2*np.pi)
+        
+        dVn = np.where(np.isclose(dVn,0.0), 0.0, dVn)
+        dVp = np.where(np.isclose(dVp,0.0), 0.0, dVp)
+               
         #Loops through all of the projection angles and finds the nearest slice
         #below, above, and the distances to the interpolated slice
-        for i, view in enumerate(idxV):
-            idx = np.array(np.searchsorted(acqZ[i,:],intZ)) 
-            idxL[i,:] = (idx-1).clip(0,nRows-1)
-            idxU[i,:] = idx.clip(0,nRows-1)
+        for i, view in enumerate(idxVp):
+            idx = np.array(np.searchsorted(acqZ_Vp[i,:],intZ)).clip(0,nRows-1)
+           
+            """NEEDS a WHERE is CLOSE"""
+            idxRp_Vp[i,:] = idx
+            idxRn_Vp[i,:] = np.where(np.isclose(acqZ_Vp[i,idx],intZ), \
+                                     idx, idx-1).clip(0,nRows-1)
+
+            idx = np.array(np.searchsorted(acqZ_Vn[i,:],intZ)).clip(0,nRows-1)
+            idxRp_Vn[i,:] = idx
+            idxRn_Vn[i,:] = np.where(np.isclose(acqZ_Vn[i,idx],intZ), \
+                                     idx, idx-1).clip(0,nRows-1)
+
+            dRn_Vp[i,:] = acqZ_Vp[i,idxRn_Vp[i,:]] - intZ
+            dRp_Vp[i,:] = acqZ_Vp[i,idxRp_Vp[i,:]] - intZ
+
+            dRn_Vn[i,:] = acqZ_Vn[i,idxRn_Vn[i,:]] - intZ
+            dRp_Vn[i,:] = acqZ_Vn[i,idxRp_Vn[i,:]] - intZ
+
+     
+        #print()
+        #print(f"Ang: {angle:.3f}, {angles}")
+        #print(f"L Views: {np.around(self.Views[idxVn],3)}, idx: {idxVn}, dV: {np.around(dVn,3)}")
+        #print(f"R Views: {np.around(self.Views[idxVp],3)}, idx: {idxVp}, dV: {np.around(dVp,3)}")
+
     
-            dL[i,:] = acqZ[i,idxL[i,:]] - intZ
-            dU[i,:] = acqZ[i,idxU[i,:]] - intZ
-        
+ 
         #Finds the first projection angle with the slices closest to the 
         #interpolated slice
         if  all_views:
-            return idxV, idxL, idxU, dL, dU
+            return idxVp, idxRn_Vp, idxRp_Vp, dRn_Vp, dRp_Vp
         
         else:
             idxZ = range(intZ.size)
             
             #Find the indices of the closest rows below and above z
-            idxp1 = np.where(dL<=0,dL,-np.inf).argmax(axis=0)
-            idxp2 = np.where(dU>=0,dU,np.inf).argmin(axis=0)
-
-            idxV = np.stack([idxV[idxp1],idxV[idxp2]],axis=-1)
-            idxR = np.stack([idxL[idxp1,idxZ],idxU[idxp2,idxZ]],axis=-1)
-            d = np.stack([dL[idxp1,idxZ],dU[idxp2,idxZ]],axis=-1)
+            idxp1 = np.where(dRn_Vp<=0,dRn_Vp,-np.inf).argmax(axis=0)
+            idxp2 = np.where(dRp_Vp>=0,dRp_Vp,np.inf).argmin(axis=0)
+            idxVp = np.stack([idxVp[idxp1],idxVp[idxp2]],axis=-1)
+            dVp = np.stack([dVp[idxp1,idxZ],dVp[idxp2,idxZ]],axis=-1)
             
-            return idxV, idxR, d
+            idxR_Vp = np.stack([idxRn_Vp[idxp1,idxZ],idxRp_Vp[idxp2,idxZ]],axis=-1)
+            dR_Vp = np.stack([dRn_Vp[idxp1,idxZ],dRp_Vp[idxp2,idxZ]],axis=-1)
+
+            #Find the indices of the closest rows below and above z
+            idxp1 = np.where(dRn_Vn<=0,dRn_Vn,-np.inf).argmax(axis=0)
+            idxp2 = np.where(dRp_Vn>=0,dRp_Vn,np.inf).argmin(axis=0)
+            idxVn = np.stack([idxVn[idxp1],idxVn[idxp2]],axis=-1)
+                        
+            idxR_Vn = np.stack([idxRn_Vn[idxp1,idxZ],idxRp_Vn[idxp2,idxZ]],axis=-1)
+            dR_Vn = np.stack([dRn_Vn[idxp1,idxZ],dRp_Vn[idxp2,idxZ]],axis=-1)
+            dVn = np.stack([dVn[idxp1,idxZ],dVn[idxp2,idxZ]],axis=-1)
+
+
+            
+            return idxVp, dVp, idxR_Vp, dR_Vp, idxVn, dVn, idxR_Vn, dR_Vn
 
 
     
-
     def bins(self,nBins):
         dBin = self.fan_angle/nBins*self.src_det
         return censpace(nBins, dBin)
