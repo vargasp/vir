@@ -673,10 +673,10 @@ class Geom:
             dRp_Vn[i,:] = acqZ_Vn[i,idxRp_Vn[i,:]] - intZ
 
      
-        #print()
-        #print(f"Ang: {angle:.3f}, {angles}")
-        #print(f"L Views: {np.around(self.Views[idxVn],3)}, idx: {idxVn}, dV: {np.around(dVn,3)}")
-        #print(f"R Views: {np.around(self.Views[idxVp],3)}, idx: {idxVp}, dV: {np.around(dVp,3)}")
+        print()
+        print(f"Ang: {angle:.3f}, All angles: {angles}")
+        print(f"L Views: {np.around(self.Views[idxVn],3)}, idx: {idxVn}, \ndV:\n{np.around(dVn,3)}")
+        print(f"R Views: {np.around(self.Views[idxVp],3)}, idx: {idxVp}, \ndV:\n{np.around(dVp,3)}")
 
     
  
@@ -706,6 +706,13 @@ class Geom:
             dR_Vn = np.stack([dRn_Vn[idxp1,idxZ],dRp_Vn[idxp2,idxZ]],axis=-1)
             dVn = np.stack([dVn[idxp1,idxZ],dVn[idxp2,idxZ]],axis=-1)
 
+            print("\nClosest")
+            print(f"L Views:\n{np.around(self.Views[idxVn],3).T}\nidx:\n{idxVn.T} \
+                  \ndV:\n {np.around(dVn,3).T}")
+            print(f"L Row:\n{np.around(dR_Vn,3).T}\nidx:\n{idxR_Vn.T}")
+            print(f"R Views:\n{np.around(self.Views[idxVp],3).T}\nidx:\n{idxVp.T} \
+                  \ndV:\n {np.around(dVp,3).T}")
+            print(f"R Row:\n{np.around(dR_Vp,3).T}\nidx:\n{idxR_Vp.T}")
 
             
             return idxVp, dVp, idxR_Vp, dR_Vp, idxVn, dVn, idxR_Vn, dR_Vn
