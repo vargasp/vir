@@ -634,7 +634,7 @@ class Geom:
         
         idxRn_Vn = np.zeros((idxVn.size,intZ.size), dtype=int)
         idxRp_Vn = np.zeros((idxVn.size,intZ.size), dtype=int)
- 
+     
         #Distances the acquired slice is below and above the interpolated slice
         dRn_Vp = np.zeros((idxVp.size,intZ.size), dtype=float)
         dRp_Vp = np.zeros((idxVp.size,intZ.size), dtype=float)
@@ -651,27 +651,44 @@ class Geom:
         
         dVn = np.where(np.isclose(dVn,0.0), 0.0, dVn)
         dVp = np.where(np.isclose(dVp,0.0), 0.0, dVp)
-               
+        dVn = np.where(np.isclose(dVn,2*np.pi), 0.0, dVn)        
+        dVp = np.where(np.isclose(dVp,2*np.pi), 0.0, dVp)
+        
+        
         #Loops through all of the projection angles and finds the nearest slice
         #below, above, and the distances to the interpolated slice
-        for i, view in enumerate(idxVp):
-            idx = np.array(np.searchsorted(acqZ_Vp[i,:],intZ)).clip(0,nRows-1)
-           
-            """NEEDS a WHERE is CLOSE"""
-            idxRp_Vp[i,:] = idx
-            idxRn_Vp[i,:] = np.where(np.isclose(acqZ_Vp[i,idx],intZ), \
-                                     idx, idx-1).clip(0,nRows-1)
+        for i in range(angles.size):
 
-            idx = np.array(np.searchsorted(acqZ_Vn[i,:],intZ)).clip(0,nRows-1)
-            idxRp_Vn[i,:] = idx
-            idxRn_Vn[i,:] = np.where(np.isclose(acqZ_Vn[i,idx],intZ), \
-                                     idx, idx-1).clip(0,nRows-1)
+            idxRp = np.array(np.searchsorted(acqZ_Vp[i,:],intZ))
+            idxRn = np.where(np.isclose(acqZ_Vp[i,idxRp.clip(0,nRows-1)],intZ), idxRp, idxRp-1)
+            idxRp_Vp[i,:] = idxRp.clip(0,nRows-1)
+            idxRn_Vp[i,:] = idxRn.clip(0,nRows-1)
+
+
+            idxRp = np.array(np.searchsorted(acqZ_Vn[i,:],intZ))
+            idxRn = np.where(np.isclose(acqZ_Vn[i,idxRp.clip(0,nRows-1)],intZ), idxRp, idxRp-1)
+            idxRp_Vn[i,:] = idxRp.clip(0,nRows-1)            
+            idxRn_Vn[i,:] = idxRn.clip(0,nRows-1)
+
 
             dRn_Vp[i,:] = acqZ_Vp[i,idxRn_Vp[i,:]] - intZ
             dRp_Vp[i,:] = acqZ_Vp[i,idxRp_Vp[i,:]] - intZ
 
             dRn_Vn[i,:] = acqZ_Vn[i,idxRn_Vn[i,:]] - intZ
             dRp_Vn[i,:] = acqZ_Vn[i,idxRp_Vn[i,:]] - intZ
+
+            
+            
+            
+        """
+        print(idxVn)
+        print(acqZ_Vn)
+        print(idxRn_Vn)
+        print(dRn_Vn)
+
+        print(idxRp_Vn)
+        print(dRp_Vn)
+        """
 
         """
         print()
@@ -698,11 +715,13 @@ class Geom:
             dRp_Vp = np.where(dRp_Vp>=0,dRp_Vp,np.inf)
             dRn_Vn = np.where(dRn_Vn<=0,dRn_Vn,-np.inf)
             dRp_Vn = np.where(dRp_Vn>=0,dRp_Vn,np.inf)
-            
+
             #Find the indices of the closest rows below and above z
             idxRn = np.sqrt(dRn_Vp**2 + (dVp/self.dView)**2).argmin(axis=0)
             idxRp = np.sqrt(dRp_Vp**2 + (dVp/self.dView)**2).argmin(axis=0)
+
             
+
             #Indices and distances of views above the nearest view
             #above the desired view
             idxVp = np.stack([idxVp[idxRn],idxVp[idxRp]],axis=-1)
@@ -727,6 +746,7 @@ class Geom:
             idxR_Vn = np.stack([idxRn_Vn[idxRn,idxZ],idxRp_Vn[idxRp,idxZ]],axis=-1)
             dR_Vn = np.stack([dRn_Vn[idxRn,idxZ],dRp_Vn[idxRp,idxZ]],axis=-1)
  
+    
             """
             print("\nClosest")
             print(f"L Views:\n{np.around(self.Views[idxVn],3).T}\nidx:\n{idxVn.T} \
