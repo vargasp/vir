@@ -536,7 +536,7 @@ class Geom:
         self.Z = censpace(self.nViews, self.dZ)
         
 
-    def updateViews(self,Views,dView=None,coverage=None,pitch=None):
+    def updateViews(self,Views,dView=None,coverage=None):
         """
         Updates the array of projection angles with a custom array 
             updateViews(self, Views)
@@ -554,17 +554,18 @@ class Geom:
         """
         
         self.Views = np.array(Views)
-        self.dView = dView
-        self.coverage = coverage
-        self.pitch = pitch
+        
+        if dView is None:
+            self.dView = np.mean(Views[1:] - Views[:-1])
+
+        if coverage is None:
+            self.coverage = self.Views[-1] - self.Views[0] + self.dView
         
         self.nViews = self.Views.size
         self.angle0 = self.Views[0]
         
-        if coverage == None:
-            self.nRotations = None
-        else:
-            self.nRotations = coverage / (2.0*np.pi)
+
+        self.nRotations = self.coverage / (2.0*np.pi)
 
 
     def interpZ(self,intZ,angle,nRows,all_views=False):
@@ -672,40 +673,61 @@ class Geom:
             dRn_Vn[i,:] = acqZ_Vn[i,idxRn_Vn[i,:]] - intZ
             dRp_Vn[i,:] = acqZ_Vn[i,idxRp_Vn[i,:]] - intZ
 
-     
+        """
         print()
         print(f"Ang: {angle:.3f}, All angles: {angles}")
         print(f"L Views: {np.around(self.Views[idxVn],3)}, idx: {idxVn}, \ndV:\n{np.around(dVn,3)}")
         print(f"R Views: {np.around(self.Views[idxVp],3)}, idx: {idxVp}, \ndV:\n{np.around(dVp,3)}")
-
-    
- 
+        print(f"L Row:\n{np.around(dRn_Vp,3).T}\nidx:\n{idxRn_Vp.T}")
+        """
+        
         #Finds the first projection angle with the slices closest to the 
         #interpolated slice
         if  all_views:
-            return idxVp, idxRn_Vp, idxRp_Vp, dRn_Vp, dRp_Vp
+            idxR_Vp = np.stack([idxRn_Vp,idxRp_Vp],axis=-1)
+            dR_Vp = np.stack([dRn_Vp,dRp_Vp],axis=-1)
+            idxR_Vn = np.stack([idxRn_Vn,idxRp_Vn],axis=-1)
+            dR_Vn = np.stack([dRn_Vn,dRp_Vn],axis=-1)
+            
+            return idxVp, dVp, idxR_Vp, dR_Vp, idxVn, dVn, idxR_Vn, dR_Vn
         
         else:
             idxZ = range(intZ.size)
             
-            #Find the indices of the closest rows below and above z
-            idxp1 = np.where(dRn_Vp<=0,dRn_Vp,-np.inf).argmax(axis=0)
-            idxp2 = np.where(dRp_Vp>=0,dRp_Vp,np.inf).argmin(axis=0)
-            idxVp = np.stack([idxVp[idxp1],idxVp[idxp2]],axis=-1)
-            dVp = np.stack([dVp[idxp1,idxZ],dVp[idxp2,idxZ]],axis=-1)
+            dRn_Vp = np.where(dRn_Vp<=0,dRn_Vp,-np.inf)
+            dRp_Vp = np.where(dRp_Vp>=0,dRp_Vp,np.inf)
+            dRn_Vn = np.where(dRn_Vn<=0,dRn_Vn,-np.inf)
+            dRp_Vn = np.where(dRp_Vn>=0,dRp_Vn,np.inf)
             
-            idxR_Vp = np.stack([idxRn_Vp[idxp1,idxZ],idxRp_Vp[idxp2,idxZ]],axis=-1)
-            dR_Vp = np.stack([dRn_Vp[idxp1,idxZ],dRp_Vp[idxp2,idxZ]],axis=-1)
+            #Find the indices of the closest rows below and above z
+            idxRn = np.sqrt(dRn_Vp**2 + (dVp/self.dView)**2).argmin(axis=0)
+            idxRp = np.sqrt(dRp_Vp**2 + (dVp/self.dView)**2).argmin(axis=0)
+            
+            #Indices and distances of views above the nearest view
+            #above the desired view
+            idxVp = np.stack([idxVp[idxRn],idxVp[idxRp]],axis=-1)
+            dVp = np.stack([dVp[idxRn,idxZ],dVp[idxRp,idxZ]],axis=-1)
+            
+            #Indices and distances of rows closest to z at the nearest view
+            #above the desired view
+            idxR_Vp = np.stack([idxRn_Vp[idxRn,idxZ],idxRp_Vp[idxRp,idxZ]],axis=-1)
+            dR_Vp = np.stack([dRn_Vp[idxRn,idxZ],dRp_Vp[idxRp,idxZ]],axis=-1)
 
             #Find the indices of the closest rows below and above z
-            idxp1 = np.where(dRn_Vn<=0,dRn_Vn,-np.inf).argmax(axis=0)
-            idxp2 = np.where(dRp_Vn>=0,dRp_Vn,np.inf).argmin(axis=0)
-            idxVn = np.stack([idxVn[idxp1],idxVn[idxp2]],axis=-1)
-                        
-            idxR_Vn = np.stack([idxRn_Vn[idxp1,idxZ],idxRp_Vn[idxp2,idxZ]],axis=-1)
-            dR_Vn = np.stack([dRn_Vn[idxp1,idxZ],dRp_Vn[idxp2,idxZ]],axis=-1)
-            dVn = np.stack([dVn[idxp1,idxZ],dVn[idxp2,idxZ]],axis=-1)
+            idxRn = np.sqrt(dRn_Vn**2 + (dVn/self.dView)**2).argmin(axis=0)
+            idxRp = np.sqrt(dRp_Vn**2 + (dVn/self.dView)**2).argmin(axis=0)
+            
+            #Indices and distances of views above the nearest view
+            #below the desired view
+            idxVn = np.stack([idxVn[idxRn],idxVn[idxRp]],axis=-1)
+            dVn = np.stack([dVn[idxRn,idxZ],dVn[idxRp,idxZ]],axis=-1)
 
+            #Indices and distances of rows closest to z at the nearest view
+            #below the desired view
+            idxR_Vn = np.stack([idxRn_Vn[idxRn,idxZ],idxRp_Vn[idxRp,idxZ]],axis=-1)
+            dR_Vn = np.stack([dRn_Vn[idxRn,idxZ],dRp_Vn[idxRp,idxZ]],axis=-1)
+ 
+            """
             print("\nClosest")
             print(f"L Views:\n{np.around(self.Views[idxVn],3).T}\nidx:\n{idxVn.T} \
                   \ndV:\n {np.around(dVn,3).T}")
@@ -713,8 +735,7 @@ class Geom:
             print(f"R Views:\n{np.around(self.Views[idxVp],3).T}\nidx:\n{idxVp.T} \
                   \ndV:\n {np.around(dVp,3).T}")
             print(f"R Row:\n{np.around(dR_Vp,3).T}\nidx:\n{idxR_Vp.T}")
-
-            
+            """
             return idxVp, dVp, idxR_Vp, dR_Vp, idxVn, dVn, idxR_Vn, dR_Vn
 
 
