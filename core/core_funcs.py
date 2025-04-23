@@ -536,7 +536,7 @@ class Geom:
         self.Z = censpace(self.nViews, self.dZ)
         
 
-    def updateViews(self,Views,dView=None,coverage=None):
+    def updateViews(self,Views,dView=None,coverage=None,Z=None):
         """
         Updates the array of projection angles with a custom array 
             updateViews(self, Views)
@@ -566,7 +566,10 @@ class Geom:
         
 
         self.nRotations = self.coverage / (2.0*np.pi)
-
+        if Z is None:
+            self.Z = censpace(self.nViews, self.dZ)
+        else:
+            self.Z = Z
 
     def interpZ(self,intZ,angle,nRows,all_views=False):
         """
