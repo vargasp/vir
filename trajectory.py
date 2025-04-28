@@ -170,7 +170,46 @@ def sino_hel2axl180(sinoH, geomH, AngsA, Z):
     return sinoA1f, sinoA2f,sinoA1b[...,::-1], sinoA2b[...,::-1]
 
 
-def sino_hel2hel(sino, geomH, nRows, z):
+def sino_hel2hel(sinoAcq, geomAcq, geomInt, nRowsInt):
+
+    nViewsAcq, nRowsAcq, nCols = sinoAcq.shape
+
+
+
+    sinoInt1 = np.zeros([geomInt.nViews,nRowsInt,nCols], dtype=np.float32)
+    sinoInt2 = np.zeros([geomInt.nViews,nRowsInt,nCols], dtype=np.float32)
+    
+    for i, viewInt in enumerate(geomInt.Views):
+        Z = vir.censpace(nRowsInt) + geomInt.Z[i]
+        idxVp, dVp, idxR_Vp, dR_Vp, idxVn, dVn, idxR_Vn, dR_Vn = geomAcq.interpZ(Z,viewInt,nRowsAcq)
+        #print(idxV[0,:], i, ang)
+        #print(idxVp,idxVn)
+        #print(dVn, dVp)
+        
+        #Calculates the weight of row interpolation based
+        wRp = dR_Vp[:,1] - dR_Vp[:,0]
+        wRn = dR_Vn[:,1] - dR_Vn[:,0]
+        with np.errstate(invalid='ignore', divide='ignore'):
+            wp0  = np.where(wRp==0.0,0.5,((wRp + dR_Vp[:,0])/wRp))[:,np.newaxis]
+            wp1  = np.where(wRp==0.0,0.5,((wRp - dR_Vp[:,1])/wRp))[:,np.newaxis]
+            wn0  = np.where(wRn==0.0,0.5,((wRn + dR_Vn[:,0])/wRn))[:,np.newaxis]
+            wn1  = np.where(wRn==0.0,0.5,((wRn - dR_Vn[:,1])/wRn))[:,np.newaxis]
+        
+        sinoInt1[i,:,:]= sinoAcq[idxVp[:,0],idxR_Vp[:,0],:]*wp0 + \
+                        sinoAcq[idxVp[:,1],idxR_Vp[:,1],:]*wp1
+
+        sinoInt2[i,:,:]= sinoAcq[idxVn[:,0],idxR_Vn[:,0],:]*wn0 + \
+                        sinoAcq[idxVn[:,1],idxR_Vn[:,1],:]*wn1
+
+    #print(idxVp.shape)
+    #print(dVp.shape)
+    #print(idxR_Vp.shape)
+    #print(dR_Vp.shape)
+
+    return sinoInt1, sinoInt2
+
+
+def sino_hel2minhel(sino, geomH, nRows, z):
 
     z = np.array(z)
 
