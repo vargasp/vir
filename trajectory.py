@@ -11,6 +11,37 @@ import numpy as np
 import vir
 from scipy.ndimage import map_coordinates
 
+import vir.affine_transforms as af
+
+
+
+
+def forward_project_phantom(phantom, Views, Rows, Cols, Z):
+    nX, nY, nZ = phantom.shape
+
+    centerA = np.array(phantom.shape)/2.0 - 0.5    
+    
+    
+    sino = np.zeros([Views.size,nZ,nX], dtype=np.float32)
+    coords = af.coords_array((nX,nY,nZ), ones=True)
+
+    #Loop through views
+    for i, (z,view) in enumerate(zip(Z,Views)):
+
+        #Misalign phantom by translating axis of rotation with respect to z-axis
+        T = af.transMat((0,0,-z))
+
+        #Rotate for tomographic projection and add precession misalignment  
+        R_A = af.rotateMat((0,0,-view), center=centerA, seq='XYZ')
+
+        #Apply transforms and project view
+        RRTC = np.round(R_A @ T @ coords,6)
+        
+        sino[i,:,:] = af.coords_transform(phantom, RRTC).sum(axis=1).T
+    
+    return sino    
+
+
 
 def sino_axl2hel(sinoA, nRowsH, ViewsH, nAngsH, pitch, Z=None):
     #Data Sizes
@@ -179,8 +210,9 @@ def sino_hel2hel(sinoAcq, geomAcq, geomInt, nRowsInt):
     sinoInt1 = np.zeros([geomInt.nViews,nRowsInt,nCols], dtype=np.float32)
     sinoInt2 = np.zeros([geomInt.nViews,nRowsInt,nCols], dtype=np.float32)
     
-    for i, viewInt in enumerate(geomInt.Views):
-        Z = vir.censpace(nRowsInt) + geomInt.Z[i]
+    for i, (viewInt, z) in enumerate(zip(geomInt.Views, geomInt.Z)):
+        Z = vir.censpace(nRowsInt,c=z)
+
         idxVp, dVp, idxR_Vp, dR_Vp, idxVn, dVn, idxR_Vn, dR_Vn = geomAcq.interpZ(Z,viewInt,nRowsAcq)
         #print(idxV[0,:], i, ang)
         #print(idxVp,idxVn)
@@ -209,7 +241,7 @@ def sino_hel2hel(sinoAcq, geomAcq, geomInt, nRowsInt):
     return sinoInt1, sinoInt2
 
 
-def sino_hel2minhel(sino, geomH, nRows, z):
+def sino_hel_subset(sino, geomH, nRows, z):
 
     z = np.array(z)
 

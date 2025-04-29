@@ -496,15 +496,15 @@ class Geom:
         """
         
         #Reads in arguments
-        self.nViews = int(nViews)
-        self.coverage = coverage
-        self.angle0 = angle0
-        self.pitch = pitch
-        self.endpoint = endpoint
-        self.src_iso = src_iso
+        self.nViews = int(nViews) #[Unitless]
+        self.coverage = coverage #[Radians]
+        self.angle0 = angle0 #[Radians]
+        self.pitch = pitch #[Number of detector arrays / rotations]
+        self.endpoint = endpoint #Flag
+        self.src_iso = src_iso #[]
         self.src_det = src_det
-        self.fan_angle = fan_angle
-        self.zTran = zTran
+        self.fan_angle = fan_angle #[Radians]
+        self.zTran = zTran #[Number of detector rows]
 
         self.Views, self.dView = np.linspace(self.angle0, \
                 self.angle0+self.coverage,self.nViews, \
@@ -532,7 +532,7 @@ class Geom:
             self.geom = "Parallel beam"
         
         #Trajectory Parameters
-        self.dZ = self.zTran / self.nAngles
+        self.dZ = self.zTran * self.nRotations / self.nViews 
         self.Z = censpace(self.nViews, self.dZ)
         
 
