@@ -626,6 +626,7 @@ class Geom:
         if idxVn[-1] == idxVn[-2] and idxVp[-1] == idxVp[-2]:
             idxVn = idxVn[:-1]
             idxVp = idxVp[:-1]
+            angles = angles[:-1]
 
         #Acquired Zs at each projection view
         acqZ_Vp = np.add.outer(self.Z[idxVp], censpace(nRows))
