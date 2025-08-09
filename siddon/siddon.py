@@ -240,9 +240,14 @@ def list_count_elem(sdlist):
     -------
     Count : (...) numpy ndarray 
         The number of elements in each element of the siddons object array
-    """   
-    count = np.zeros(sdlist.shape, dtype=int)    
-
+    """
+    
+    
+    if isinstance(sdlist, np.ndarray):
+        count = np.zeros(sdlist.shape, dtype=int)    
+    else:
+        return sdlist[0].size
+        
     for ray_idx, ray in np.ndenumerate(sdlist):
         if ray != None:
             count[ray_idx] = ray[0].size
@@ -320,10 +325,108 @@ def ray_boundary(ray,nPixels):
     return [ray[0][idx],ray[1][idx],ray[2][idx],ray[3][idx]]
 
 
+def list_convole(sdlist, kernel, ravel=False, nPixels=None, axis=None):
+
+    if len(axis) != kernel.ndim:
+        raise ValueError('Number of axis must match kernel dimensions')
 
 
+    for dim in kernel.shape:
+        if dim%2 == 0:
+            raise ValueError('Kernel must have an odd numer of elements in each dimension')
+
+    k_dims = kernel.shape
+    sd_dims = sdlist.shape
+    sdlist_convole = np.empty(sdlist.shape, dtype=object)
+
+    for ray_idx, ray in np.ndenumerate(sdlist):
+        ray_idx_c = list(ray_idx)
+        ker_idx = []
+        
+        for i, (ax,k_dim) in enumerate(zip(axis,k_dims)):
+            l = ray_idx_c[ax] - int(k_dim/2)
+            if l < 0:
+                lk = abs(l)
+                l = 0
+            else:
+                lk = 0
+                            
+            u = ray_idx_c[ax] + int(k_dim/2) + 1
+            if u > sd_dims[ax]:
+                uk = k_dims[i] - (u - sd_dims[ax])
+                u = sd_dims[ax]
+            else:
+                uk = k_dims[i]
+     
+            ray_idx_c[ax] = slice(l,u)
+            ker_idx.append(slice(lk,uk))
+        
+        kF = kernel.sum()/kernel[tuple(ker_idx)].sum()
+        
+        sdlist_convole[ray_idx] = rays_weight_ave(sdlist[tuple(ray_idx_c)],\
+                                                  kF*kernel[tuple(ker_idx)],ravel=ravel,nPixels=nPixels)
+
+    return sdlist_convole
 
 
+def list_weight_ave(sdlist, weights, ravel=False,nPixels=None, axis=None):
+
+
+    if len(axis) != weights.ndim:
+        raise ValueError('Number of axis must match weights dimensions')
+
+    if axis == None:
+        return rays_weight_ave(sdlist, weights, ravel=ravel, nPixels=nPixels)
+
+    #Creates the new shape based on axis averaging and moves averaged
+    #dimensions to the end
+    sdlist_ave = np.empty(np.delete(sdlist.shape, axis), dtype=object)
+    sdlist = np.moveaxis(sdlist, axis, np.arange(-1*(np.array(axis).size),0))
+   
+    #Loops through all rays in the list
+    for ray_idx, ray in np.ndenumerate(sdlist_ave):
+        sdlist_ave[ray_idx] = rays_weight_ave(sdlist[ray_idx], weights, ravel=ravel,\
+                        nPixels=nPixels)
+    
+    return sdlist_ave
+
+
+def rays_weight_ave(sdlist, weights, ravel=False, nPixels=None):
+
+    if ravel == False and nPixels == None:
+        raise ValueError('nPixels must be provided if ravel=False')
+
+    #Loops through all rays in the list
+    sdlist_weight = np.empty(sdlist.shape, dtype=object)
+    
+    for ray_idx, ray in np.ndenumerate(sdlist):
+        if ray == None:
+            sdlist_weight[ray_idx] = None
+        else:            
+            if ravel == False:
+                ray = ray_ravel(ray,nPixels)
+            
+            sdlist_weight[ray_idx] = [ray[0],weights[ray_idx]*ray[1]]
+
+    flat_ind, flat_len = list_flatten(sdlist_weight, nPixels=nPixels,ravel=True)
+        
+    #Finds all of the unique elemets and thier positions
+    flat_ind_ave, idx = np.unique(flat_ind, return_inverse=True)
+
+    #If no rays have values return None
+    if flat_ind_ave.size == 0:
+        return None
+    
+    flat_len_ave = np.zeros(flat_ind_ave.size, dtype=np.float32)
+    #Creates and calculates the average length per intersection
+    for i, ix in enumerate(idx):
+        flat_len_ave[ix] += flat_len[i]
+
+    #Returns the list of indices and lengths in the orginal format
+    if ravel == True:
+        return [flat_ind_ave, flat_len_ave]
+    else:
+        return ray_unravel([flat_ind_ave, flat_len_ave], nPixels)
 
 
 def list_ave(sdlist, ravel=False, flat=False, nPixels=None, nRays=None, axis=None):
@@ -350,7 +453,8 @@ def list_ave(sdlist, ravel=False, flat=False, nPixels=None, nRays=None, axis=Non
         plane inf for the coordinates are returned. If the line lies parallel
         to, but no in the plane nan for the coordinates are returned. 
     """   
-    
+    if flat == True and axis != None:
+        raise ValueError('Axis cannot be provided when flat=True')
 
     if axis == None:
         return rays_ave(sdlist, ravel=ravel, flat=flat,\
@@ -359,7 +463,7 @@ def list_ave(sdlist, ravel=False, flat=False, nPixels=None, nRays=None, axis=Non
     #Creates the new shape based on axis averaging and moves averaged
     #dimensions to the end
     sdlist_ave = np.empty(np.delete(sdlist.shape, axis), dtype=object)
-    sdlist = np.moveaxis(sdlist, axis, np.arange(-1,-1*(np.array(axis).size+1),-1))
+    sdlist = np.moveaxis(sdlist, axis, np.arange(-1*(np.array(axis).size),0))
    
     #Loops through all rays in the list
     for ray_idx, ray in np.ndenumerate(sdlist_ave):
@@ -368,11 +472,11 @@ def list_ave(sdlist, ravel=False, flat=False, nPixels=None, nRays=None, axis=Non
     
     return sdlist_ave
 
-
+    
 def rays_ave(sdlist, ravel=False, flat=False, nPixels=None, nRays=None):
     """
     Combines and averages the intersection lengths and pixel indices over
-    multiple rays in in object array. 
+    multiple rays in in object array.
         
     Parameters
     ----------
@@ -399,37 +503,35 @@ def rays_ave(sdlist, ravel=False, flat=False, nPixels=None, nRays=None):
 
     if flat == False and nPixels == None:
         raise ValueError('nPixels must be provided if flat=False')
-
     
+    #Flatten the array to get the indices and lengths arrays
     if flat == True:
         flat_ind, flat_len = sdlist
-    else: 
+    else:
+        nRays = sdlist.size
         flat_ind, flat_len = list_flatten(sdlist, nPixels=nPixels,ravel=ravel)
         
     #Finds all of the unique elemets and thier positions
-    flat_ind, idx = np.unique(flat_ind, return_inverse=True)
-
-    print(flat_ind.size)
-    print(idx.size)
+    flat_ind_ave, idx = np.unique(flat_ind, return_inverse=True)
 
     #If no rays have values return None
-    if flat_ind.size == 0:
+    if flat_ind_ave.size == 0:
         return None
     
+    flat_len_ave = np.zeros(flat_ind_ave.size, dtype=np.float32)
     #Creates and calculates the average length per intersection
-    flat_len /= nRays
-    flat_len2 = np.zeros(flat_ind.size, dtype=np.float32)
     for i, ix in enumerate(idx):
-        flat_len2[ix] += flat_len[i]
+        flat_len_ave[ix] += flat_len[i]
+    flat_len_ave /= nRays
 
     #Returns the list of indices and lengths in the orginal format
-    if ravel == True:
-        return [flat_ind, flat_len2]
+    if ravel == True or flat == True:
+        return [flat_ind_ave, flat_len_ave]
     else:
-        return ray_unravel([flat_ind, flat_len2], nPixels)
+        return ray_unravel([flat_ind_ave, flat_len_ave], nPixels)
 
 
-def list_flatten(sdlist,nPixels,ravel=False):
+def list_flatten(sdlist,ravel=False,nPixels=None):
     """
     Flattens an unraveled or raveld object array created by Siddons. Stores the
     data in two np.arrays with raveled pixel indices and intersection lengths.
@@ -453,24 +555,28 @@ def list_flatten(sdlist,nPixels,ravel=False):
     [(nElem) numpy array, (nElem) numpy array]
         Flattens an unraveled or raveld object array created by Siddons.
     """
+    if ravel == False and nPixels == None:
+        raise ValueError('nPixels must be provided if ravel=False')
     
-    f0 = 0
-    flat_len = np.zeros(6*sdlist.size*np.max(nPixels),dtype=np.float32)
-    flat_ind = np.zeros(6*sdlist.size*np.max(nPixels),dtype=int)
+    #Counts the cumulative total of elments and adds a 0 to the first index
+    count = np.insert(np.cumsum(list_count_elem(sdlist)),0,0)
+    
+    #Creates the the two arrays for indices and length
+    flat_ind = np.zeros(count[-1],dtype=int)
+    flat_len = np.zeros(count[-1],dtype=np.float32)
 
-    for ray_idx, ray in np.ndenumerate(sdlist):
+    #Iterates through the list
+    for idx, ray in enumerate(sdlist.flat):
         if ray != None:
             
             if ravel == False:
                 ray = ray_ravel(ray,nPixels)
-                
-                
-            fN = f0 + ray[0].size
-            flat_ind[f0:fN] = ray[0]
-            flat_len[f0:fN] = ray[1]
-            f0 = fN
-                
-    return flat_ind[:fN], flat_len[:fN]
+         
+            #Copies the ray's elements to the newly created arrays
+            flat_ind[count[idx]:count[idx+1]] = ray[0]
+            flat_len[count[idx]:count[idx+1]] = ray[1]
+
+    return flat_ind, flat_len
 
 
 def list_ravel(sdlist,nPixels):

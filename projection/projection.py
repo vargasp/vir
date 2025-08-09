@@ -807,8 +807,7 @@ def sd_b_proj_ray(phantom, ray, value):
     phantom[(ray[0],ray[1],ray[2])] += ray[3]*value
     
 
-def sd_f_proj(phantom, sdlist):
-    
+def sd_f_proj(phantom, sdlist):    
     sino = np.zeros(sdlist.shape, dtype=np.float32)
     
     #Iterates through all of the lists    

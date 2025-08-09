@@ -128,9 +128,6 @@ a = sd.siddons(srcs,trgs,nPixels, dPix, flat=True)
 
 
 
-
-
-
 #Parallel Beam Circular Trajectory
 nPix = 128
 nPixels = (nPix,nPix,1)
@@ -165,8 +162,8 @@ print((h - j).max())
 
 
 #List Utilities
-d = sd.list_flatten(b,nPixels, ravel=True)
-e = sd.list_flatten(c,nPixels, ravel=False)
+d = sd.list_flatten(b, ravel=True)
+e = sd.list_flatten(c, ravel=False, nPixels=nPixels)
 h = sd.list2array(a, nPixels, flat=True)
 i = sd.list2array(d, nPixels, flat=True)
 j = sd.list2array(e, nPixels, flat=True)
@@ -184,29 +181,102 @@ j = sd.list2array(e, nPixels, ravel=True)
 print((h - i)[:,:,0])
 print((h - j)[:,:,0])
 
+
+
+#List Utilities - Averages
+nPix = 4
+nPixels = (nPix,nPix,1)
+dPix = 1.0
+
+nX = 3
+nZ = 2
+x = np.linspace(0,1,nX)
+z = np.linspace(-0.5,0.5,nZ)
+
+#Calculates the source position for the 4 arrays
+srcs = np.zeros([nX,nZ,3])
+srcs[...,0] = np.broadcast_to(.5,(nX,nZ))
+srcs[...,1] = np.broadcast_to(-2,(nX,nZ))
+srcs[...,2] = np.broadcast_to(0,(nX,nZ))
+
+trgs = np.zeros([nX,nZ,3])
+trgs[...,0],trgs[...,2] = np.meshgrid(x,z, indexing='ij')
+trgs[...,1] = np.broadcast_to(2,(nX,nZ))
+
 a = sd.siddons(srcs,trgs,nPixels, dPix, flat=True)
-sd.list_ave(a, flat=True, ravel=True, nPixels=nPixels, nRays=32)
+b = sd.siddons(srcs,trgs,nPixels, dPix, ravel=True)
+c = sd.siddons(srcs,trgs,nPixels, dPix, ravel=False)
+
+a0 = sd.list_ave(a, flat=True, nPixels=nPixels,nRays=nX*nZ)
+b0 = sd.list_ave(b, ravel=True, nPixels=nPixels)
+c0 = sd.list_ave(c, ravel=False, nPixels=nPixels)
+b1 = sd.list_ave(b, ravel=True, nPixels=nPixels,axis=0)
+c1 = sd.list_ave(c, ravel=False, nPixels=nPixels,axis=0)
+b2 = sd.list_ave(b, ravel=True, nPixels=nPixels,axis=1)
+c2 = sd.list_ave(c, ravel=False, nPixels=nPixels,axis=1)
+
+b[1,1] = None
+c[1,1] = None
+b0 = sd.list_ave(b, ravel=True, nPixels=nPixels)
+c0 = sd.list_ave(c, ravel=False, nPixels=nPixels)
+b1 = sd.list_ave(b, ravel=True, nPixels=nPixels,axis=0)
+c1 = sd.list_ave(c, ravel=False, nPixels=nPixels,axis=0)
+b2 = sd.list_ave(b, ravel=True, nPixels=nPixels,axis=1)
+
+
+weights = np.ones((nX,nZ))/nX/nZ
+bw = sd.rays_weight_ave(b, weights,ravel=True)
+cw = sd.rays_weight_ave(c, weights,ravel=False, nPixels=nPixels)
+
+bk = sd.list_convole(b, weights,ravel=True,axis=(2,3))
 
 
 
+#List Utilities - Averages - Detectorlets
+nPix = 4
+nPixels = (nPix,nPix,1)
+dPix = 1.0
+dDet = 1
+
+nX = 4
+nZ = 3
+nXlets = 8
+nZlets = 5
+
+nX = 1
+nZ = 3
+nXlets = 3
+nZlets = 5
 
 
 
+xlets = vir.censpace(nX*nXlets,d=dDet/nXlets)
+zlets = vir.censpace(nZ*nZlets,d=dDet/nZlets)
 
+srcs = np.zeros([nX,nXlets,nZ,nZlets,3])
+srcs[...,0] = np.broadcast_to(.5,(nX,nXlets,nZ,nZlets))
+srcs[...,1] = np.broadcast_to(-2,(nX,nXlets,nZ,nZlets))
+srcs[...,2] = np.broadcast_to(0,(nX,nXlets,nZ,nZlets))
 
+x,z = np.meshgrid(xlets,zlets, indexing='ij')
+trgs = np.zeros([nX,nXlets,nZ,nZlets,3])
+trgs[...,0] = x.reshape((nX,nXlets,nZ,nZlets))
+trgs[...,1] = np.broadcast_to(2,(nX,nXlets,nZ,nZlets))
+trgs[...,2] = z.reshape((nX,nXlets,nZ,nZlets))
 
+b = sd.siddons(srcs,trgs,nPixels, dPix, ravel=True)
+c = sd.siddons(srcs,trgs,nPixels, dPix, ravel=False)
 
+b0 = sd.list_ave(b, ravel=True, nPixels=nPixels,axis=(1,3))
+c0 = sd.list_ave(c, ravel=False, nPixels=nPixels,axis=(1,3))
 
+weights = np.ones((nXlets,nZlets))/nXlets/nZlets
+b1 = sd.list_weight_ave(b, weights, ravel=True, nPixels=nPixels,axis=(1,3))
+c1 = sd.list_weight_ave(c, weights, ravel=False, nPixels=nPixels,axis=(1,3))
 
+weights = np.ones((1,3))/3
 
-
-
-
-
-
-
-
-
+bk = sd.list_convole(b, weights,ravel=True,axis=(1,3))
 
 
 
