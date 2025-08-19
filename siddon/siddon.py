@@ -796,7 +796,8 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
     for ray_idx, ray in np.ndenumerate(Rays):
         
         #If alpha_max <= alpha_min, then the ray doesn't pass through the grid.
-        if alpha_bounds[ray_idx + (1,)] > alpha_bounds[ray_idx + (0,)]:
+        if alpha_bounds[ray_idx + (1,)] > alpha_bounds[ray_idx + (0,)] and \
+           not np.isclose(alpha_bounds[ray_idx + (1,)], alpha_bounds[ray_idx + (0,)], atol=epsilon):
 
             idxX = ray_idx + (0,)
             idxY = ray_idx + (1,)
