@@ -171,12 +171,49 @@ def calib_proj_orient_view(sino3d_shape, z, \
 def calib_proj_orient(sino3d, Views, transX=0.0, rZ=0.0, centerZz=0.0,\
                       phi=0.0, theta=0.0, centerAz=0.0, transD=0.0, rD=0.0,\
                       pitch=0):
-    nViews, nRows, nCols = sino3d.shape
+    """
     
 
+    Parameters
+    ----------
+    sino3d : TYPE
+        DESCRIPTION.
+    Views : TYPE
+        DESCRIPTION.
+    transX : TYPE, optional
+        DESCRIPTION. The default is 0.0.
+    rZ : TYPE, optional
+        DESCRIPTION. The default is 0.0.
+    centerZz : TYPE, optional
+        DESCRIPTION. The default is 0.0.
+    phi : TYPE, optional
+        DESCRIPTION. The default is 0.0.
+    theta : TYPE, optional
+        DESCRIPTION. The default is 0.0.
+    centerAz : TYPE, optional
+        DESCRIPTION. The default is 0.0.
+    transD : TYPE, optional
+        DESCRIPTION. The default is 0.0.
+    rD : TYPE, optional
+        DESCRIPTION. The default is 0.0.
+    pitch : TYPE, optional
+        DESCRIPTION. The default is 0.
+
+    Returns
+    -------
+    sino3d : TYPE
+        DESCRIPTION.
+
+    """
+    
+    #Sinogram sh
+    nViews, nRows, nCols = sino3d.shape
+    
+    #Defaults center locations
     centerD = np.array((0.0, nRows/2.-0.5, nCols/2.-0.5))
     centerA = centerD.copy()
     centerZ = centerD.copy()
+    
     
     T_D, R_D = proj_orient_TM(rD, transD, centerD)  
     
@@ -209,50 +246,44 @@ def calib_proj_orient(sino3d, Views, transX=0.0, rZ=0.0, centerZz=0.0,\
 
 
 def hsino_calibrate(sino,Views,pitch,transX,rZ,cenZ_y,phi,theta,cenA_y,rD,RowsInt=0,\
-          Z=0,par=False,crop=None):
+          crop=None):
 
     nViews, nRows, nCols = sino.shape
+    
+    #Estimates the number of angles per revolution
+    #Assumes equal-angular trajector
     nAngs = np.interp(2*np.pi,Views,np.arange(nViews))
 
     RowsInt = np.array(RowsInt)
+    
+    #
     center_Z = np.array((0.0, nRows/2.-0.5, nCols/2.-0.5))
     center_A = center_Z.copy()
     center_det = np.array([1.0,nRows,nCols])/2.0 - 0.5
 
-    
-    p_sino = np.zeros([nViews,RowsInt.size,nCols,2])
+    #Defines the array calbrated helical sinogram
     h_sino = np.zeros([nViews,RowsInt.size,nCols,2])
 
+    #Creates coordiante arrays for the detector 
     coords1 = af.coords_array((1,RowsInt.size,nCols), ones=True)
     coords2 = af.coords_array((1,RowsInt.size,nCols), ones=True)
     coords1[:,:,1,:] = np.tile(RowsInt, [nCols,1]).T
     coords2[:,:,1,:] = np.tile(RowsInt, [nCols,1]).T + pitch*nRows/2.0
 
-    coords3 = af.coords_array((1,RowsInt.size,nCols), ones=True)
-    coords4 = af.coords_array((1,RowsInt.size,nCols), ones=True)
-    coords3[:,:,1,:] = np.tile(RowsInt, [nCols,1]).T
-    coords4[:,:,1,:] = np.tile(RowsInt, [nCols,1]).T + pitch*nRows/2.0
-
-
-
     x=0
     T_det, R_D = proj_orient_TM(rD, x, center_det)
     
+    #Calculates the z step size per view
     dView = (Views[-1] - Views[0])/(nViews-1)
     dZ = pitch*nRows*dView/(2.0*np.pi)    
+
+    #The locations of the center of the detector array at each view.
     Z1 = vir.censpace(nViews,d=dZ)
     Z2 = vir.censpace(nViews,c=-pitch*nRows/2.0,d=dZ)
     
-
     for i, view in enumerate(Views):
         coords1[:,:,0,:] = i
         coords2[:,:,0,:] = i - nAngs/2.0
-
-        coords3[:,:,0,:] = i
-        coords4[:,:,0,:] = i - nAngs/2.0
-        coords3[:,:,1,:] = np.tile(RowsInt, [nCols,1]).T - Z1[i] 
-        coords4[:,:,1,:] = np.tile(RowsInt, [nCols,1]).T + pitch*nRows/2.0 - Z1[i]
-
 
         #Center of of rotation transforms        
         center_Z[1] = nRows/2.-0.5 + cenZ_y - Z1[i]
@@ -264,9 +295,6 @@ def hsino_calibrate(sino,Views,pitch,transX,rZ,cenZ_y,phi,theta,cenA_y,rD,RowsIn
         SRTR1 = np.linalg.inv(R_D @ S_A @ R_A @T_Z @ R_Z) @ coords1
         h_sino[i,:,:,0] = np.squeeze(af.coords_transform(sino, SRTR1))
   
-        SRTR1 = np.linalg.inv(R_D @ S_A @ R_A @T_Z @ R_Z) @ coords3
-        p_sino[i,:,:,0] = np.squeeze(af.coords_transform(sino, SRTR1))
-
         #Center of of rotation transforms
         center_Z[1] = nRows/2.-0.5 + cenZ_y - Z2[i]
         T_Z, R_Z = proj_orient_TM(rZ, -transX, center_Z)
@@ -277,24 +305,47 @@ def hsino_calibrate(sino,Views,pitch,transX,rZ,cenZ_y,phi,theta,cenA_y,rD,RowsIn
         SRTR2 = np.linalg.inv(R_D @ S_A @ R_A @T_Z @ R_Z) @ coords2
         h_sino[i,:,:,1] = np.squeeze(af.coords_transform(sino, SRTR2))[...,::-1]
 
-        SRTR2 = np.linalg.inv(R_D @ S_A @ R_A @T_Z @ R_Z) @ coords4
-        p_sino[i,:,:,1] = np.squeeze(af.coords_transform(sino, SRTR2))[...,::-1]
-
-
-    if par is True:
-        #return h_sino[int(nAngs/2):-int(nAngs/2),:,:],p_sino
-        return -1
+    if crop is None:
+        return h_sino
     else:
-        #return h_sino[int(nAngs/2):-int(nAngs/2),:,:]
-        #return h_sino[int(nAngs/2+1):,40:-40,:]
-        if crop is None:
-            return h_sino, p_sino
-        else:
-            return h_sino[crop[0]:crop[1],:,crop[2]:crop[3],:], \
-                   p_sino[crop[0]:crop[1],:,crop[2]:crop[3],:]
+        return h_sino[crop[0]:crop[1],:,crop[2]:crop[3],:]
 
 
 def h2psino_calibrate(sino,Views,pitch,transX,rZ,cenZ_y,phi,theta,cenA_y,rD,z=0):
+    """
+    
+
+    Parameters
+    ----------
+    sino : TYPE
+        DESCRIPTION.
+    Views : TYPE
+        DESCRIPTION.
+    pitch : TYPE
+        DESCRIPTION.
+    transX : TYPE
+        DESCRIPTION.
+    rZ : TYPE
+        DESCRIPTION.
+    cenZ_y : TYPE
+        DESCRIPTION.
+    phi : TYPE
+        DESCRIPTION.
+    theta : TYPE
+        DESCRIPTION.
+    cenA_y : TYPE
+        DESCRIPTION.
+    rD : TYPE
+        DESCRIPTION.
+    z : TYPE, optional
+        DESCRIPTION. The default is 0.
+
+    Returns
+    -------
+    p_sino : TYPE
+        DESCRIPTION.
+
+    """
     nViews, nRows, nCols = sino.shape
     nAngs = np.interp(2*np.pi,Views,np.arange(nViews))
 
