@@ -22,8 +22,95 @@ except:
     print("Warning. Projection shared object libray not present.")
 
 
+#This block of code uses projection functions that rely on single core and in
+#are soley in python. These are not optimzed for speed
 
-#C Files
+def sd_f_proj_ray(phantom, ray):
+    """
+    Forward projects a single ray in an object array created by Siddons.
+
+    Parameters
+    ----------
+    ray : (4) (nElem) numpy arrays
+        A ray from a siddons object list with unraveled indices 
+    phantom : (3) array_like
+        Discretized numerical phantom
+
+    Returns
+    -------
+    float
+        The line integral summation of the ray through the phantom
+    """
+    return np.sum(phantom[(ray[0],ray[1],ray[2])] * ray[3])
+
+
+def sd_b_proj_ray(phantom, ray, value):
+    """
+    Back projects a single ray in an object array created by Siddons.
+
+    Parameters
+    ----------
+    ray : (4) (nElem) numpy arrays
+        A ray from a siddons object list with unraveled indices 
+    phantom : (3) array_like
+        Discretized numerical phantom
+    value : float
+        The value to project along the ray
+
+    Returns
+    -------
+    None
+    
+        Modifies the phantom parameter 
+    """
+    phantom[(ray[0],ray[1],ray[2])] += ray[3]*value
+    
+
+def sd_f_proj(phantom, sdlist):
+    """
+    Forward projects all of the rays in an object array created by Siddons.
+
+    Parameters
+    ----------
+    sdlist : (...) numpy ndarray of objects
+        the returned array is of shape (...) with 2 lists of the raveled pixel
+        index and intersection lengths or 4 lists of the unraveled pixel 
+        indexes and intersection lengths from siddons 
+    phantom : (3) array_like
+        Discretized numerical phantom
+
+    Returns
+    -------
+    float
+        The line integral summation of the ray through the phantom
+    """
+    sino = np.zeros(sdlist.shape, dtype=np.float32)
+    
+    #Iterates through all of the lists    
+    for ray_idx, ray in np.ndenumerate(sdlist):
+        if ray != None:
+            sino[ray_idx] = sd_f_proj_ray(phantom, ray)
+    
+    return sino
+
+
+def sd_b_proj(sino, sdlist, nPixels):
+    
+    phantom = np.zeros(nPixels)
+    
+    #Iterates through all of the lists    
+    for ray_idx, ray in np.ndenumerate(sdlist):
+        if ray != None:
+            phantom[(ray[0],ray[1],ray[2])] += ray[3]*sino[ray_idx]
+
+    return phantom
+
+
+
+#This block of code uses projection functions that rely on single core and in
+#are written python and C. These improve performance by porting the nested
+#loops to C 
+
 def sd_f_proj_c(phantom, sino, sdlist_c, flat=True):
     sino, sino_c = mpct.ctypes_vars(sino)
     phantom, phantom_c = mpct.ctypes_vars(phantom)
@@ -779,55 +866,6 @@ def mpc_sd_b_proj_s_func4sym(args):
 
 
 
-
-
-
-
-
-def sd_f_proj_ray(phantom, ray):
-    """
-    Forward projects a single ray in an object array created by Siddons.
-
-    Parameters
-    ----------
-    ray : (4) (nElem) numpy arrays
-        A ray from a siddons object list with unraveled indices 
-    phantom : (3) array_like
-        Discretized numerical phantom
-
-    Returns
-    -------
-    float
-        the line integra summation of the ray through the phantom
-    """
-    return np.sum(phantom[(ray[0],ray[1],ray[2])] * ray[3])
-
-
-def sd_b_proj_ray(phantom, ray, value):
-    phantom[(ray[0],ray[1],ray[2])] += ray[3]*value
-    
-
-def sd_f_proj(phantom, sdlist):    
-    sino = np.zeros(sdlist.shape, dtype=np.float32)
-    
-    #Iterates through all of the lists    
-    for ray_idx, ray in np.ndenumerate(sdlist):
-        if ray != None:
-            sino[ray_idx] = sd_f_proj_ray(phantom, ray)
-    
-    return sino
-
-
-def sd_b_proj(sino, sdlist, nPixels):
-    
-    phantom = np.zeros(nPixels)
-    
-    #Iterates through all of the lists    
-    for ray_idx, ray in np.ndenumerate(sdlist):
-        if ray != None:
-            phantom[(ray[0],ray[1],ray[2])] += ray[3]*sino[ray_idx]
-
-    return phantom
 
 
 

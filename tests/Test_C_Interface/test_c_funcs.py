@@ -10,126 +10,250 @@ c_test = ctypes.cdll.LoadLibrary("c_test.so")
 
 
 def c_function0():
+    """
+    This is test function to test printing from a called shared object library
+    in C
+
+    Returns
+    -------
+    None.
+
+    """
     c_test.Func0()
 
 
 def c_function1():
+    """
+    This is test function to confirm int, float, and double datatypes in C size
+
+    Returns
+    -------
+    None.
+
+    """
     c_test.Func1()
 
 
-def c_function2(int_var, float_var):
-    
-    #Hard Code
-    c_test.Func2(ctypes.c_int(12), ctypes.c_float(24.0))
-    c_test.Func2(ctypes.c_int(12), ctypes.c_float(24))
-    c_test.Func2(12, ctypes.c_float(24.0))
+def c_function2(int_var, float_var, double_var):
+    """
+    This is a test function to pass ints, floats, and doubles to a C shared
+    object library. The values will be copied and sent to C. Any modifcations
+    made in the shared object will not be returned.
 
-    c_test.Func2(ctypes.c_int(int_var),ctypes.c_float(float_var))
-    c_test.Func2(int_var,ctypes.c_float(float_var))
+    Parameters
+    ----------
+    int_var : python int
+        Int variable to be passed to a C shared object as an int
+    float_var : python float
+        float variable to be passed to a C shared object as a float
+    double_var : python float
+        float variable to be passed to a C shared object as a double
+
+    Returns
+    -------
+    None.
+
+    """
+    #Hard Code - following will pass (python ints can be passed)    
+    c_test.Func2(ctypes.c_int(1), ctypes.c_float(2.0), ctypes.c_double(3.0))
+    c_test.Func2(ctypes.c_int(1), ctypes.c_float(2), ctypes.c_double(3))
+    c_test.Func2(1, ctypes.c_float(2), ctypes.c_double(3.0))
+
+    #Hard Code - This test will fail 
+    #c_test.Func2(1, 2, 3)
+
+    #Passing python object paramters
+    c_test.Func2(ctypes.c_int(int_var),ctypes.c_float(float_var),ctypes.c_double(double_var))
+    #c_test.Func2(int_var,ctypes.c_float(float_var))
 
 
-def c_function3(arr_size):
-    i_arr1 =  np.arange(arr_size, dtype=np.int32)
-    i_arr_c1 = ctypes.c_void_p(i_arr1.ctypes.data)
-    c_test.Func3(ctypes.c_int(arr_size),i_arr_c1)
 
-    i_arr2 =  np.arange(arr_size, dtype=np.int32)
-    i_arr_c2 = np.ctypeslib.as_ctypes(i_arr2)
-    c_test.Func3(ctypes.c_int(arr_size),i_arr_c2)
 
-    i_arr3 =  np.arange(arr_size, dtype=np.int32)
-    c_int_p = ctypes.POINTER(ctypes.c_int)
-    i_arr_c3 = i_arr3.ctypes.data_as(c_int_p)
-    c_test.Func3(ctypes.c_int(arr_size),i_arr_c3)
+def c_function3(int_var, float_var, double_var):
+    """
+    This is a test function to pass pointers to ints, floats, and doubles to a
+    C shared object library. The values will be copied and sent to C. Any
+    modifcations made in the shared object will not be returned.
+
+    Parameters
+    ----------
+    int_var : python int
+        Int variable to be passed to a C shared object as an int
+    float_var : python float
+        float variable to be passed to a C shared object as a float
+    double_var : python float
+        float variable to be passed to a C shared object as a double
+
+    Returns
+    -------
+    c_type int,float, and double by reference.
+
+    """
+    #Hard Code - following will pass (python ints can be passed)        
+    iv_hc = ctypes.c_int(1)
+    fv_hc = ctypes.c_float(2.0)
+    dv_hc = ctypes.c_double(3.0)
+    iv_hcp = ctypes.pointer(iv_hc)
+    fv_hcp = ctypes.pointer(fv_hc)
+    dv_hcp = ctypes.pointer(dv_hc)
+    c_test.Func3(iv_hcp,fv_hcp,dv_hcp)
+    print("This is the returned int pointer:",iv_hc.value)
+    print("This is the returned float pointer:",fv_hc.value)
+    print("This is the returned double pointer:",dv_hc.value,"\n")
+
+    #Passing python object paramters by pointers      
+    iv_hc = ctypes.c_int(int_var)
+    fv_hc = ctypes.c_float(float_var)
+    dv_hc = ctypes.c_double(double_var)
+    iv_hcp = ctypes.pointer(iv_hc)
+    fv_hcp = ctypes.pointer(fv_hc)
+    dv_hcp = ctypes.pointer(dv_hc)
+    c_test.Func3(iv_hcp,fv_hcp,dv_hcp)
+    print("This is the python int pointer:",int_var)
+    print("This is the python float pointer:",float_var)
+    print("This is the python double pointer:",double_var,"\n")
+    print("This is the returned int pointer:",iv_hc.value)
+    print("This is the returned float pointer:",fv_hc.value)
+    print("This is the returned double pointer:",dv_hc.value,"\n")
+
+    #Passing python object paramters by byref 
+    iv_hc = ctypes.c_int(int_var)
+    fv_hc = ctypes.c_float(float_var)
+    dv_hc = ctypes.c_double(double_var)
+    c_test.Func3(ctypes.byref(iv_hc),\
+                 ctypes.byref(fv_hc),\
+                 ctypes.byref(dv_hc))
+    print("This is the python int pointer:",int_var)
+    print("This is the python float pointer:",float_var)
+    print("This is the python double pointer:",double_var,"\n")
+    print("This is the returned int pointer:",iv_hc.value)
+    print("This is the returned float pointer:",fv_hc.value)
+    print("This is the returned double pointer:",dv_hc.value,"\n")
+
 
 
 def c_function4(arr_size):
-    #Tests passing float arrays
-    f_arr1 =  np.arange(arr_size, dtype=np.float32)
-    f_arr_c1 = ctypes.c_void_p(f_arr1.ctypes.data)
-    c_test.Func4(ctypes.c_int(arr_size),f_arr_c1)
+    """
+    This is a test function to pass numpy arrays to a C shared object library.
+    The values will not be copied and pointers will be sent to C. Any
+    modifcations made in the shared object will be returned.
 
-    f_arr2 =  np.arange(arr_size, dtype=np.float32)
-    f_arr_c2 = np.ctypeslib.as_ctypes(f_arr2)
-    c_test.Func4(ctypes.c_int(arr_size),f_arr_c2)
+    Parameters
+    ----------
+    arr_size : (arr_size) np.array
+        A one dimensional numpy array
 
-    f_arr3 =  np.arange(arr_size, dtype=np.float32)
+    Returns
+    -------
+    The arrays by reference.
+
+    """
+    
+    #First version using ctypes
+    i_arr1 =  np.arange(arr_size, dtype=np.int32)
+    i_arr_c1 = ctypes.c_void_p(i_arr1.ctypes.data)    
+    c_test.Func4i(ctypes.c_int(arr_size),i_arr_c1)
+    print("This is the returned int array:\n",i_arr1)
+    i_arr1[1] = 20
+    print("This is the python modified int array:\n",i_arr1,"\n\n")
+
+    #Second version using numpy's ctypeslib
+    i_arr2 =  np.arange(arr_size, dtype=np.int32)
+    i_arr_c2 = np.ctypeslib.as_ctypes(i_arr2)
+    c_test.Func4i(ctypes.c_int(arr_size),i_arr_c2)
+    print("This is the returned int array:\n",i_arr2)
+    i_arr2[1] = 20
+    print("This is the python modified int array:\n",i_arr2,"\n\n")
+    
+    #3rd version using a creating pointesrs
+    i_arr3 =  np.arange(arr_size, dtype=np.int32)
+    c_int_p = ctypes.POINTER(ctypes.c_int)
+    i_arr_c3 = i_arr3.ctypes.data_as(c_int_p)    
+    c_test.Func4i(ctypes.c_int(arr_size),i_arr_c3)
+    print("This is the returned int array:\n",i_arr3)
+    i_arr3[1] = 20
+    print("This is the python modified int array:\n",i_arr3,"\n\n")
+
+
+    #3rd version using a creating pointesrs
+    i_arr4 =  np.arange(arr_size, dtype=np.int32)
+    f_arr4 =  np.arange(arr_size, dtype=np.float32)
+    d_arr4 =  np.arange(arr_size, dtype=np.float64)
+    c_int_p = ctypes.POINTER(ctypes.c_int)
     c_float_p = ctypes.POINTER(ctypes.c_float)
-    f_arr_c3 = f_arr3.ctypes.data_as(c_float_p)
-    c_test.Func4(ctypes.c_int(arr_size),f_arr_c3)
+    c_double_p = ctypes.POINTER(ctypes.c_double)
+    i_arr_c4 = i_arr4.ctypes.data_as(c_int_p)    
+    f_arr_c4 = f_arr4.ctypes.data_as(c_float_p)
+    d_arr_c4 = d_arr4.ctypes.data_as(c_double_p)
+    c_test.Func4i(ctypes.c_int(arr_size),i_arr_c4)
+    c_test.Func4f(ctypes.c_int(arr_size),f_arr_c4)
+    c_test.Func4d(ctypes.c_int(arr_size),d_arr_c4)
+    print("This is the returned int array:\n",i_arr4)
+    i_arr4[1] = 20
+    print("This is the python modified int array:\n",i_arr4)
+    print("This is the returned float array:\n",f_arr4)
+    f_arr4[1] = 20
+    print("This is the python modified float array:\n",f_arr4)
+    print("This is the returned double array:\n",d_arr4)
+    d_arr4[1] = 20
+    print("This is the python modified double array:\n",d_arr4,"\n\n")
 
 
 def c_function5(nAx0, nAx1):
+    """
+    This is a test function to pass 2d numpy array to a C shared object library
+    and confirm row major.
+
+    Parameters
+    ----------
+    nAx0 : int
+        A size of frist axis of the 2 dimensional numpy array
+
+    nAx1 : int
+        A size of second axis of the 2 dimensional numpy array
+
+    Returns
+    -------
+    None
+
+    """
+    
     f2_array =  np.arange(nAx0*nAx1, dtype=np.float32).reshape([nAx0,nAx1])
     c_test.Func5(ctypes.c_int(nAx0),ctypes.c_int(nAx1),ctypes.c_void_p(f2_array.ctypes.data))
-
-
-
-def c_function6():
-    f_arr1 =  np.arange(10, dtype=np.float32)
-    f_arr_c1 = ctypes.c_void_p(f_arr1.ctypes.data)
-    print(f_arr1)
-    c_test.Func6(ctypes.c_int(2), ctypes.c_int(10),f_arr_c1)
-    print(f_arr1)
-    f_arr1[6] = 33
-    print(f_arr1)
-    c_test.Func6(ctypes.c_int(8), ctypes.c_int(10),f_arr_c1)
-    print(f_arr1)
-    
-    print("\n\n")
-    f_arr2 =  np.arange(10, dtype=np.float32)
-    f_arr_c2 = np.ctypeslib.as_ctypes(f_arr2)
-    print(f_arr2)
-    c_test.Func6(ctypes.c_int(2), ctypes.c_int(10),f_arr_c2)
-    print(f_arr2)
-    f_arr2[6] = 33
-    print(f_arr2)
-    c_test.Func6(ctypes.c_int(8), ctypes.c_int(10),f_arr_c2)
-    print(f_arr2)
-    
-    print("\n\n")
-    f_arr3 =  np.arange(10, dtype=np.float32)
-    c_float_p = ctypes.POINTER(ctypes.c_float)
-    f_arr_c3 = f_arr3.ctypes.data_as(c_float_p)
-    print(f_arr3)
-    c_test.Func6(ctypes.c_int(2), ctypes.c_int(10),f_arr_c3)
-    print(f_arr3)
-    f_arr3[6] = 33
-    print(f_arr3)
-    c_test.Func6(ctypes.c_int(8), ctypes.c_int(10),f_arr_c3)
-    print(f_arr3)
+    print("Numpy shape: ",f2_array.shape,"\n\n")
 
 
 class Data(ctypes.Structure):
      _fields_ = [("n", ctypes.c_int),
-                ("ina", ctypes.POINTER(ctypes.c_double)),
-                ("outa", ctypes.POINTER(ctypes.c_double))]
+                ("in_arr_f", ctypes.POINTER(ctypes.c_double)),
+                ("out_arr_f", ctypes.POINTER(ctypes.c_double)),
+                ("in_arr_d", ctypes.POINTER(ctypes.c_double)),
+                ("out_arr_d", ctypes.POINTER(ctypes.c_double))]
 
-def c_function7():
+def c_function6():
     n=5
-    outa = np.zeros(n,float)
-    ina = np.linspace(1.0,n,n)
+    in_arr_f = np.linspace(1.0,n,n)
+    out_arr_f = np.zeros(n,float)
     
     data = Data(ctypes.c_int(n),
-                np.ctypeslib.as_ctypes(ina),
-                np.ctypeslib.as_ctypes(outa))
+                np.ctypeslib.as_ctypes(in_arr_f),
+                np.ctypeslib.as_ctypes(out_arr_f))
     
-    print("initial array",ina)
-    print("final array",outa)
-    c_test.Func7(ctypes.byref(data))
+    c_test.Func6(ctypes.byref(data))
     
-    print("initial array",ina)
-    print("final array",outa)
+    print("This is the returned double array:\n",in_arr_f)
+    print("This is the returned double array:\n",out_arr_f,"\n")
     
-    ina[2] = 10.0
+    in_arr_f[0] = 10.0
+    in_arr_f[1] = 20.0
+    in_arr_f[2] = 30.0
+    in_arr_f[3] = 40.0
+    in_arr_f[4] = 50.0
     
+    c_test.Func6(ctypes.byref(data))
+    print("This is the returned double array:\n",in_arr_f)
+    print("This is the returned double array:\n",out_arr_f,"\n")
     
-    print("initial array",ina)
-    print("final array",outa)
-    c_test.Func7(ctypes.byref(data))
-    
-    print("initial array",ina)
-    print("final array",outa)
 
 
 class Ray(ctypes.Structure):
@@ -224,31 +348,31 @@ def c_function_mem():
 
 
 #Tests library call and printing
-#c_function0()
+c_function0()
 
 
 #Tests C variable prints
-#c_function1()
+c_function1()
 
 
 #Tests passing variables
-#c_function2(2, 3.0)
+c_function2(1, 2.0, 3.0)
 
 
 #Tests passing int arrays
-#c_function3(5)
+c_function3(1,2.0, 3.0)
 
 
 #Tests passing int arrays
-#c_function4(8)
+c_function4(5)
 
 
 #Tests passing 2d arrays
-#c_function5(3,4)
+c_function5(3,4)
 
 
 #Tests reference assignments in float arrays
-#c_function6()
+c_function6()
 
 
 #Tests structures
@@ -259,5 +383,5 @@ def c_function_mem():
 #c_function8()
 
 #Tests return values
-c_function10(1,1.0)
+#c_function10(1,1.0)
 

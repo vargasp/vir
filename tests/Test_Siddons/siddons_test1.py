@@ -189,7 +189,7 @@ nPixels = (nPix,nPix,1)
 dPix = 1.0
 
 nX = 3
-nZ = 2
+nZ = 3
 x = np.linspace(0,1,nX)
 z = np.linspace(-0.5,0.5,nZ)
 

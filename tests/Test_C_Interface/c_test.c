@@ -39,17 +39,20 @@ typedef struct Ray{
 
 void Func0();
 void Func1();
-void Func2(int i_test, float f_test);
-void Func3(int i_test, int *i_test_array);
-void Func4(int i_test, float *f_test_array);
+void Func2(int i_test, float f_test, double d_test);
+void Func3(int *i_test, float *f_test, double *d_test);
+void Func4i(int n, int *i_test_array);
+void Func4f(int n, float *f_test_array);
+void Func4d(int n, double *d_test_array);
 void Func5(int N, int M, float *f_test_array);
-void Func6(int idx, int N, float *f_test_array);
-void Func7(DATA *data);
+void Func6(DATA *data);
 void Func8(Ray *ray);
 void Func9(Ray *ray, int nRays);
 
 
-
+/*
+This is a function to test printing/stdio in C being called by a python wrapper
+*/
 void Func0()
 {
     printf("Function 0\n");
@@ -57,6 +60,10 @@ void Func0()
 }
 
 
+/*
+This is a function to confirm bitsize of and int, float, and double in C being
+ called by a python wrapper
+*/
 void Func1()
 {
     int a = 10;
@@ -64,45 +71,95 @@ void Func1()
     double c = 10.0;
     
     printf("Function 1\n");
-    printf("Size of in int: %zu\n", 8*sizeof(a));
-    printf("Size of in float: %zu\n", 8*sizeof(b));
-    printf("Size of in double: %zu\n\n", 8*sizeof(c));
+    printf("Size of in int: %zu bits\n", 8*sizeof(a));
+    printf("Size of in float: %zu bits\n", 8*sizeof(b));
+    printf("Size of in double: %zu bits\n\n", 8*sizeof(c));
 }
 
-void Func2(int i_test, float f_test)
+
+/*
+This is a function to confirm passing ints, floats, and doubles to C by a pyhton
+wrapper
+*/
+void Func2(int i_test, float f_test, double d_test)
 {
     printf("Function 2\n");
-    printf("This is an int/float scalar test.\n");
-    printf("Print the passed integer: %d\n", i_test);
-    printf("Print the passed float: %f\n\n", f_test);
+    printf("This is an int/float/double scalar test.\n");
+    printf("The passed integer: %d\n", i_test);
+    printf("The passed float: %0.1f\n", f_test);
+    printf("The passed double: %0.1f\n\n", d_test);
 }
 
 
-void Func3(int i_test, int *i_test_array)
+/*
+This is a  function to confirm passing pointers to C by a pyhton wrapper
+*/
+void Func3(int *i_test, float *f_test, double *d_test)
+{
+    printf("Function 3\n");
+    printf("This is an int/float/double scalar test.\n");
+    printf("The passed integer by pointer: %d\n", *i_test);
+    printf("The passed float by pointer: %0.1f\n", *f_test);
+    printf("The passed double by pointer: %0.1f\n\n", *d_test);
+    
+    /*Modify the values*/
+    *i_test = 10;
+    *f_test = 20.0;
+    *d_test = 30.0;
+}
+
+
+/*
+This is a function to confirm passing arrays to C by a pyhton wrapper
+*/
+void Func4i(int n, int *i_test_array)
 {
     int i;
     
-    printf("Function 3\n");
-    printf("This is an int array test.\n");
-     for (i=0; i<i_test; i++){
+    printf("Function 4i\n");
+    printf("The passed int array:\n");
+     for (i=0; i<n; i++){
          printf("%d ", i_test_array[i]);
      }
     printf("\n\n");
+    
+    /*Modify the values*/
+    i_test_array[0] = 10;
 }
 
-void Func4(int i_test, float *f_test_array)
+void Func4f(int n, float *f_test_array)
 {
     int i;
     
-    printf("Function 4\n");
-    printf("This is a float array test.\n");
-     for (i=0; i<i_test; i++){
-         printf("%.2f ", f_test_array[i]);
+    printf("Function 4f\n");
+    printf("The passed float array:\n");
+     for (i=0; i<n; i++){
+         printf("%0.1f ", f_test_array[i]);
      }
     printf("\n\n");
+    
+    /*Modify the values*/
+    f_test_array[0] = 10.0;   
 }
 
+void Func4d(int n, double *d_test_array)
+{
+    int i;
+    
+    printf("Function 4d\n");
+    printf("The passed double array:\n");
+     for (i=0; i<n; i++){
+         printf("%0.1f ", d_test_array[i]);
+     }
+    printf("\n\n");
+    
+    /*Modify the values*/
+    d_test_array[0] = 10.0;   
+}
 
+/*
+This is a function to confirm passing 2d float arrays to C by a pyhton wrapper
+*/
 void Func5(int N, int M, float *f_test_array)
 {
     int n,m;
@@ -110,49 +167,40 @@ void Func5(int N, int M, float *f_test_array)
     
     printf("Function 5\n");
     printf("This is a 2d float array test.\n");
+    printf("Outer axis (rows): %d, inner axis (cols): %d.\n",N,M);
     for (n=0; n<N; n++){
-         for (m=0; m<M; m++){
-             printf("outer_idx=%d, inner_idx=%d, flat_idx=%d, elem=%.2f\n", n,m,p, f_test_array[p]);
-             p++;
-         }
+        for (m=0; m<M; m++){
+            printf("outer_idx=%d, inner_idx=%d, flat_idx=%d, elem=%.1f\n", n,m,p, f_test_array[p]);
+            p++;
+        }
      }
-    printf("\n\n");
+    printf("\n");
 }
 
 
-void Func6(int idx, int N, float *f_array)
+void Func6(DATA *data)
 {
     int i;
-    
+
     printf("Function 6\n");
-    printf("This is a pass by refernce test.\n");
-    
-    f_array[idx] = 22.0;
-    
-    for (i=0; i<N; i++){
-        printf("%.2f ", f_array[i]);
-    }
-    printf("\n\n");
-}
-
-
-void Func7(DATA *data)
-{
-    int i;
-
-    printf("Function 7\n");
     printf("This is a structure test.\n");
     
-    printf("Interger: %d\n", data->n);
-    printf("Double Array.\n");
+    printf("The passed double input array:\n");
     for (i=0; i<data->n; i++){
-        printf("%.2f ", data->ina[i]);
+         printf("%.1f ", data->ina[i]);
     }
-    
+    printf("\n");
+
+    printf("The passed double output array:\n");
+    for (i=0; i<data->n; i++){
+         printf("%.1f ", data->outa[i]);
+    }
+    printf("\n\n");
+
+    /*Modify the output array*/
     for (i=0; i<data->n; i++){
         data->outa[i] = data->ina[i]*data->ina[i];
-        }
-    printf("\n\n");
+    }
 }
 
 

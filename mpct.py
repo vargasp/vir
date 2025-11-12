@@ -81,22 +81,37 @@ def c_float(var):
 
 
 def ctypes_coord(x,y,z):
-    return ctypes.byref(Coord(ctypes.c_int(x),ctypes.c_int(y),ctypes.c_int(z)))
+    return ctypes.byref(Coord(ctypes.c_int(x),\
+                              ctypes.c_int(y),\
+                              ctypes.c_int(z)))
 
 def ctypes_ray(n,X,Y,Z,L, byref=True):
     if byref:
-        return ctypes.byref(Ray(ctypes.c_int(n), np.ctypeslib.as_ctypes(X),\
-                                np.ctypeslib.as_ctypes(Y), np.ctypeslib.as_ctypes(Z), \
+        return ctypes.byref(Ray(ctypes.c_int(n),
+                                np.ctypeslib.as_ctypes(X),\
+                                np.ctypeslib.as_ctypes(Y),\
+                                np.ctypeslib.as_ctypes(Z),\
                                 np.ctypeslib.as_ctypes(L)))
     else:
-        return Ray(ctypes.c_int(n), np.ctypeslib.as_ctypes(X),np.ctypeslib.as_ctypes(Y), \
-                   np.ctypeslib.as_ctypes(Z), np.ctypeslib.as_ctypes(L))
+        return Ray(ctypes.c_int(n),\
+                   np.ctypeslib.as_ctypes(X),\
+                   np.ctypeslib.as_ctypes(Y),\
+                   np.ctypeslib.as_ctypes(Z),\
+                   np.ctypeslib.as_ctypes(L))
 
 
 def ctypes_vars(var):
     """
-    Creates a ctypes data type for an variety of data types and converts the
-    orginal arrays if ncessary
+    Creates a ctypes object for an variety of data types.
+    If the data is an np.array.
+     - The original datatype will be converted to either float32 or int32.
+     - The data will not be be copied.
+     - ctypes object will point to the np.array data
+     - Modifying the ctpyes data will change the np.array data
+    If the data is a float or int
+     - a cytpes object of the data will be created
+     - The data will be copied
+     - Modifying the ctypes object will not change the orginal python data
     
     Parameters
     ----------
@@ -108,30 +123,39 @@ def ctypes_vars(var):
     var and ctypes var
         The orginal variable converted if necessay and ctypes pointer
     """
+    
+    # Checks if the variable is an np.array
     if isinstance(var, (np.ndarray, np.generic) ):
-        if isinstance(var.flat[0], np.float16) or isinstance(var.flat[0], np.float64) \
-            or isinstance(var.flat[0], np.float128): 
+
+        # Changes the datatype from floatX to float32
+        if isinstance(var.flat[0], np.float16) or isinstance(var.flat[0], np.float64):
             var = var.astype(np.float32)
             
+        # Changes the datatype from intX to int32
         elif isinstance(var.flat[0], np.int8) or isinstance(var.flat[0], np.int16) \
             or isinstance(var.flat[0], np.int64):
             var = var.astype(np.int32)
             
+        # Changes the datatype from uintX to int32
         elif isinstance(var.flat[0], np.uint8) or isinstance(var.flat[0], np.uint16) \
             or isinstance(var.flat[0], np.uint32) or isinstance(var.flat[0], np.uint64):
             var = var.astype(np.int32)
         
+        # Create a ctypes object as a view into the original array (no copy)
         if isinstance(var.flat[0], np.float32) or isinstance(var.flat[0], np.int32):
             return var, np.ctypeslib.as_ctypes(var)
         else:
             raise ValueError(var.dtype, " is not yet supported in mpct")
-                
+
+    # Create a ctypes object as of orginal data (copies)
     elif isinstance(var, float):
         return var, ctypes.c_float(var)
     
+    # Create a ctypes object as of orginal data (copies)
     elif isinstance(var, int):
         return var, ctypes.c_int(var)
     
+    # Checks 
     else:
         raise ValueError(type(var),  " is not yet supported in mpct")
 

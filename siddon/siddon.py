@@ -57,7 +57,7 @@ def list_ctypes_object(sdlist, flat=True):
         sdlist_c = ctypes.byref(sdlist_c)
         
     else:
-        sdlist_c = np.empty(sdlist.shape, dtype=np.object)
+        sdlist_c = np.empty(sdlist.shape, dtype=object)
         count = list_count_elem(sdlist)
 
         for ray_idx, ray in np.ndenumerate(sdlist):
@@ -81,7 +81,7 @@ def list_del_ind(sdlist, X_ind, Y_ind, Z_ind, ravel=False):
     ----------
     sdlist : (...) numpy ndarray of objects
         the returned array is of shape (...) with 2 lists of the raveled pixel
-        index and intersection lengths or 4 listst of the unraveled pixel 
+        index and intersection lengths or 4 lists of the unraveled pixel 
         indexes and intersection lengths from siddons 
     X_ind :  array_like
         The integer values to include in the trimmed list 
@@ -335,36 +335,55 @@ def list_convole(sdlist, kernel, ravel=False, nPixels=None, axis=None):
         if dim%2 == 0:
             raise ValueError('Kernel must have an odd numer of elements in each dimension')
 
+    #Kernel and sdlist shapes
     k_dims = kernel.shape
     sd_dims = sdlist.shape
+    
+    #Creates a new sdlist for the convolved list
     sdlist_convole = np.empty(sdlist.shape, dtype=object)
 
+    #Loops through all of the arrays
     for ray_idx, ray in np.ndenumerate(sdlist):
-        ray_idx_c = list(ray_idx)
-        ker_idx = []
         
+        #Defines indices with slices
+        #These will define the range and location of values that will be
+        #convolved in the sdlist
+        rayIdxS = list(ray_idx)
+        kerIdxS = []
+        
+        #Loops through the kernel axis 
         for i, (ax,k_dim) in enumerate(zip(axis,k_dims)):
-            l = ray_idx_c[ax] - int(k_dim/2)
-            if l < 0:
-                lk = abs(l)
-                l = 0
+
+            #Calculates the lower index for the sdlist and kernel
+            sdIdx0 = rayIdxS[ax] - int(k_dim/2)
+            if sdIdx0 < 0:
+                knIdx0 = abs(sdIdx0)
+                sdIdx0 = 0
             else:
-                lk = 0
+                knIdx0 = 0
                             
-            u = ray_idx_c[ax] + int(k_dim/2) + 1
-            if u > sd_dims[ax]:
-                uk = k_dims[i] - (u - sd_dims[ax])
-                u = sd_dims[ax]
+            #Calculates the upper index for the sdlist and kernel
+            sdIdxN = rayIdxS[ax] + int(k_dim/2) + 1
+            if sdIdxN > sd_dims[ax]:
+                knIdxN = k_dims[i] - (sdIdxN - sd_dims[ax])
+                sdIdxN = sd_dims[ax]
             else:
-                uk = k_dims[i]
+                knIdxN = k_dims[i]
      
-            ray_idx_c[ax] = slice(l,u)
-            ker_idx.append(slice(lk,uk))
+            #Creates indices with slices
+            rayIdxS[ax] = slice(sdIdx0,sdIdxN)
+            kerIdxS.append(slice(knIdx0,knIdxN))
+
+        #Converts the list to a tuple to be used as indices
+        kerIdxS = tuple(kerIdxS)
+        rayIdxS = tuple(rayIdxS)
         
-        kF = kernel.sum()/kernel[tuple(ker_idx)].sum()
+        #Kernel sum normlaization near edges
+        kF = kernel.sum()/kernel[kerIdxS].sum()
         
-        sdlist_convole[ray_idx] = rays_weight_ave(sdlist[tuple(ray_idx_c)],\
-                                                  kF*kernel[tuple(ker_idx)],ravel=ravel,nPixels=nPixels)
+        #Applies convolution by weighhted average
+        sdlist_convole[ray_idx] = rays_weight_ave(sdlist[rayIdxS],\
+                                                  kF*kernel[kerIdxS],ravel=ravel,nPixels=nPixels)
 
     return sdlist_convole
 

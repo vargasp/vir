@@ -46,8 +46,6 @@ Phillip Vargas, December 2021
 // gcc -c -Wall -Werror -fpic projection_c.c
 // gcc -shared -o projection_c.so projection_c.o
 
-// gcc -c -O3 -Wall -Werror -fpic projection_c.c
-// gcc -shared -O3 -o projection_c.so projection_c.o
 
 
 typedef struct Ray{
