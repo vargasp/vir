@@ -17,16 +17,14 @@
 #include <math.h>
 
 //struct DATA;
-
 typedef struct DATA{
     int n;
-    double *ina;
-    double *outa;
+    float *in_arr;
+    float *out_arr;
 } DATA;
 
 
 //struct Ray;
-
 typedef struct Ray{
     int n;
     int *X;
@@ -34,7 +32,6 @@ typedef struct Ray{
     int *Z;
     float *L;
 } Ray;
-
 
 
 void Func0();
@@ -45,7 +42,8 @@ void Func4i(int n, int *i_test_array);
 void Func4f(int n, float *f_test_array);
 void Func4d(int n, double *d_test_array);
 void Func5(int N, int M, float *f_test_array);
-void Func6(DATA *data);
+void Func6(DATA data);
+void Func7(DATA *data);
 void Func8(Ray *ray);
 void Func9(Ray *ray, int nRays);
 
@@ -157,6 +155,7 @@ void Func4d(int n, double *d_test_array)
     d_test_array[0] = 10.0;   
 }
 
+
 /*
 This is a function to confirm passing 2d float arrays to C by a pyhton wrapper
 */
@@ -178,7 +177,39 @@ void Func5(int N, int M, float *f_test_array)
 }
 
 
-void Func6(DATA *data)
+/*
+This is a function to confirm passing a struct by value C by a python wrapper
+*/
+void Func6(DATA data)
+{
+    int i;
+
+    printf("Function 6\n");
+    printf("This is a structure test.\n");
+    
+    printf("The passed double input array:\n");
+    for (i=0; i<data.n; i++){
+         printf("%.1f ", data.in_arr[i]);
+    }
+    printf("\n");
+
+    printf("The passed double output array:\n");
+    for (i=0; i<data.n; i++){
+         printf("%.1f ", data.out_arr[i]);
+    }
+    printf("\n\n");
+
+    /*Modify the output array*/
+    for (i=0; i<data.n; i++){
+        data.out_arr[i] = data.in_arr[i]*data.in_arr[i];
+    }
+}
+
+
+/*
+This is a function to confirm passing a struct by reference C by a python wrapper
+*/
+void Func7(DATA *data)
 {
     int i;
 
@@ -187,23 +218,21 @@ void Func6(DATA *data)
     
     printf("The passed double input array:\n");
     for (i=0; i<data->n; i++){
-         printf("%.1f ", data->ina[i]);
+         printf("%.1f ", data->in_arr[i]);
     }
     printf("\n");
 
     printf("The passed double output array:\n");
     for (i=0; i<data->n; i++){
-         printf("%.1f ", data->outa[i]);
+         printf("%.1f ", data->out_arr[i]);
     }
     printf("\n\n");
 
     /*Modify the output array*/
     for (i=0; i<data->n; i++){
-        data->outa[i] = data->ina[i]*data->ina[i];
+        data->out_arr[i] = data->in_arr[i]*data->in_arr[i];
     }
 }
-
-
 
 void Func8(Ray *ray)
 {
@@ -231,8 +260,10 @@ void Func8(Ray *ray)
     }
     printf("\n"); 
     
+    printf("L:");
     for (i=0; i<ray->n; i++){
-        printf("%.2f ", ray->L[i]);
+        printf(" %.1f", ray->L[i]);
+        ray->L[i] = ray->L[i]*2;
     }
     
     printf("\n\n");

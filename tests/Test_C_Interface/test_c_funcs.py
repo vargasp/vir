@@ -8,7 +8,6 @@ import pylab as py
 c_test = ctypes.cdll.LoadLibrary("c_test.so")
 
 
-
 def c_function0():
     """
     This is test function to test printing from a called shared object library
@@ -73,7 +72,7 @@ def c_function3(int_var, float_var, double_var):
     """
     This is a test function to pass pointers to ints, floats, and doubles to a
     C shared object library. The values will be copied and sent to C. Any
-    modifcations made in the shared object will not be returned.
+    modifcations made in the shared object will  be returned.
 
     Parameters
     ----------
@@ -101,7 +100,13 @@ def c_function3(int_var, float_var, double_var):
     print("This is the returned float pointer:",fv_hc.value)
     print("This is the returned double pointer:",dv_hc.value,"\n")
 
-    #Passing python object paramters by pointers      
+    #Passing python object paramters by pointers
+    #Pros: Works with user input
+    #flexible
+    #clear semantics.
+    #Cons:
+    #Requires explicit pointer creation
+    #.pointer() is less idiomatic than .byref() for some C APIs.
     iv_hc = ctypes.c_int(int_var)
     fv_hc = ctypes.c_float(float_var)
     dv_hc = ctypes.c_double(double_var)
@@ -116,7 +121,16 @@ def c_function3(int_var, float_var, double_var):
     print("This is the returned float pointer:",fv_hc.value)
     print("This is the returned double pointer:",dv_hc.value,"\n")
 
-    #Passing python object paramters by byref 
+    #Passing python object paramters by byref - Recomended, but no negligible 
+    #perfomance differences
+    #Pros:
+    #Most idiomatic for C "pass by reference" arguments
+    #concise
+    #recommended by ctypes documentation.
+    #Cons:
+    #Slightly less control
+    #you can't explicitly manipulate the underlying pointer object, but it's
+    #almost always what you want for modifying values in place.
     iv_hc = ctypes.c_int(int_var)
     fv_hc = ctypes.c_float(float_var)
     dv_hc = ctypes.c_double(double_var)
@@ -149,7 +163,11 @@ def c_function4(arr_size):
 
     """
     
-    #First version using ctypes
+    #First version using ctypes - Works but do not use
+    #No type information (C sees just a void pointer).
+    #C function must know the type and interpret correctly.
+    #Not checked by ctypes → unsafe if argument types mismatch.
+    #Must manually set the function signature (argtypes, restype) or you risk UB.    
     i_arr1 =  np.arange(arr_size, dtype=np.int32)
     i_arr_c1 = ctypes.c_void_p(i_arr1.ctypes.data)    
     c_test.Func4i(ctypes.c_int(arr_size),i_arr_c1)
@@ -157,7 +175,17 @@ def c_function4(arr_size):
     i_arr1[1] = 20
     print("This is the python modified int array:\n",i_arr1,"\n\n")
 
-    #Second version using numpy's ctypeslib
+    #Second version using numpy's ctypeslib - Works recomended if numpy methods
+    #are also used, but sacrifices some speed 
+    #Pros:
+    #Safely converts NumPy array → ctypes array without copies.
+    #Keeps element type information.
+    #Ensures contiguous memory.
+    #More “NumPy-ish” and readable.
+    #Cons:
+    #Creates a ctypes array object, not a pointer.
+    #Harder to pass slices or non-1D arrays.
+    #Slightly more overhead because a wrapper object is created.
     i_arr2 =  np.arange(arr_size, dtype=np.int32)
     i_arr_c2 = np.ctypeslib.as_ctypes(i_arr2)
     c_test.Func4i(ctypes.c_int(arr_size),i_arr_c2)
@@ -165,7 +193,16 @@ def c_function4(arr_size):
     i_arr2[1] = 20
     print("This is the python modified int array:\n",i_arr2,"\n\n")
     
-    #3rd version using a creating pointesrs
+    #3rd version using a creating pointesrs - Recommended for performance
+    #Pros:
+    #Explicit.
+    #Type-correct.
+    #Most common pattern in production.
+    #No wrapper objects created; zero overhead beyond pointer conversion.
+    #Works for multidimensional arrays if you compute lengths manually or pass shapes.
+    #Cons
+    #Slightly longer code.
+    #You must ensure array dtype matches the pointer type.
     i_arr3 =  np.arange(arr_size, dtype=np.int32)
     c_int_p = ctypes.POINTER(ctypes.c_int)
     i_arr_c3 = i_arr3.ctypes.data_as(c_int_p)    
@@ -175,7 +212,7 @@ def c_function4(arr_size):
     print("This is the python modified int array:\n",i_arr3,"\n\n")
 
 
-    #3rd version using a creating pointesrs
+    #3rd version using different data types
     i_arr4 =  np.arange(arr_size, dtype=np.int32)
     f_arr4 =  np.arange(arr_size, dtype=np.float32)
     d_arr4 =  np.arange(arr_size, dtype=np.float64)
@@ -225,21 +262,34 @@ def c_function5(nAx0, nAx1):
 
 class Data(ctypes.Structure):
      _fields_ = [("n", ctypes.c_int),
-                ("in_arr_f", ctypes.POINTER(ctypes.c_double)),
-                ("out_arr_f", ctypes.POINTER(ctypes.c_double)),
-                ("in_arr_d", ctypes.POINTER(ctypes.c_double)),
-                ("out_arr_d", ctypes.POINTER(ctypes.c_double))]
+                ("test_var_v", ctypes.c_float),
+                ("test_var_p", ctypes.POINTER(ctypes.c_float)),
+                ("test_arr", ctypes.POINTER(ctypes.c_float))]
+
+
+    fv_hc = ctypes.c_float(float_var)
+    dv_hc = ctypes.c_double(double_var)
+    iv_hcp = ctypes.pointer(iv_hc)
+    fv_hcp = ctypes.pointer(fv_hc)
 
 def c_function6():
+    """
+    This is a test function to struct to a C shared object library.
+
+    Returns
+    -------
+    The struct by reference.
+
+    """
     n=5
-    in_arr_f = np.linspace(1.0,n,n)
-    out_arr_f = np.zeros(n,float)
+    test_var = 5
+    test_arr = np.zeros(n,dtype=np.float32)
     
     data = Data(ctypes.c_int(n),
                 np.ctypeslib.as_ctypes(in_arr_f),
                 np.ctypeslib.as_ctypes(out_arr_f))
     
-    c_test.Func6(ctypes.byref(data))
+    c_test.Func6(data)
     
     print("This is the returned double array:\n",in_arr_f)
     print("This is the returned double array:\n",out_arr_f,"\n")
@@ -250,10 +300,41 @@ def c_function6():
     in_arr_f[3] = 40.0
     in_arr_f[4] = 50.0
     
-    c_test.Func6(ctypes.byref(data))
+    c_test.Func6(data)
+    print("This is the returned double array:\n",in_arr_f)
+    print("This is the returned double array:\n",out_arr_f,"\n")
+
+def c_function7():
+    """
+    This is a test function to struct to a C shared object library.
+
+    Returns
+    -------
+    The struct by reference.
+
+    """
+    n=5
+    in_arr_f = np.linspace(1.0,n,n,dtype=np.float32)
+    out_arr_f = np.zeros(n,dtype=np.float32)
+    
+    data = Data(ctypes.c_int(n),
+                np.ctypeslib.as_ctypes(in_arr_f),
+                np.ctypeslib.as_ctypes(out_arr_f))
+    
+    c_test.Func7(ctypes.byref(data))
+    
     print("This is the returned double array:\n",in_arr_f)
     print("This is the returned double array:\n",out_arr_f,"\n")
     
+    in_arr_f[0] = 10.0
+    in_arr_f[1] = 20.0
+    in_arr_f[2] = 30.0
+    in_arr_f[3] = 40.0
+    in_arr_f[4] = 50.0
+    
+    c_test.Func7(ctypes.byref(data))
+    print("This is the returned double array:\n",in_arr_f)
+    print("This is the returned double array:\n",out_arr_f,"\n")
 
 
 class Ray(ctypes.Structure):
@@ -263,49 +344,60 @@ class Ray(ctypes.Structure):
                 ("Z", ctypes.POINTER(ctypes.c_int)),
                 ("L", ctypes.POINTER(ctypes.c_float))]
 
-def c_function8():
-    n=10
-    X = np.arange(n, dtype=np.int32)
-    Y = np.arange(n, dtype=np.int32)*2
-    Z = np.arange(n, dtype=np.int32)*3
-    L = np.linspace(1,n,n, dtype=np.float32)
-    
-    ray1 = Ray(ctypes.c_int(n),
-                np.ctypeslib.as_ctypes(X),
-                np.ctypeslib.as_ctypes(Y),
-                np.ctypeslib.as_ctypes(Z),
-                np.ctypeslib.as_ctypes(L))
-    
-    c_test.Func8(ctypes.byref(ray1))
-    
-    
-    rays = (Ray*2)()
-    n = 4
-    X = np.arange(n, dtype=np.int32)
-    Y = np.arange(n, dtype=np.int32)*2
-    Z = np.arange(n, dtype=np.int32)*3
-    L = np.linspace(1,n,n, dtype=np.float32)
-    rays[0].n = n
-    rays[0].X = np.ctypeslib.as_ctypes(X)
-    rays[0].Y = np.ctypeslib.as_ctypes(Y)
-    rays[0].Z = np.ctypeslib.as_ctypes(Z)
-    rays[0].L = np.ctypeslib.as_ctypes(L)
-    
-    n = 5
-    X = np.arange(n, dtype=np.int32)
-    Y = np.arange(n, dtype=np.int32)*2
-    Z = np.arange(n, dtype=np.int32)*3
-    L = np.linspace(1,n,n, dtype=np.float32)
-    rays[1].n = n
-    rays[1].X = np.ctypeslib.as_ctypes(X)
-    rays[1].Y = np.ctypeslib.as_ctypes(Y)
-    rays[1].Z = np.ctypeslib.as_ctypes(Z)
-    rays[1].L = np.ctypeslib.as_ctypes(L)
-    
-    c_test.Func8(ctypes.byref(rays[0]))
-    c_test.Func8(ctypes.byref(rays[1]))
+#c_test.Func8.argtypes = [ctypes.POINTER(Ray)]
+c_test.Func8.argtypes = [Ray]
 
-    c_test.Func9(ctypes.byref(rays), ctypes.c_int(2))
+def c_function8():
+    n=2
+    X, Y, Z = np.unravel_index(np.arange(n**3),(n,n,n))
+    X = X.astype(np.int32)
+    Y = Y.astype(np.int32)
+    Z = Z.astype(np.int32)
+    L = np.linspace(0,n**3-1,n**3, dtype=np.float32)
+    
+    ray1 = Ray(ctypes.c_int(n**3),
+               np.ctypeslib.as_ctypes(X),
+               np.ctypeslib.as_ctypes(Y),
+               np.ctypeslib.as_ctypes(Z),
+               np.ctypeslib.as_ctypes(L))
+    
+    #c_test.Func8(ctypes.byref(ray1))
+    c_test.Func8(ray1)
+    
+    print("X:", X)
+    print("Y:", Y)
+    print("Z:", Z)
+    print("L:", L)
+    
+    
+    N = 2
+    
+    #Creates the array type and instancaites it
+    rays2 = (Ray*N)()
+    X, Y, Z = np.unravel_index(np.arange(n**3),(n,n,n))
+    X = X.astype(np.int32)
+    Y = Y.astype(np.int32)
+    Z = Z.astype(np.int32)
+    for i in range(N):
+        L = np.linspace(0,n**3-1,n**3, dtype=np.float32)*(i+1)
+
+        rays2[i].n = ctypes.c_int(n**3)
+        rays2[i].X = np.ctypeslib.as_ctypes(X)
+        rays2[i].Y = np.ctypeslib.as_ctypes(Y)
+        rays2[i].Z = np.ctypeslib.as_ctypes(Z)
+        rays2[i].L = np.ctypeslib.as_ctypes(L)
+
+
+    #c_test.Func8(ctypes.byref(rays2[0]))
+    #c_test.Func8(ctypes.byref(rays2[1]))
+
+
+    c_test.Func8(rays2)
+    c_test.Func8(rays2[1])
+
+#    c_test.Func9(ctypes.byref(rays), ctypes.c_int(2))
+
+
 
 
 
@@ -348,27 +440,27 @@ def c_function_mem():
 
 
 #Tests library call and printing
-c_function0()
+#c_function0()
 
 
 #Tests C variable prints
-c_function1()
+#c_function1()
 
 
 #Tests passing variables
-c_function2(1, 2.0, 3.0)
+#c_function2(1, 2.0, 3.0)
 
 
 #Tests passing int arrays
-c_function3(1,2.0, 3.0)
+#c_function3(1,2.0, 3.0)
 
 
 #Tests passing int arrays
-c_function4(5)
+#c_function4(5)
 
 
 #Tests passing 2d arrays
-c_function5(3,4)
+#c_function5(3,4)
 
 
 #Tests reference assignments in float arrays
@@ -376,7 +468,7 @@ c_function6()
 
 
 #Tests structures
-#c_function7()
+c_function7()
 
 
 #Tests structures
