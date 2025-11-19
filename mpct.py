@@ -35,14 +35,14 @@ c_float_p = ctypes.POINTER(ctypes.c_float)
 c_double_p = ctypes.POINTER(ctypes.c_double)
 
 
-class RayUnravel(ctypes.Structure):
+class UnravelRay(ctypes.Structure):
      _fields_ = [("n", ctypes.c_int),
                  ("X", ctypes.POINTER(ctypes.c_int)),
                  ("Y", ctypes.POINTER(ctypes.c_int)),
                  ("Z", ctypes.POINTER(ctypes.c_int)),
                  ("L", ctypes.POINTER(ctypes.c_float))]
 
-class RayRavel(ctypes.Structure):
+class RavelRay(ctypes.Structure):
      _fields_ = [("n", ctypes.c_int),
                  ("R", ctypes.POINTER(ctypes.c_int)),
                  ("L", ctypes.POINTER(ctypes.c_float))]
@@ -96,22 +96,31 @@ def ctypes_coord(x,y,z):
                               ctypes.c_int(y),\
                               ctypes.c_int(z)))
 
-def ctypes_ray(n,X,Y,Z,L, byref=True, ravel=False):
+
+def ctypes_unravel_ray(n,X,Y,Z,L, byref=True):
     if byref:
-        return ctypes.byref(RayUnravel(ctypes.c_int(n),
+        return ctypes.byref(UnravelRay(ctypes.c_int(n),
                                 np.ctypeslib.as_ctypes(X),\
                                 np.ctypeslib.as_ctypes(Y),\
                                 np.ctypeslib.as_ctypes(Z),\
                                 np.ctypeslib.as_ctypes(L)))
     else:
-        return RayUnravel(ctypes.c_int(n),\
+        return UnravelRay(ctypes.c_int(n),\
                    np.ctypeslib.as_ctypes(X),\
                    np.ctypeslib.as_ctypes(Y),\
                    np.ctypeslib.as_ctypes(Z),\
                    np.ctypeslib.as_ctypes(L))
 
 
-
+def ctypes_ravel_ray(n,R,L, byref=True):
+    if byref:
+        return ctypes.byref(RavelRay(ctypes.c_int(n),\
+                                np.ctypeslib.as_ctypes(R),\
+                                np.ctypeslib.as_ctypes(L)))
+    else:
+        return RavelRay(ctypes.c_int(n),\
+                   np.ctypeslib.as_ctypes(R),\
+                   np.ctypeslib.as_ctypes(L))
 
 
 def ctypes_vars(var):

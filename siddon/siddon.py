@@ -21,7 +21,7 @@ except:
 
 
 
-def list_ctypes_object(sdlist, flat=True):
+def list_ctypes_object(sdlist,ravel=False,flat=True):
     """
     Converts the data in unraveled array created by siddons to C data types.
     WARNING!!! It's not clear if this process creates a copy of the data or
@@ -43,29 +43,54 @@ def list_ctypes_object(sdlist, flat=True):
     """
        
     if flat:
-        sdlist_c = (mpct.RayUnravel*np.prod(sdlist.shape))()
         count = list_count_elem(sdlist).flatten()
-        for ray_idx, ray in enumerate(sdlist.flatten()):
-            sdlist_c[ray_idx].n = ctypes.c_int(count[ray_idx])
- 
-            if ray != None:
-                sdlist_c[ray_idx].X = np.ctypeslib.as_ctypes(ray[0].astype(np.int32))
-                sdlist_c[ray_idx].Y = np.ctypeslib.as_ctypes(ray[1].astype(np.int32))
-                sdlist_c[ray_idx].Z = np.ctypeslib.as_ctypes(ray[2].astype(np.int32))
-                sdlist_c[ray_idx].L = np.ctypeslib.as_ctypes(ray[3].astype(np.float32))
         
-        sdlist_c = ctypes.byref(sdlist_c)
+        if ravel:
+            sdlist_c = (mpct.RavelRay*np.prod(sdlist.shape))()
+    
+            for ray_idx, ray in enumerate(sdlist.flatten()):
+                sdlist_c[ray_idx].n =  mpct.ctypes_vars(count[ray_idx])
+     
+                if ray != None:
+                    sdlist_c[ray_idx].R = mpct.ctypes_vars(ray[0])[1]
+                    sdlist_c[ray_idx].L = mpct.ctypes_vars(ray[1])[1]
+            
+            sdlist_c = ctypes.byref(sdlist_c)
+
+            
+        else:
+            sdlist_c = (mpct.UnravelRay*np.prod(sdlist.shape))()
+    
+            for ray_idx, ray in enumerate(sdlist.flatten()):
+                sdlist_c[ray_idx].n =  mpct.ctypes_vars(count[ray_idx])
+     
+                if ray != None:
+                    sdlist_c[ray_idx].X = mpct.ctypes_vars(ray[0])[1]
+                    sdlist_c[ray_idx].Y = mpct.ctypes_vars(ray[1])[1]
+                    sdlist_c[ray_idx].Z = mpct.ctypes_vars(ray[2])[1]
+                    sdlist_c[ray_idx].L = mpct.ctypes_vars(ray[3])[1]
+            
+            sdlist_c = ctypes.byref(sdlist_c)
         
     else:
-        sdlist_c = np.empty(sdlist.shape, dtype=object)
         count = list_count_elem(sdlist)
+        sdlist_c = np.empty(sdlist.shape, dtype=object)
 
-        for ray_idx, ray in np.ndenumerate(sdlist):
-            if ray != None:
-                sdlist_c[ray_idx] = mpct.ctypes_ray(count[ray_idx],ray[0].astype(np.int32),\
-                                               ray[1].astype(np.int32),ray[2].astype(np.int32), \
-                                               ray[3].astype(np.float32))
-                
+        if ravel:
+            for ray_idx, ray in np.ndenumerate(sdlist):
+                if ray != None:
+                    sdlist_c[ray_idx] = mpct.ctypes_unravel_ray(count[ray_idx],\
+                                                        ray[0].astype(np.int32),\
+                                                        ray[1].astype(np.int32),\
+                                                        ray[2].astype(np.int32),\
+                                                        ray[3].astype(np.float32))
+        else:
+            for ray_idx, ray in np.ndenumerate(sdlist):
+                if ray != None:
+                    sdlist_c[ray_idx] = mpct.ctypes_unravel_ray(count[ray_idx],\
+                                                        ray[0].astype(np.int32),\
+                                                        ray[1].astype(np.float32))
+
 
     return sdlist_c
 

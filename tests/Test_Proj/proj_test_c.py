@@ -73,12 +73,19 @@ sdlist_c_flat = sd.list_ctypes_object(sdlist, flat=True)
 
 import functools
 import timeit
+import mpct
 iters = 20
 
 
 sino1 = proj.sd_f_proj(phantom, sdlist)
 sino2 = np.zeros(sdlist.shape, dtype=np.float32) 
-sino3 = np.zeros(sdlist.shape, dtype=np.float32) 
+sino3 = np.zeros(sdlist.shape, dtype=np.float32)
+sino1, sino1_c = mpct.ctypes_vars(sino1)
+sino2, sino2_c = mpct.ctypes_vars(sino2)
+sino2, sino3_c = mpct.ctypes_vars(sino3)
+phantom, phantom_c = mpct.ctypes_vars(phantom)
+
+
 proj.sd_f_proj_c(phantom, sino2, sdlist_c, flat=False)
 proj.sd_f_proj_c(phantom, sino3, sdlist_c_flat, flat=True)
 
@@ -98,6 +105,16 @@ partial_function = functools.partial(proj.sd_f_proj_c, phantom,sino2,sdlist_c_fl
 a = timeit.timeit(partial_function, number=iters)/iters
 print(f"{'FP Single Core C Flat':<25} Time: {a:.5f}s, Diff: {diff31:.2e}")
 print(f"C Diff: {diff32:.5f}\n")
+
+partial_function = functools.partial(proj.sd_f_proj_c, phantom_c,sino2_C,sdlist_c,flat=False,C=True)
+a = timeit.timeit(partial_function, number=iters)/iters
+print(f"{'FP Single Core C':<25} Time: {a:.5f}s, Diff: {diff21:.2e}")    
+    
+partial_function = functools.partial(proj.sd_f_proj_c, phantom_c,sino2_c,sdlist_c_flat,flat=True,C=True)
+a = timeit.timeit(partial_function, number=iters)/iters
+print(f"{'FP Single Core C Flat':<25} Time: {a:.5f}s, Diff: {diff31:.2e}")
+print(f"C Diff: {diff32:.5f}\n")
+
 
 
 bp1 = proj.sd_b_proj(sino1, sdlist, nPixels)
