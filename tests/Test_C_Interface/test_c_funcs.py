@@ -167,7 +167,8 @@ def c_function4(arr_size):
     #No type information (C sees just a void pointer).
     #C function must know the type and interpret correctly.
     #Not checked by ctypes → unsafe if argument types mismatch.
-    #Must manually set the function signature (argtypes, restype) or you risk UB.    
+    #Must manually set the function signature (argtypes, restype) or you risk 
+    #undefined behavior.    
     i_arr1 =  np.arange(arr_size, dtype=np.int32)
     i_arr_c1 = ctypes.c_void_p(i_arr1.ctypes.data)    
     c_test.Func4i(ctypes.c_int(arr_size),i_arr_c1)
