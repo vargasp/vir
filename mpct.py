@@ -30,6 +30,11 @@ def ps_info(out='', m=[]):
 """
 
 
+c_int_p = ctypes.POINTER(ctypes.c_int)
+c_float_p = ctypes.POINTER(ctypes.c_float)
+c_double_p = ctypes.POINTER(ctypes.c_double)
+
+
 class RayUnravel(ctypes.Structure):
      _fields_ = [("n", ctypes.c_int),
                  ("X", ctypes.POINTER(ctypes.c_int)),
@@ -152,7 +157,8 @@ def ctypes_vars(var):
         
         # Create a ctypes object as a view into the original array (no copy)
         if isinstance(var.flat[0], np.float32) or isinstance(var.flat[0], np.int32):
-            return var, np.ctypeslib.as_ctypes(var)
+            return var, var.ctypes.data_as(c_float_p)
+            #return var, np.ctypeslib.as_ctypes(var)
         else:
             raise ValueError(var.dtype, " is not yet supported in mpct")
 

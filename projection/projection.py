@@ -129,9 +129,14 @@ def sd_f_proj_c(phantom, sino, sdlist_c, flat=True):
                                            dims_c, sinoElemIdx)
                 
 
-def sd_b_proj_c(phantom, sino, sdlist_c, flat=True):
-    sino, sino_c = mpct.ctypes_vars(sino)
-    phantom, phantom_c = mpct.ctypes_vars(phantom)
+def sd_b_proj_c(phantom, sino, sdlist_c, flat=True, C=True):
+
+    if C:
+        sino_c = sino
+        phantom_c = phantom
+    else:
+        sino, sino_c = mpct.ctypes_vars(sino)
+        phantom, phantom_c = mpct.ctypes_vars(phantom)
 
     nX, nY, nZ = phantom.shape
     dims_c = mpct.ctypes_coord(nX,nY,nZ)

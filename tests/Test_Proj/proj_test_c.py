@@ -51,7 +51,7 @@ phantom[4:12,4:12,4:12] = 1.0
 d = vir.Detector1d(nDets=nDets,dDet=dDet, det_lets=det_lets)
 
 Thetas = np.linspace(0,2*np.pi,nTheta, endpoint=False)
-srcs, trgs = sd.circular_geom_st(d.Dets, Thetas, geom="cone", DetsZ=d.Dets,\
+#srcs, trgs = sd.circular_geom_st(d.Dets, Thetas, geom="cone", DetsZ=d.Dets,\
                                  det_iso=16, src_iso=32)
     
 

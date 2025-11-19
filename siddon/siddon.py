@@ -43,7 +43,7 @@ def list_ctypes_object(sdlist, flat=True):
     """
        
     if flat:
-        sdlist_c = (mpct.Ray*np.prod(sdlist.shape))()
+        sdlist_c = (mpct.RayUnravel*np.prod(sdlist.shape))()
         count = list_count_elem(sdlist).flatten()
         for ray_idx, ray in enumerate(sdlist.flatten()):
             sdlist_c[ray_idx].n = ctypes.c_int(count[ray_idx])

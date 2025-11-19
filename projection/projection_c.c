@@ -57,6 +57,14 @@ typedef struct Ray{
 } Ray;
 
 
+typedef struct RayRavel{
+    int n;
+    int *R;
+    float *L;
+} RayRavel;
+
+
+
 typedef struct Coord{
     int x;
     int y;
