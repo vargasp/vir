@@ -52,7 +52,7 @@ d = vir.Detector1d(nDets=nDets,dDet=dDet, det_lets=det_lets)
 
 Thetas = np.linspace(0,2*np.pi,nTheta, endpoint=False)
 #srcs, trgs = sd.circular_geom_st(d.Dets, Thetas, geom="cone", DetsZ=d.Dets,\
-                                 det_iso=16, src_iso=32)
+#                                 det_iso=16, src_iso=32)
     
 
 srcs, trgs = pg.geom_circular(d.Dets, Thetas, geom="cone", DetsZ=d.Dets,\
@@ -60,88 +60,151 @@ srcs, trgs = pg.geom_circular(d.Dets, Thetas, geom="cone", DetsZ=d.Dets,\
     
 
     
-sdlist = sd.siddons(srcs,trgs,nPixels, dPix)
-sdlist_flat = sd.siddons(srcs,trgs,nPixels, dPix, flat=True)
-np.save("sdlist_test",sdlist)
+sdlist_r = sd.siddons(srcs,trgs,nPixels, dPix, ravel=True, flat=False)
+sdlist_u = sd.siddons(srcs,trgs,nPixels, dPix, ravel=False, flat=False)
+np.save("sdlist_test_r",sdlist_r)
+np.save("sdlist_test_u",sdlist_u)
+
 """
-sdlist = np.load("sdlist_test.npy", allow_pickle=True)
+sdlist_r = np.load("sdlist_test_r.npy", allow_pickle=True)
+sdlist_u = np.load("sdlist_test_u.npy", allow_pickle=True)
 
-
-sdlist_c = sd.list_ctypes_object(sdlist, flat=False)
-sdlist_c_flat = sd.list_ctypes_object(sdlist, flat=True)
+sdlist_r_c = sd.list_ctypes_object(sdlist_r, ravel=True, flat=True)
+sdlist_u_c = sd.list_ctypes_object(sdlist_u, ravel=False, flat=True)
 
 
 import functools
 import timeit
-import mpct
+import vir.mpct as mpct
 iters = 20
 
 
-sino1 = proj.sd_f_proj(phantom, sdlist)
-sino2 = np.zeros(sdlist.shape, dtype=np.float32) 
-sino3 = np.zeros(sdlist.shape, dtype=np.float32)
-sino1, sino1_c = mpct.ctypes_vars(sino1)
-sino2, sino2_c = mpct.ctypes_vars(sino2)
-sino2, sino3_c = mpct.ctypes_vars(sino3)
+sino1r = proj.sd_f_proj(phantom, sdlist_r, ravel=True)
+sino1u = proj.sd_f_proj(phantom, sdlist_u, ravel=False)
+
+sino2r = np.zeros(sdlist_r.shape, dtype=np.float32)
+sino2u = np.zeros(sdlist_u.shape, dtype=np.float32) 
+sino3r = np.zeros(sdlist_r.shape, dtype=np.float32) 
+sino3u = np.zeros(sdlist_u.shape, dtype=np.float32) 
+sino3r, sino3r_c = mpct.ctypes_vars(sino3r)
+sino3u, sino3u_c = mpct.ctypes_vars(sino3u)
 phantom, phantom_c = mpct.ctypes_vars(phantom)
 
+proj.sd_f_proj_c(phantom, sino2u, sdlist_u_c, ravel=False, C=False)
+proj.sd_f_proj_c(phantom, sino2r, sdlist_r_c, ravel=True, C=False)
+proj.sd_f_proj_c(phantom_c, sino3u_c, sdlist_u_c, ravel=False, C=True,dims=phantom.shape,nRays=sino3u.size)
+proj.sd_f_proj_c(phantom_c, sino3r_c, sdlist_r_c, ravel=True, C=True,dims=phantom.shape,nRays=sino3r.size)
 
-proj.sd_f_proj_c(phantom, sino2, sdlist_c, flat=False)
-proj.sd_f_proj_c(phantom, sino3, sdlist_c_flat, flat=True)
 
-diff21 = np.max(np.abs(sino2 - sino1))
-diff31 = np.max(np.abs(sino3 - sino1))
-diff32 = np.max(np.abs(sino3 - sino2))
+diff1ru = np.max(np.abs(sino1r - sino1u))
+diff2ru = np.max(np.abs(sino2r - sino2u))
+diff3ru = np.max(np.abs(sino3r - sino3u))
+diff21 = np.max(np.abs(sino2r - sino1r))
+diff32 = np.max(np.abs(sino3r - sino2r))
 
-partial_function = functools.partial(proj.sd_f_proj, phantom, sdlist)
+
+"""
+partial_function = functools.partial(proj.sd_f_proj, phantom, sdlist_u,False)
 a = timeit.timeit(partial_function, number=iters)/iters
-print(f"{'FP Single Core Python':<25} Time: {a:.5f}s")
+print(f"{'FP Single Core Python Unraveled':<25} Time: {a:.5f}s")
 
-partial_function = functools.partial(proj.sd_f_proj_c, phantom,sino2,sdlist_c,False)
+partial_function = functools.partial(proj.sd_f_proj, phantom, sdlist_r,True)
 a = timeit.timeit(partial_function, number=iters)/iters
-print(f"{'FP Single Core C':<25} Time: {a:.5f}s, Diff: {diff21:.2e}")    
-    
-partial_function = functools.partial(proj.sd_f_proj_c, phantom,sino2,sdlist_c_flat,True)
+print(f"{'FP Single Core Python Raveled':<25} Time: {a:.5f}s")
+print(f"Difference Ravel: {diff1ru:.2e}\n")
+
+      
+partial_function = functools.partial(proj.sd_f_proj_c, phantom,sino2u,sdlist_u_c,False,False)
 a = timeit.timeit(partial_function, number=iters)/iters
-print(f"{'FP Single Core C Flat':<25} Time: {a:.5f}s, Diff: {diff31:.2e}")
-print(f"C Diff: {diff32:.5f}\n")
+print(f"{'FP Single Core C Unraveled':<25} Time: {a:.5f}s")    
 
-partial_function = functools.partial(proj.sd_f_proj_c, phantom_c,sino2_C,sdlist_c,flat=False,C=True)
+partial_function = functools.partial(proj.sd_f_proj_c, phantom,sino2r,sdlist_r_c,True,False)
 a = timeit.timeit(partial_function, number=iters)/iters
-print(f"{'FP Single Core C':<25} Time: {a:.5f}s, Diff: {diff21:.2e}")    
-    
-partial_function = functools.partial(proj.sd_f_proj_c, phantom_c,sino2_c,sdlist_c_flat,flat=True,C=True)
+print(f"{'FP Single Core C Raveled':<25} Time: {a:.5f}s")    
+print(f"Difference Ravel: {diff2ru:.2e}")
+print(f"Difference Python/C: {diff21:.2e}\n")
+
+
+partial_function = functools.partial(proj.sd_f_proj_c, phantom_c,sino3u_c,sdlist_u_c,False,True,phantom.shape,sino3r.size)
 a = timeit.timeit(partial_function, number=iters)/iters
-print(f"{'FP Single Core C Flat':<25} Time: {a:.5f}s, Diff: {diff31:.2e}")
-print(f"C Diff: {diff32:.5f}\n")
+print(f"{'FP Single Core C Unraveled':<25} Time: {a:.5f}s")    
 
-
-
-bp1 = proj.sd_b_proj(sino1, sdlist, nPixels)
-bp2 = np.zeros(nPixels, dtype=np.float32 )
-bp3 = np.zeros(nPixels, dtype=np.float32 )
-proj.sd_b_proj_c(bp2, sino1, sdlist_c, flat=False)
-proj.sd_b_proj_c(bp3, sino1, sdlist_c_flat, flat=True)
-
-diff21 = np.max(np.abs(bp2 - bp1))
-diff31 = np.max(np.abs(bp3 - bp1))
-diff32 = np.max(np.abs(bp3 - bp2))
-
-partial_function = functools.partial(proj.sd_b_proj, sino1, sdlist, nPixels)
+partial_function = functools.partial(proj.sd_f_proj_c, phantom_c,sino3r_c,sdlist_r_c,True,True,phantom.shape,sino3u.size)
 a = timeit.timeit(partial_function, number=iters)/iters
-print(f"{'BP Single Core Python':<25} Time: {a:.5f}s")
+print(f"{'FP Single Core C Raveled':<25} Time: {a:.5f}s")    
+print(f"Difference Ravel: {diff3ru:.2e}")
+print(f"Difference Python/C: {diff32:.2e}\n")
 
-partial_function = functools.partial(proj.sd_b_proj_c, bp2, sino1,sdlist_c,False)
+
+"""
+
+
+
+
+
+bp1r = proj.sd_b_proj(sino1r, sdlist_r, nPixels, ravel=True)
+bp1u = proj.sd_b_proj(sino1u, sdlist_u, nPixels, ravel=False)
+
+bp2r = np.zeros(nPixels, dtype=np.float32 )
+bp2u = np.zeros(nPixels, dtype=np.float32 )
+bp3r = np.zeros(nPixels, dtype=np.float32 )
+bp3u = np.zeros(nPixels, dtype=np.float32 )
+bp3r, bp3r_c = mpct.ctypes_vars(bp3r)
+bp3u, bp3u_c = mpct.ctypes_vars(bp3u)
+phantom, phantom_c = mpct.ctypes_vars(phantom)
+
+proj.sd_b_proj_c(bp2r, sino2r, sdlist_r_c, ravel=True)
+proj.sd_b_proj_c(bp2u, sino2u, sdlist_u_c, ravel=False)
+proj.sd_b_proj_c(bp3r_c, sino3r_c, sdlist_r_c, ravel=True, C=True,dims=phantom.shape,nRays=sino3u.size)
+proj.sd_b_proj_c(bp3u_c, sino3u_c, sdlist_u_c, ravel=False, C=True,dims=phantom.shape,nRays=sino3r.size)
+
+
+diff1ru = np.max(np.abs(bp1r - bp1u))
+diff2ru = np.max(np.abs(bp2r - bp2u))
+diff3ru = np.max(np.abs(bp3r - bp3u))
+diff21 = np.max(np.abs(bp2r - bp1r))
+diff32 = np.max(np.abs(bp3r - bp2r))
+
+
+partial_function = functools.partial(proj.sd_b_proj, sino1u, sdlist_r, nPixels)
 a = timeit.timeit(partial_function, number=iters)/iters
-print(f"{'BP Single Core C':<25} Time: {a:.5f}s, Diff: {diff21:.2e}")
- 
-partial_function = functools.partial(proj.sd_b_proj_c, bp3, sino1,sdlist_c_flat,True)
+print(f"{'BP Single Core Python Unraveled':<30} Time: {a:.5f}s")
+
+partial_function = functools.partial(proj.sd_b_proj, sino1r, sdlist_u, nPixels)
 a = timeit.timeit(partial_function, number=iters)/iters
-print(f"{'BP Single Core C Flat':<25} Time: {a:.5f}s, Diff: {diff31:.2e}")
-print(f"C Diff: {diff32:.5f}\n")
+print(f"{'BP Single Core Python Raveled':<30} Time: {a:.5f}s")
+print(f"Difference Ravel: {diff1ru:.2e}\n")
+
+
+partial_function = functools.partial(proj.sd_b_proj_c,bp2u,sino2u,sdlist_u_c,False,False)
+a = timeit.timeit(partial_function, number=iters)/iters
+print(f"{'BP Single Core C Unraveled':<30} Time: {a:.5f}s")
+
+partial_function = functools.partial(proj.sd_b_proj_c,bp2r,sino2r,sdlist_r_c,True,False)
+a = timeit.timeit(partial_function, number=iters)/iters
+print(f"{'BP Single Core C Raveled':<30} Time: {a:.5f}s") 
+print(f"Difference Ravel: {diff2ru:.2e}")
+print(f"Difference Python/C: {diff21:.2e}\n")
+
+
+partial_function = functools.partial(proj.sd_b_proj_c,bp3u_c,sino3u_c,sdlist_u_c,False,True,phantom.shape,sino3r.size)
+a = timeit.timeit(partial_function, number=iters)/iters
+print(f"{'BP Single Core C Unraveled':<30} Time: {a:.5f}s")
+
+partial_function = functools.partial(proj.sd_b_proj_c,bp3r_c,sino3r_c,sdlist_r_c,True,True,phantom.shape,sino3r.size)
+a = timeit.timeit(partial_function, number=iters)/iters
+print(f"{'BP Single Core C Raveled':<30} Time: {a:.5f}s") 
+print(f"Difference Ravel: {diff3ru:.2e}")
+print(f"Difference C/C: {diff32:.2e}\n")
 
 
 
+
+
+
+
+
+"""
 binYSft = (-8,8)
 binZSft = (-8,8)
 
@@ -241,5 +304,5 @@ print("{name:<30} Time Average: {mu:.5f}s, S.D.: {std:.5f}, Min: {m:.5F}"\
               std=times[1,:].std(), m=times[1,:].min()))
 
     
-    
+"""
     

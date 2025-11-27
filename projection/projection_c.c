@@ -48,21 +48,20 @@ Phillip Vargas, December 2021
 
 
 
-typedef struct Ray{
+typedef struct UnraveledRay{
     int n;
     int *X;
     int *Y;
     int *Z;
     float *L;
-} Ray;
+} UnraveledRay;
 
 
-typedef struct RavelRay{
+typedef struct RaveledlRay{
     int n;
     int *R;
     float *L;
-} RavelRay;
-
+} RaveledRay;
 
 
 typedef struct Coord{
@@ -85,19 +84,21 @@ int imax(int x, int y)
 
 
 /*Ravels a 3d coordinates indices to a flat 1d index*/
-int ravel(int x, int y, int z, int nX, int nY, int nZ)
+int ravel_ray(int x, int y, int z, int nX, int nY, int nZ)
 {
     return nY*nZ*x + nZ*y + z;
 }
 
+
 /*Ravels a 3d coordinates indices to a flat 1d index with structure parameters*/
-int ravel_s(int x, int y, int z, Coord *dims)
+int ravel_ray_struct(int x, int y, int z, Coord *dims)
 {
     return dims->y*dims->z*x + dims->z*y + z;
 }
 
 
-void forward_proj_ray(float *phantom, float *sino, int *R, float *length, int nElem, int sinoElemIdx)
+void forward_proj_ravel_ray(float *phantom, float *sino, int sinoElemIdx,
+                            int nElem, int *R, float *length)
 {
     int i;
     
@@ -106,6 +107,129 @@ void forward_proj_ray(float *phantom, float *sino, int *R, float *length, int nE
     }
 }
 
+
+void forward_proj_unravel_ray(float *phantom, float *sino, int sinoElemIdx,
+                              int nElem,int *X, int *Y, int *Z, float *length, 
+                              int nX, int nY, int nZ)
+{
+    int i;
+    int phantIdx;
+    
+    for(i=0; i<nElem; i++){
+        phantIdx = ravel_ray(X[i], Y[i], Z[i], nX, nY, nZ);
+        sino[sinoElemIdx] += phantom[phantIdx]*length[i];
+    }
+}
+
+
+void forward_proj_ravel_ray_struct(float *phantom, float *sino, int sinoElemIdx,
+                                   RaveledRay *ray)
+{
+    int i;
+    
+    for(i=0; i<ray->n; i++){
+        sino[sinoElemIdx] += phantom[ray->R[i]]*ray->L[i];
+    }
+}
+
+
+void forward_proj_unravel_ray_struct(float *phantom, float *sino, int sinoElemIdx,
+                                     UnraveledRay *ray, Coord *dims)
+{
+    int i;
+    int phantIdx;
+    
+    for(i=0; i<ray->n; i++){
+        phantIdx = ravel_ray_struct(ray->X[i], ray->Y[i], ray->Z[i], dims);
+        sino[sinoElemIdx] += phantom[phantIdx]*ray->L[i];
+    }
+}
+
+
+void forward_proj_ravel_rays_struct(float *phantom, float *sino,
+                                    RaveledRay *ray, int nRays)
+{
+    int j;
+    for(j=0; j<nRays; j++){
+        forward_proj_ravel_ray_struct(phantom, sino, j, ray);
+        ray++;
+    }
+}
+
+
+void forward_proj_unravel_rays_struct(float *phantom, float *sino,
+                                      UnraveledRay *ray, Coord *dims, int nRays)
+{   
+    int j;
+    for(j=0; j<nRays; j++){
+        forward_proj_unravel_ray_struct(phantom, sino, j, ray, dims);
+        ray++;
+    }
+    
+}
+
+
+
+
+
+
+
+void back_proj_ravel_ray_struct(float *phantom, float *sino, int sinoElemIdx,
+                            RaveledRay *ray)
+{
+    int i;
+
+    for(i=0; i<ray->n; i++){
+        phantom[ray->R[i]] += sino[sinoElemIdx]*ray->L[i];
+    }
+}
+
+
+void back_proj_unravel_ray_struct(float *phantom, float *sino, int sinoElemIdx,
+                            UnraveledRay *ray, Coord *dims)
+{
+    int i;
+    int phantIdx;
+    
+    for(i=0; i<ray->n; i++){
+        phantIdx = ravel_ray_struct(ray->X[i], ray->Y[i], ray->Z[i], dims);
+        phantom[phantIdx] += sino[sinoElemIdx]*ray->L[i];
+    }
+}
+
+
+void back_proj_ravel_rays_struct(float *phantom, float *sino,
+                             RaveledRay *ray, int nRays)
+{
+    int j;
+
+    for(j=0; j<nRays; j++){
+        back_proj_ravel_ray_struct(phantom, sino, j, ray);
+        ray++;
+    }
+}
+
+
+void back_proj_unravel_rays_struct(float *phantom, float *sino,
+                             UnraveledRay *ray, Coord *dims, int nRays)
+{
+    int j;
+
+    for(j=0; j<nRays; j++){
+        back_proj_unravel_ray_struct(phantom, sino, j, ray, dims);
+        ray++;
+    }
+}
+
+
+
+
+
+
+
+
+
+/*
 
 void back_proj_ray(float *phantom, float *sino, int *R, float *length, int nElem, int sinoElemIdx)
 {
@@ -116,16 +240,7 @@ void back_proj_ray(float *phantom, float *sino, int *R, float *length, int nElem
     }
 }
 
-void forward_proj_ray_u(float *phantom, float *sino, int *X, int *Y, int *Z, float *length, int nElem, int nX, int nY, int nZ, int sinoElemIdx)
-{
-    int i;
-    int phantIdx;
-    
-    for(i=0; i<nElem; i++){
-        phantIdx = ravel(X[i], Y[i], Z[i], nX, nY, nZ);
-        sino[sinoElemIdx] += phantom[phantIdx]*length[i];
-    }
-}
+
 
 
 void back_proj_ray_u(float *phantom, float *sino, int *X, int *Y, int *Z, float *length, int nElem, int nX, int nY, int nZ, int sinoElemIdx)
@@ -140,17 +255,8 @@ void back_proj_ray_u(float *phantom, float *sino, int *X, int *Y, int *Z, float 
 }
 
 
-void forward_proj_ravel_struct_ray(float *phantom, float *sino, RavelRay *ray, int sinoElemIdx)
-{
-    int i;
-    
-    for(i=0; i<ray->n; i++){
-        sino[sinoElemIdx] += phantom[ray->R[i]]*ray->L[i];
-    }
-}
-
-
-void back_proj_ravel_struct_ray(float *phantom, float *sino, RavelRay *ray, int sinoElemIdx)
+void back_proj_ravel_struct_ray(float *phantom, float *sino,
+                                RavelRay *ray, int sinoElemIdx)
 {
     int i;
     
@@ -161,49 +267,16 @@ void back_proj_ravel_struct_ray(float *phantom, float *sino, RavelRay *ray, int 
 
 
 
-void forward_proj_ray_u_struct(float *phantom, float *sino, Ray *ray, Coord *dims, int sinoElemIdx)
-{
-    int i;
-    int phantIdx;
-    
-    for(i=0; i<ray->n; i++){
-        phantIdx = ravel_s(ray->X[i], ray->Y[i], ray->Z[i], dims);
-        sino[sinoElemIdx] += phantom[phantIdx]*ray->L[i];
-    }
-}
 
 
-void back_proj_ray_u_struct(float *phantom, float *sino, Ray *ray, Coord *dims, int sinoElemIdx)
-{
-    int i;
-    int phantIdx;
-    
-    for(i=0; i<ray->n; i++){
-        phantIdx = ravel_s(ray->X[i], ray->Y[i], ray->Z[i], dims);
-        phantom[phantIdx] += sino[sinoElemIdx]*ray->L[i];
-    }
-}
 
 
-void forward_proj_rays_u_struct(float *phantom, float *sino, Ray *ray, Coord *dims, int nRays)
-{
-    int j;
-    for(j=0; j<nRays; j++){
-        forward_proj_ray_u_struct(phantom, sino, ray, dims, j);
-        ray++;
-    }
-}
 
 
-void back_proj_rays_u_struct(float *phantom, float *sino, Ray *ray, Coord *dims, int nRays)
-{
-    int j;
 
-    for(j=0; j<nRays; j++){
-        back_proj_ray_u_struct(phantom, sino, ray, dims, j);
-        ray++;
-    }
-}
+
+
+
 
 
 
@@ -401,7 +474,7 @@ void backproj_ray_sym(float *phantom, float *sino, Ray *ray, Coord *dims, Coord 
     }
 }
 
-/*
+
 void forward_proj_rays_sym(float *phantom, float *sino, Ray *ray, Coord *dims, Coord *bins0, Coord *binsN, int nRays)
 {
     
@@ -437,6 +510,8 @@ void forward_proj_rays_sym(float *phantom, float *sino, Ray *ray, Coord *dims, C
 }
 */
 
+
+/*
 void forward_proj_rays_sym(float *phantom, float *sino, Ray *ray, Coord *dims, Coord *bins0, Coord *binsN, int nRays)
 {
     
@@ -600,3 +675,4 @@ void funct_test(float *phantom, float *sino, Ray *ray, Coord *dims, int nRays)
     printf("P: %f, S: %f, L: %f, nX: %d, nRays: %d\n", phantom[1092], *sino, ray->L[0], dims->x, nRays);
 }
 
+*/

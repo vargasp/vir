@@ -41,60 +41,44 @@ def list_ctypes_object(sdlist,ravel=False,flat=True):
         index and intersection lengths or 4 listst of the unraveled pixel 
         indexes and intersection lengths from siddons       
     """
-       
+     
     if flat:
         count = list_count_elem(sdlist).flatten()
         
         if ravel:
-            sdlist_c = (mpct.RavelRay*np.prod(sdlist.shape))()
-    
-            for ray_idx, ray in enumerate(sdlist.flatten()):
-                sdlist_c[ray_idx].n =  mpct.ctypes_vars(count[ray_idx])
-     
-                if ray != None:
-                    sdlist_c[ray_idx].R = mpct.ctypes_vars(ray[0])[1]
-                    sdlist_c[ray_idx].L = mpct.ctypes_vars(ray[1])[1]
-            
-            sdlist_c = ctypes.byref(sdlist_c)
-
-            
+            sdlist_c = (mpct.RaveledRay*np.prod(sdlist.shape))()
         else:
-            sdlist_c = (mpct.UnravelRay*np.prod(sdlist.shape))()
+            sdlist_c = (mpct.UnraveledRay*np.prod(sdlist.shape))()
+
     
-            for ray_idx, ray in enumerate(sdlist.flatten()):
-                sdlist_c[ray_idx].n =  mpct.ctypes_vars(count[ray_idx])
-     
-                if ray != None:
-                    sdlist_c[ray_idx].X = mpct.ctypes_vars(ray[0])[1]
-                    sdlist_c[ray_idx].Y = mpct.ctypes_vars(ray[1])[1]
-                    sdlist_c[ray_idx].Z = mpct.ctypes_vars(ray[2])[1]
-                    sdlist_c[ray_idx].L = mpct.ctypes_vars(ray[3])[1]
-            
-            sdlist_c = ctypes.byref(sdlist_c)
-        
+        for ray_idx, ray in enumerate(sdlist.flatten()):
+            sdlist_c[ray_idx].n =  mpct.ctypes_vars(count[ray_idx])[1]
+ 
+            if ray != None and ravel==True:
+                sdlist_c[ray_idx].R = mpct.ctypes_vars(ray[0])[1]
+                sdlist_c[ray_idx].L = mpct.ctypes_vars(ray[1])[1]
+
+            elif ray != None and ravel==False:
+                sdlist_c[ray_idx].X = mpct.ctypes_vars(ray[0])[1]
+                sdlist_c[ray_idx].Y = mpct.ctypes_vars(ray[1])[1]
+                sdlist_c[ray_idx].Z = mpct.ctypes_vars(ray[2])[1]
+                sdlist_c[ray_idx].L = mpct.ctypes_vars(ray[3])[1]
+        sdlist_c = ctypes.byref(sdlist_c)
+
     else:
         count = list_count_elem(sdlist)
         sdlist_c = np.empty(sdlist.shape, dtype=object)
 
-        if ravel:
-            for ray_idx, ray in np.ndenumerate(sdlist):
-                if ray != None:
-                    sdlist_c[ray_idx] = mpct.ctypes_unravel_ray(count[ray_idx],\
-                                                        ray[0].astype(np.int32),\
-                                                        ray[1].astype(np.int32),\
-                                                        ray[2].astype(np.int32),\
-                                                        ray[3].astype(np.float32))
-        else:
-            for ray_idx, ray in np.ndenumerate(sdlist):
-                if ray != None:
-                    sdlist_c[ray_idx] = mpct.ctypes_unravel_ray(count[ray_idx],\
-                                                        ray[0].astype(np.int32),\
-                                                        ray[1].astype(np.float32))
-
-
+        for ray_idx, ray in np.ndenumerate(sdlist):
+            if ray != None and ravel==True:
+                sdlist_c[ray_idx] = mpct.ctypes_raveled_ray(count[ray_idx],\
+                                                          ray[0],ray[1])
+                                                          
+            elif ray != None and ravel==False:
+                sdlist_c[ray_idx] = mpct.ctypes_unraveled_ray(count[ray_idx],\
+                                                            ray[0],ray[1],\
+                                                            ray[2],ray[3])
     return sdlist_c
-
-
 
 
 def list_del_ind(sdlist, X_ind, Y_ind, Z_ind, ravel=False):
@@ -269,7 +253,7 @@ def list_count_elem(sdlist):
     
     
     if isinstance(sdlist, np.ndarray):
-        count = np.zeros(sdlist.shape, dtype=int)    
+        count = np.zeros(sdlist.shape, dtype=np.int32)    
     else:
         return sdlist[0].size
         
@@ -787,7 +771,7 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
     if flat == True:
         f0 = 0
         flat_len = np.zeros(3*Rays.size*np.max(nPixels),dtype=np.float32)
-        flat_ind = np.zeros(3*Rays.size*np.max(nPixels),dtype=int)
+        flat_ind = np.zeros(3*Rays.size*np.max(nPixels),dtype=np.int32)
         
     #Creates the array of grid boundaries
     p0 = np.array([g.Xb[0],g.Yb[0],g.Zb[0]], dtype=np.float32)
@@ -828,10 +812,10 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
     iNp = (src + alpha_max[...,np.newaxis]*dST - p0)/g.dPixels
     iNn = (src + alpha_min[...,np.newaxis]*dST - p0)/g.dPixels
 
-    i0p = np.where(np.isclose(i0p, np.round(i0p), atol=epsilon), np.round(i0p),  np.floor(i0p)).astype(int)
-    i0n = np.where(np.isclose(i0n, np.round(i0n), atol=epsilon), np.round(i0n),  np.floor(i0n)).astype(int)
-    iNp = np.where(np.isclose(iNp, np.round(iNp), atol=epsilon), np.round(iNp),  np.ceil(iNp)).astype(int)
-    iNn = np.where(np.isclose(iNn, np.round(iNn), atol=epsilon), np.round(iNn),  np.ceil(iNn)).astype(int)
+    i0p = np.where(np.isclose(i0p, np.round(i0p), atol=epsilon), np.round(i0p),  np.floor(i0p)).astype(np.int32)
+    i0n = np.where(np.isclose(i0n, np.round(i0n), atol=epsilon), np.round(i0n),  np.floor(i0n)).astype(np.int32)
+    iNp = np.where(np.isclose(iNp, np.round(iNp), atol=epsilon), np.round(iNp),  np.ceil(iNp)).astype(np.int32)
+    iNn = np.where(np.isclose(iNn, np.round(iNn), atol=epsilon), np.round(iNn),  np.ceil(iNn)).astype(np.int32)
     
     i0 = np.where(dST > 0.0, i0p, i0n)
     iN = np.where(dST > 0.0, iNp, iNn)    
@@ -880,9 +864,9 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
             dAlpha = Alpha[1:] - Alpha[:-1]
             mAlpha = 0.5 * (Alpha[1:] + Alpha[:-1])
             
-            x_ind = ((src[idxX] + mAlpha*dST[idxX] - g.Xb[0])/g.dX).astype(int)
-            y_ind = ((src[idxY] + mAlpha*dST[idxY] - g.Yb[0])/g.dY).astype(int)
-            z_ind = ((src[idxZ] + mAlpha*dST[idxZ] - g.Zb[0])/g.dZ).astype(int)
+            x_ind = ((src[idxX] + mAlpha*dST[idxX] - g.Xb[0])/g.dX).astype(np.int32)
+            y_ind = ((src[idxY] + mAlpha*dST[idxY] - g.Yb[0])/g.dY).astype(np.int32)
+            z_ind = ((src[idxZ] + mAlpha*dST[idxZ] - g.Zb[0])/g.dZ).astype(np.int32)
            
             length = (distance[ray_idx]*dAlpha).astype(np.float32)
             
@@ -896,7 +880,7 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
                 
             else:
                 if ravel == True:
-                    Rays[ray_idx] = [np.ravel_multi_index((x_ind,y_ind,z_ind),g.nPixels),length]
+                    Rays[ray_idx] = [np.ravel_multi_index((x_ind,y_ind,z_ind),g.nPixels).astype(np.int32),length]
                 else:
                     Rays[ray_idx] = [x_ind,y_ind,z_ind,length]
                 

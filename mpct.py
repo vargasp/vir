@@ -35,17 +35,18 @@ c_float_p = ctypes.POINTER(ctypes.c_float)
 c_double_p = ctypes.POINTER(ctypes.c_double)
 
 
-class UnravelRay(ctypes.Structure):
+class UnraveledRay(ctypes.Structure):
      _fields_ = [("n", ctypes.c_int),
-                 ("X", ctypes.POINTER(ctypes.c_int)),
-                 ("Y", ctypes.POINTER(ctypes.c_int)),
-                 ("Z", ctypes.POINTER(ctypes.c_int)),
-                 ("L", ctypes.POINTER(ctypes.c_float))]
+                 ("X", c_int_p),
+                 ("Y", c_int_p),
+                 ("Z", c_int_p),
+                 ("L", c_float_p)]
 
-class RavelRay(ctypes.Structure):
+
+class RaveledRay(ctypes.Structure):
      _fields_ = [("n", ctypes.c_int),
-                 ("R", ctypes.POINTER(ctypes.c_int)),
-                 ("L", ctypes.POINTER(ctypes.c_float))]
+                 ("R", c_int_p),
+                 ("L", c_float_p)]
 
 
 
@@ -97,30 +98,30 @@ def ctypes_coord(x,y,z):
                               ctypes.c_int(z)))
 
 
-def ctypes_unravel_ray(n,X,Y,Z,L, byref=True):
+def ctypes_unraveled_ray(n,X,Y,Z,L, byref=True):
     if byref:
-        return ctypes.byref(UnravelRay(ctypes.c_int(n),
-                                np.ctypeslib.as_ctypes(X),\
-                                np.ctypeslib.as_ctypes(Y),\
-                                np.ctypeslib.as_ctypes(Z),\
-                                np.ctypeslib.as_ctypes(L)))
+        return ctypes.byref(UnraveledRay(ctypes.c_int(n),
+                                       X.ctypes.data_as(c_int_p),\
+                                       Y.ctypes.data_as(c_int_p),\
+                                       Z.ctypes.data_as(c_int_p),\
+                                       L.ctypes.data_as(c_float_p)))
     else:
-        return UnravelRay(ctypes.c_int(n),\
-                   np.ctypeslib.as_ctypes(X),\
-                   np.ctypeslib.as_ctypes(Y),\
-                   np.ctypeslib.as_ctypes(Z),\
-                   np.ctypeslib.as_ctypes(L))
+        return UnraveledRay(ctypes.c_int(n),\
+                          X.ctypes.data_as(c_int_p),\
+                          Y.ctypes.data_as(c_int_p),\
+                          Z.ctypes.data_as(c_int_p),\
+                          L.ctypes.data_as(c_float_p))
 
 
-def ctypes_ravel_ray(n,R,L, byref=True):
+def ctypes_raveled_ray(n,R,L, byref=True):
     if byref:
-        return ctypes.byref(RavelRay(ctypes.c_int(n),\
-                                np.ctypeslib.as_ctypes(R),\
-                                np.ctypeslib.as_ctypes(L)))
+        return ctypes.byref(RaveledRay(ctypes.c_int(n),\
+                                     R.ctypes.data_as(c_int_p),\
+                                     L.ctypes.data_as(c_float_p)))
     else:
-        return RavelRay(ctypes.c_int(n),\
-                   np.ctypeslib.as_ctypes(R),\
-                   np.ctypeslib.as_ctypes(L))
+        return RaveledRay(ctypes.c_int(n),\
+                        R.ctypes.data_as(c_int_p),\
+                        L.ctypes.data_as(c_float_p))
 
 
 def ctypes_vars(var):
@@ -148,26 +149,39 @@ def ctypes_vars(var):
     """
     
     # Checks if the variable is an np.array
-    if isinstance(var, (np.ndarray, np.generic) ):
+    #if isinstance(var, (np.ndarray, np.generic) ):
+    if isinstance(var, np.ndarray):
 
         # Changes the datatype from floatX to float32
         if isinstance(var.flat[0], np.float16) or isinstance(var.flat[0], np.float64):
+            #print("Intstance 1 ")
             var = var.astype(np.float32)
+            return var, var.ctypes.data_as(c_float_p)
             
         # Changes the datatype from intX to int32
         elif isinstance(var.flat[0], np.int8) or isinstance(var.flat[0], np.int16) \
             or isinstance(var.flat[0], np.int64):
+            #print("Intstance 2 ", var.dtype)
             var = var.astype(np.int32)
+            return var, var.ctypes.data_as(c_int_p)
             
         # Changes the datatype from uintX to int32
         elif isinstance(var.flat[0], np.uint8) or isinstance(var.flat[0], np.uint16) \
             or isinstance(var.flat[0], np.uint32) or isinstance(var.flat[0], np.uint64):
+            #print("Intstance 3 ")
             var = var.astype(np.int32)
+            return var, var.ctypes.data_as(c_int_p)
         
         # Create a ctypes object as a view into the original array (no copy)
-        if isinstance(var.flat[0], np.float32) or isinstance(var.flat[0], np.int32):
+        if isinstance(var.flat[0], np.float32): 
+            #print("Intstance 4 ")
+
             return var, var.ctypes.data_as(c_float_p)
-            #return var, np.ctypeslib.as_ctypes(var)
+        
+        elif isinstance(var.flat[0], np.int32):
+            #print("Intstance 5 ")
+            return var, var.ctypes.data_as(c_int_p)
+
         else:
             raise ValueError(var.dtype, " is not yet supported in mpct")
 
@@ -177,6 +191,10 @@ def ctypes_vars(var):
     
     # Create a ctypes object as of orginal data (copies)
     elif isinstance(var, int):
+        return var, ctypes.c_int(var)
+    # Create a ctypes object as of orginal data (copies)
+    elif isinstance(var, np.integer):
+        var = int(var)
         return var, ctypes.c_int(var)
     
     # Checks 
