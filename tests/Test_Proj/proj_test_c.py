@@ -6,14 +6,14 @@ Created on Sat Feb 26 22:46:20 2022
 @author: vargasp
 """
 
-
+"""
 import os
 filename = os.environ.get('PYTHONSTARTUP')
 if filename and os.path.isfile(filename):
     with open(filename) as fobj:
         startup_file = fobj.read()
     exec(startup_file)
-    
+"""
 
 import numpy as np
 
@@ -66,8 +66,10 @@ np.save("sdlist_test_r",sdlist_r)
 np.save("sdlist_test_u",sdlist_u)
 
 """
-sdlist_r = np.load("sdlist_test_r.npy", allow_pickle=True)
-sdlist_u = np.load("sdlist_test_u.npy", allow_pickle=True)
+
+infile_root = '/Users/pvargas21/Codebase/Libraries/vir/tests/Test_Proj/'
+sdlist_r = np.load(infile_root+"sdlist_test_r.npy", allow_pickle=True)
+sdlist_u = np.load(infile_root+"sdlist_test_u.npy", allow_pickle=True)
 
 sdlist_r_c = sd.list_ctypes_object(sdlist_r, ravel=True, flat=True)
 sdlist_u_c = sd.list_ctypes_object(sdlist_u, ravel=False, flat=True)
