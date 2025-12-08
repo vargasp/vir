@@ -47,6 +47,7 @@ phantom[:] = 0.0
 phantom = np.zeros(nPixels, dtype=np.float32)
 phantom[4:12,4:12,4:12] = 1.0
     
+
 """
 d = vir.Detector1d(nDets=nDets,dDet=dDet, det_lets=det_lets)
 
@@ -57,17 +58,21 @@ Thetas = np.linspace(0,2*np.pi,nTheta, endpoint=False)
 
 srcs, trgs = pg.geom_circular(d.Dets, Thetas, geom="cone", DetsZ=d.Dets,\
                               det_iso=16, src_iso=32)
-    
 
-    
 sdlist_r = sd.siddons(srcs,trgs,nPixels, dPix, ravel=True, flat=False)
 sdlist_u = sd.siddons(srcs,trgs,nPixels, dPix, ravel=False, flat=False)
 np.save("sdlist_test_r",sdlist_r)
 np.save("sdlist_test_u",sdlist_u)
-
 """
 
-infile_root = '/Users/pvargas21/Codebase/Libraries/vir/tests/Test_Proj/'
+
+
+import os
+script_path = os.path.realpath(__file__)
+infile_root = os.path.dirname(script_path) + os.sep
+
+
+
 sdlist_r = np.load(infile_root+"sdlist_test_r.npy", allow_pickle=True)
 sdlist_u = np.load(infile_root+"sdlist_test_u.npy", allow_pickle=True)
 
@@ -141,9 +146,6 @@ print(f"Difference Python/C: {diff32:.2e}\n")
 """
 
 
-
-
-
 bp1r = proj.sd_b_proj(sino1r, sdlist_r, nPixels, ravel=True)
 bp1u = proj.sd_b_proj(sino1u, sdlist_u, nPixels, ravel=False)
 
@@ -153,6 +155,8 @@ bp3r = np.zeros(nPixels, dtype=np.float32 )
 bp3u = np.zeros(nPixels, dtype=np.float32 )
 bp3r, bp3r_c = mpct.ctypes_vars(bp3r)
 bp3u, bp3u_c = mpct.ctypes_vars(bp3u)
+phantom = np.zeros(nPixels, dtype=np.float32)
+phantom[4:12,4:12,4:12] = 1.0
 phantom, phantom_c = mpct.ctypes_vars(phantom)
 
 proj.sd_b_proj_c(bp2r, sino2r, sdlist_r_c, ravel=True)

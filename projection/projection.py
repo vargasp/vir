@@ -17,9 +17,16 @@ import vir.siddon as sd
 import ctypes
 
 try:
-    proj_so = ctypes.CDLL(__file__.rsplit("/",1)[0] + "/projection_c.so")
+    proj_so = ctypes.CDLL(__file__.rsplit("/",1)[0] + "/projection.so")
+    print("Linux/Mac C code compiled and loaded")
+ 
 except:
-    print("Warning. Projection shared object libray not present.")
+    try:
+        proj_so = ctypes.CDLL(__file__.rsplit("\\",1)[0] + "\\projection.dll")
+        print("PC C code compiled and loaded")
+    except:
+        print("Warning. Projection shared object libray not present.")
+
 
 
 #This block of code uses projection functions that rely on single core and in

@@ -44,9 +44,10 @@ Phillip Vargas, December 2021
 
 // Compilation and linking:
 // gcc -c -Wall -Werror -fpic projection_c.c
-// gcc -shared -o projection_c.so projection_c.o
+// gcc -shared -o projection.so projection_c.o
 
-
+//gcc -c projection_c.c -o projection_c.o
+//gcc -shared projection_c.o -o projection.dll
 
 typedef struct UnraveledRay{
     int n;
@@ -151,8 +152,7 @@ void forward_proj_ravel_rays_struct(float *phantom, float *sino,
 {
     int j;
     for(j=0; j<nRays; j++){
-        forward_proj_ravel_ray_struct(phantom, sino, j, ray);
-        ray++;
+        forward_proj_ravel_ray_struct(phantom, sino, j, &ray[j]);
     }
 }
 
@@ -162,8 +162,7 @@ void forward_proj_unravel_rays_struct(float *phantom, float *sino,
 {   
     int j;
     for(j=0; j<nRays; j++){
-        forward_proj_unravel_ray_struct(phantom, sino, j, ray, dims);
-        ray++;
+        forward_proj_unravel_ray_struct(phantom, sino, j, &ray[j], dims);
     }
     
 }
@@ -204,8 +203,7 @@ void back_proj_ravel_rays_struct(float *phantom, float *sino,
     int j;
 
     for(j=0; j<nRays; j++){
-        back_proj_ravel_ray_struct(phantom, sino, j, ray);
-        ray++;
+        back_proj_ravel_ray_struct(phantom, sino, j, &ray[j]);
     }
 }
 
@@ -216,8 +214,7 @@ void back_proj_unravel_rays_struct(float *phantom, float *sino,
     int j;
 
     for(j=0; j<nRays; j++){
-        back_proj_unravel_ray_struct(phantom, sino, j, ray, dims);
-        ray++;
+        back_proj_unravel_ray_struct(phantom, sino, j, &ray[j], dims);
     }
 }
 
