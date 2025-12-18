@@ -1,358 +1,31 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Fri Oct 30 09:44:45 2020
+Created on Wed Dec 17 11:09:05 2025
 
-@author: vargasp
+@author: varga
 """
-import itertools
+
 import multiprocessing as mp
+import ctypes
+import itertools
+
 import numpy as np
+
 
 import vir.analytic_geom as ag
 import vir.mpct as mpct
-
-
-import vir.siddon as sd
-import ctypes
+import vir.sys_mat.siddon as sd
 
 try:
     proj_so = ctypes.CDLL(__file__.rsplit("/",1)[0] + "/projection.so")
-    print("Linux/Mac C code compiled and loaded")
+    #print("Linux/Mac C code compiled and loaded")
  
 except:
     try:
         proj_so = ctypes.CDLL(__file__.rsplit("\\",1)[0] + "\\projection.dll")
-        print("PC C code compiled and loaded")
+        #print("PC C code compiled and loaded")
     except:
         print("Warning. Projection shared object libray not present.")
-
-
-
-#This block of code uses projection functions that rely on single core and in
-#are soley in python. These are not optimzed for speed
-
-def sd_f_proj_ray(phantom, ray):
-    """
-    Forward projects a single ray in an object array created by Siddons.
-
-    Parameters
-    ----------
-    ray : (4) (nElem) numpy arrays
-        A ray from a siddons object list with unraveled indices 
-    phantom : (3) array_like
-        Discretized numerical phantom
-
-    Returns
-    -------
-    float
-        The line integral summation of the ray through the phantom
-    """
-    return np.sum(phantom[(ray[0],ray[1],ray[2])] * ray[3])
-
-
-def sd_b_proj_ray(phantom, ray, value):
-    """
-    Back projects a single ray in an object array created by Siddons.
-
-    Parameters
-    ----------
-    ray : (4) (nElem) numpy arrays
-        A ray from a siddons object list with unraveled indices 
-    phantom : (3) array_like
-        Discretized numerical phantom
-    value : float
-        The value to project along the ray
-
-    Returns
-    -------
-    None
-    
-        Modifies the phantom parameter 
-    """
-    phantom[(ray[0],ray[1],ray[2])] += ray[3]*value
-    
-
-def sd_f_proj(phantom, sdlist, ravel=True):
-    """
-    Forward projects all of the rays in an object array created by Siddons.
-
-    Parameters
-    ----------
-    sdlist : (...) numpy ndarray of objects
-        the returned array is of shape (...) with 2 lists of the raveled pixel
-        index and intersection lengths or 4 lists of the unraveled pixel 
-        indexes and intersection lengths from siddons 
-    phantom : (3) array_like
-        Discretized numerical phantom
-
-    Returns
-    -------
-    float
-        The line integral summation of the ray through the phantom
-    """
-    sino = np.zeros(sdlist.shape, dtype=np.float32)
-    
-    #Creates views of the data a 1d arrays for faster iteration    
-    sdlist_flat = sdlist.ravel()
-    sino_flat = sino.ravel()
-
-    #Iterates through all of the lists    
-    if ravel:
-        phantom_flat = phantom.ravel()
-
-        for i in range(sdlist_flat.size):
-            if sdlist_flat[i] != None:
-                sino_flat[i] = np.sum(phantom_flat[sdlist_flat[i][0]] * sdlist_flat[i][1])
-        
-    else:
-        for i in range(sdlist_flat.size):
-            if sdlist_flat[i] != None:
-                sino_flat[i] = sd_f_proj_ray(phantom, sdlist_flat[i])
-    
-    
-    return sino
-
-
-def sd_b_proj(sino, sdlist, nPixels, ravel=True):
-    
-    phantom = np.zeros(nPixels, dtype=np.float32)
-    
-    #Creates views of the data a 1d arrays for faster iteration    
-    sdlist_flat = sdlist.ravel()
-    sino_flat = sino.ravel()
-
-    
-    #Iterates through all of the lists    
-    if ravel:
-        phantom_flat = phantom.ravel()
-
-        for i in range(sdlist_flat.size):
-            if sdlist_flat[i] != None:
-                phantom_flat[sdlist_flat[i][0]] += sdlist_flat[i][1]*sino_flat[i]
-            
-    else:
-        for i in range(sdlist_flat.size):
-            if sdlist_flat[i] != None:
-                phantom[(sdlist_flat[i][0],sdlist_flat[i][1],sdlist_flat[i][2])]\
-                        += sdlist_flat[i][3]*sino_flat[i]
-    
-    
-    """
-    #Iterates through all of the lists    
-    for ray_idx, ray in np.ndenumerate(sdlist):
-        if ray != None:
-            phantom[(ray[0],ray[1],ray[2])] += ray[3]*sino[ray_idx]
-    """
-    
-    return phantom
-
-
-
-
-#This block of code uses projection functions that rely on single core and in
-#are written python and C. These improve performance by porting the nested
-#loops to C 
-
-def sd_f_proj_c(phantom, sino, sdlist_c, ravel=True, C=False,dims=None,nRays=None):
-
-    if C:
-        sino_c = sino
-        phantom_c = phantom
-        nX, nY, nZ = dims
-        dims_c = mpct.ctypes_coord(nX, nY, nZ)
-        nRays_c = mpct.c_int(nRays)
-    else:
-        sino, sino_c = mpct.ctypes_vars(sino)
-        phantom, phantom_c = mpct.ctypes_vars(phantom)
-        nX, nY, nZ = phantom.shape
-        dims_c = mpct.ctypes_coord(nX, nY, nZ)
-        nRays_c = mpct.c_int(sino.size)
-
-    if ravel:
-        proj_so.forward_proj_ravel_rays_struct(phantom_c, sino_c, sdlist_c, \
-                                               nRays_c)
-    else:
-        proj_so.forward_proj_unravel_rays_struct(phantom_c, sino_c, sdlist_c, \
-                               dims_c, nRays_c)
-
-    """
-    for ray_idx, ray_c in np.ndenumerate(sdlist_c):
-        if ray_c != None:   
-            sinoElemIdx = mpct.c_int(np.ravel_multi_index(ray_idx,sino.shape))
-            proj_so.forward_proj_ray_u_struct(phantom_c, sino_c, ray_c, \
-                                       dims_c, sinoElemIdx)
-    """
-
-def sd_b_proj_c(phantom, sino, sdlist_c, ravel=True, C=False,dims=None,nRays=None):
-
-    if C:
-        sino_c = sino
-        phantom_c = phantom
-        nX, nY, nZ = dims
-        dims_c = mpct.ctypes_coord(nX, nY, nZ)
-        nRays_c = mpct.c_int(nRays)
-    else:
-        sino, sino_c = mpct.ctypes_vars(sino)
-        phantom, phantom_c = mpct.ctypes_vars(phantom)
-        nX, nY, nZ = phantom.shape
-        dims_c = mpct.ctypes_coord(nX, nY, nZ)
-        nRays_c = mpct.c_int(sino.size)
-
-    if ravel:
-        proj_so.back_proj_ravel_rays_struct(phantom_c, sino_c, sdlist_c, \
-                               nRays_c)
-    else:
-        proj_so.back_proj_unravel_rays_struct(phantom_c, sino_c, sdlist_c, \
-                               dims_c, nRays_c)
-    
-
-    """
-    if flat:
-        proj_so.back_proj_rays_u_struct(phantom_c, sino_c, sdlist_c, \
-                                   dims_c, mpct.c_int(sino.size))
-    else:
-        for ray_idx, ray_c in np.ndenumerate(sdlist_c):
-            if ray_c != None:
-                sinoElemIdx = mpct.c_int(np.ravel_multi_index(ray_idx,sino.shape))
-                proj_so.back_proj_ray_u_struct(phantom_c, sino_c, ray_c, \
-                            dims_c, sinoElemIdx)
-  """
-
-def sd_f_proj_t_c(phantom, sino, sdlist_c, sBinsY, sBinsZ, flat=True): 
-    phantom, phantom_c = mpct.ctypes_vars(phantom)
-
-    nBinsY = sBinsY[1] - sBinsY[0]
-    nBinsZ = sBinsZ[1] - sBinsZ[0]
-
-    nX, nY, nZ = phantom.shape
-    dims_c = mpct.ctypes_coord(nX,nY,nZ)
-    bins0_c = mpct.ctypes_coord(0,sBinsY[0],sBinsZ[0])
-    binsN_c = mpct.ctypes_coord(0,sBinsY[1],sBinsZ[1])
-
-    if flat:
-        sino, sino_c =  mpct.ctypes_vars(sino)
-        nRays_c = mpct.c_int(int(sino.size/nBinsY/nBinsZ))
-
-        proj_so.forward_proj_rays_t(phantom_c, sino_c, sdlist_c,\
-                                         dims_c, bins0_c, \
-                                         binsN_c, nRays_c)
-    else:
-        sino_trans = np.zeros((nBinsY, nBinsZ), dtype=np.float32)
-        sino_trans, sino_trans_c = mpct.ctypes_vars(sino_trans)
-
-        for ray_idx, ray_c in np.ndenumerate(sdlist_c):
-            if ray_c != None:
-                sino_trans[:] = 0.0
-
-                proj_so.forward_proj_ray_t(phantom_c, sino_trans_c, ray_c,\
-                                 dims_c, bins0_c, binsN_c)
-
-                sino[ray_idx] = sino_trans
-
-
-def sd_b_proj_t_c(phantom, sino, sdlist_c, sBinsY, sBinsZ, flat=True): 
-    phantom, phantom_c = mpct.ctypes_vars(phantom)
-
-    nBinsY = sBinsY[1] - sBinsY[0]
-    nBinsZ = sBinsZ[1] - sBinsZ[0]
-
-    nX, nY, nZ = phantom.shape
-    dims_c = mpct.ctypes_coord(nX,nY,nZ)
-    bins0_c = mpct.ctypes_coord(0,sBinsY[0],sBinsZ[0])
-    binsN_c = mpct.ctypes_coord(0,sBinsY[1],sBinsZ[1])
-
-    if flat:
-        sino, sino_c = mpct.ctypes_vars(sino)
-        nRays_c = mpct.c_int(int(sino.size/nBinsY/nBinsZ))
-
-        proj_so.back_proj_rays_t(phantom_c, sino_c, sdlist_c,\
-                                         dims_c, bins0_c, \
-                                         binsN_c, nRays_c)
-    else:
-        sino_trans = np.zeros((nBinsY, nBinsZ), dtype=np.float32)
-        sino_trans, sino_trans_c = mpct.ctypes_vars(sino_trans)
-
-        for ray_idx, ray_c in np.ndenumerate(sdlist_c):
-            if ray_c != None:
-                sino_trans[:,:] = sino[ray_idx].astype(np.float32)
-
-                proj_so.back_proj_ray_t(phantom_c, sino_trans_c, ray_c,\
-                                 dims_c, bins0_c, binsN_c)
-
-
-def sd_f_proj_s_c(phantom, sino, sdlist_c, sBinsY, sBinsZ, flat=True): 
-    phantom, phantom_c = mpct.ctypes_vars(phantom)
-
-    nBinsY = sBinsY[1] - sBinsY[0]
-    nBinsZ = sBinsZ[1] - sBinsZ[0]
-
-    nX, nY, nZ = phantom.shape
-    dims_c = mpct.ctypes_coord(nX,nY,nZ)
-    bins0_c = mpct.ctypes_coord(0,sBinsY[0],sBinsZ[0])
-    binsN_c = mpct.ctypes_coord(0,sBinsY[1],sBinsZ[1])
-
-    if flat:
-        sino, sino_c =  mpct.ctypes_vars(sino)
-        nRays_c = mpct.c_int(int(sino.size/nBinsY/nBinsZ/2))
-
-        proj_so.forward_proj_rays_sym(phantom_c, sino_c, sdlist_c,\
-                                         dims_c, bins0_c, \
-                                         binsN_c, nRays_c)
-    else:
-        sino_trans = np.zeros((nBinsY, nBinsZ, 2), dtype=np.float32)
-        sino_trans, sino_trans_c = mpct.ctypes_vars(sino_trans)
-
-        for ray_idx, ray_c in np.ndenumerate(sdlist_c):
-            if ray_c != None:
-                sino_trans[:] = 0.0
-
-                proj_so.forward_proj_ray_sym(phantom_c, sino_trans_c, ray_c,\
-                                 dims_c, bins0_c, binsN_c)
-
-                sino[ray_idx] = sino_trans
-
-
-def sd_b_proj_s_c(phantom, sino, sdlist_c, sBinsY, sBinsZ, flat=True): 
-    phantom, phantom_c = mpct.ctypes_vars(phantom)
-
-    nBinsY = sBinsY[1] - sBinsY[0]
-    nBinsZ = sBinsZ[1] - sBinsZ[0]
-
-    nX, nY, nZ = phantom.shape
-    dims_c = mpct.ctypes_coord(nX,nY,nZ)
-    bins0_c = mpct.ctypes_coord(0,sBinsY[0],sBinsZ[0])
-    binsN_c = mpct.ctypes_coord(0,sBinsY[1],sBinsZ[1])
-
-    if flat:
-        sino, sino_c = mpct.ctypes_vars(sino)
-        nRays_c = mpct.c_int(int(sino.size/nBinsY/nBinsZ/2))
-        
-        proj_so.back_proj_rays_sym(phantom_c, sino_c, sdlist_c,\
-                                         dims_c, bins0_c, \
-                                         binsN_c, nRays_c)
-    else:
-        sino_trans = np.zeros((nBinsY, nBinsZ,2), dtype=np.float32)
-        sino_trans, sino_trans_c = mpct.ctypes_vars(sino_trans)
-
-        for ray_idx, ray_c in np.ndenumerate(sdlist_c):
-            if ray_c != None:
-                sino_trans[:,:,:] = sino[ray_idx].astype(np.float32)
-
-                proj_so.backproj_ray_sym(phantom_c, sino_trans_c, ray_c,\
-                                 dims_c, bins0_c, binsN_c)
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -1033,4 +706,8 @@ def sd_b_proj_c_var(sino, sdlist, nPixels):
             sd_b_proj_c_ray_var(phantom_c, sino_c, X, Y, Z, L, nElem, nX, nY, nZ, sinoElemIdx)
 
     return phantom
+
+
+
+
 

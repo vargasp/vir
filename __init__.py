@@ -7,5 +7,5 @@ Created on Thu Nov 19 22:27:39 2020
 """
 
 from .core.core_funcs import *
-from .siddon import siddon as siddon
-from .projection import projection as projection
+from .sys_mat import *
+from .projection import *

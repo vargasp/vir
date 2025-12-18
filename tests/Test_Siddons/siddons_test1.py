@@ -152,8 +152,7 @@ h = sd.list2array(a, nPixels, flat=True)
 i = sd.list2array(b, nPixels, ravel=True)
 j = sd.list2array(c, nPixels, ravel=False)
 
-h = h /h.max() 
-vt.CreateImage(h[:,:,0].clip(.999,1))
+vt.CreateImage(h[:,:,0])
 vt.CreateImage(i[:,:,0])
 vt.CreateImage(j[:,:,0])
 
@@ -168,8 +167,8 @@ h = sd.list2array(a, nPixels, flat=True)
 i = sd.list2array(d, nPixels, flat=True)
 j = sd.list2array(e, nPixels, flat=True)
 
-print((h - i)[:,:,0])
-print((h - j)[:,:,0])
+print((h - i).max())
+print((h - j).max())
 
 
 d = sd.list_unravel(b,nPixels)
@@ -178,8 +177,8 @@ h = sd.list2array(a, nPixels, flat=True)
 i = sd.list2array(d, nPixels, ravel=False)
 j = sd.list2array(e, nPixels, ravel=True)
 
-print((h - i)[:,:,0])
-print((h - j)[:,:,0])
+print((h - i).max())
+print((h - j).max())
 
 
 

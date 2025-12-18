@@ -7,10 +7,8 @@ Created on Fri Sep 25 14:17:49 2020
 """
 
 import numpy as np
-from scipy.integrate import tplquad
+#import matplotlib.pyplot as plt
 
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 
 
 
@@ -296,6 +294,8 @@ def sphere_plane_inter_dist(P,S):
         return (np.sqrt(S[3]**2 - d**(2)), d)
 
 
+
+"""
 def plot_plane(P):
 
     xx, yy = np.meshgrid(range(10), range(10))
@@ -309,7 +309,7 @@ def plot_plane(P):
     plt3d.set_ylabel('Y Axis')
     plt3d.set_zlabel('Z Axis')
     plt.show()
-    
+""" 
 
 def pyramid_sa(x, y, z):
     """

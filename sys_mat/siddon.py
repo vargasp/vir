@@ -8,78 +8,6 @@ Created on Tue Jul 20 15:41:27 2021
 
 import numpy as np
 import vir
-import ctypes
-
-import vir.mpct as mpct
-
-
-try:
-    c_test = ctypes.CDLL(__file__.rsplit("/",1)[0] + "/siddons.so")
-except:
-    print("Warning. PSiddons shared object libray not present.")
-
-
-
-
-def list_ctypes_object(sdlist,ravel=False,flat=True):
-    """
-    Converts the data in unraveled array created by siddons to C data types.
-    WARNING!!! It's not clear if this process creates a copy of the data or
-    pointers to the data. 
-
-    Parameters
-    ----------
-    sdlist : (...) numpy ndarray of objects
-        the returned array is of shape (...) with 2 lists of the raveled pixel
-        index and intersection lengths or 4 listst of the unraveled pixel 
-        indexes and intersection lengths from siddons 
-
-    Returns
-    -------
-    sdlist_c : (...) numpy ndarray of C pointers 
-        the returned array is of shape (...) with 2 lists of the raveled pixel
-        index and intersection lengths or 4 listst of the unraveled pixel 
-        indexes and intersection lengths from siddons       
-    """
-     
-    if flat:
-        count = list_count_elem(sdlist).flatten()
-        
-        if ravel:
-            sdlist_c = (mpct.RaveledRay*np.prod(sdlist.shape))()
-        else:
-            sdlist_c = (mpct.UnraveledRay*np.prod(sdlist.shape))()
-
-    
-        for ray_idx, ray in enumerate(sdlist.flatten()):
-            sdlist_c[ray_idx].n =  mpct.ctypes_vars(count[ray_idx])[1]
- 
-            if ray != None and ravel==True:
-                sdlist_c[ray_idx].R = mpct.ctypes_vars(ray[0])[1]
-                sdlist_c[ray_idx].L = mpct.ctypes_vars(ray[1])[1]
-
-            elif ray != None and ravel==False:
-                sdlist_c[ray_idx].X = mpct.ctypes_vars(ray[0])[1]
-                sdlist_c[ray_idx].Y = mpct.ctypes_vars(ray[1])[1]
-                sdlist_c[ray_idx].Z = mpct.ctypes_vars(ray[2])[1]
-                sdlist_c[ray_idx].L = mpct.ctypes_vars(ray[3])[1]
-        sdlist_c = ctypes.byref(sdlist_c)
-
-    else:
-        count = list_count_elem(sdlist)
-        sdlist_c = np.empty(sdlist.shape, dtype=object)
-
-        for ray_idx, ray in np.ndenumerate(sdlist):
-            if ray != None and ravel==True:
-                sdlist_c[ray_idx] = mpct.ctypes_raveled_ray(count[ray_idx],\
-                                                          ray[0],ray[1])
-                                                          
-            elif ray != None and ravel==False:
-                sdlist_c[ray_idx] = mpct.ctypes_unraveled_ray(count[ray_idx],\
-                                                            ray[0],ray[1],\
-                                                            ray[2],ray[3])
-    return sdlist_c
-
 
 def list_del_ind(sdlist, X_ind, Y_ind, Z_ind, ravel=False):
     """
@@ -436,7 +364,7 @@ def rays_weight_ave(sdlist, weights, ravel=False, nPixels=None):
             
             sdlist_weight[ray_idx] = [ray[0],weights[ray_idx]*ray[1]]
 
-    flat_ind, flat_len = list_flatten(sdlist_weight, nPixels=nPixels,ravel=True)
+    flat_ind, flat_len, flat_off = list_flatten(sdlist_weight, nPixels=nPixels,ravel=True)
         
     #Finds all of the unique elemets and thier positions
     flat_ind_ave, idx = np.unique(flat_ind, return_inverse=True)
@@ -534,10 +462,10 @@ def rays_ave(sdlist, ravel=False, flat=False, nPixels=None, nRays=None):
     
     #Flatten the array to get the indices and lengths arrays
     if flat == True:
-        flat_ind, flat_len = sdlist
+        flat_ind, flat_len, flat_off = sdlist
     else:
         nRays = sdlist.size
-        flat_ind, flat_len = list_flatten(sdlist, nPixels=nPixels,ravel=ravel)
+        flat_ind, flat_len, flat_off = list_flatten(sdlist, nPixels=nPixels,ravel=ravel)
         
     #Finds all of the unique elemets and thier positions
     flat_ind_ave, idx = np.unique(flat_ind, return_inverse=True)
@@ -587,11 +515,11 @@ def list_flatten(sdlist,ravel=False,nPixels=None):
         raise ValueError('nPixels must be provided if ravel=False')
     
     #Counts the cumulative total of elments and adds a 0 to the first index
-    count = np.insert(np.cumsum(list_count_elem(sdlist)),0,0)
+    flat_off = np.insert(np.cumsum(list_count_elem(sdlist)),0,0).astype(np.int32)
     
     #Creates the the two arrays for indices and length
-    flat_ind = np.zeros(count[-1],dtype=int)
-    flat_len = np.zeros(count[-1],dtype=np.float32)
+    flat_ind = np.zeros(flat_off[-1],dtype=np.int32)
+    flat_len = np.zeros(flat_off[-1],dtype=np.float32)
 
     #Iterates through the list
     for idx, ray in enumerate(sdlist.flat):
@@ -601,10 +529,10 @@ def list_flatten(sdlist,ravel=False,nPixels=None):
                 ray = ray_ravel(ray,nPixels)
          
             #Copies the ray's elements to the newly created arrays
-            flat_ind[count[idx]:count[idx+1]] = ray[0]
-            flat_len[count[idx]:count[idx+1]] = ray[1]
+            flat_ind[flat_off[idx]:flat_off[idx+1]] = ray[0]
+            flat_len[flat_off[idx]:flat_off[idx+1]] = ray[1]
 
-    return flat_ind, flat_len
+    return flat_ind, flat_len, flat_off
 
 
 def list_ravel(sdlist,nPixels):
@@ -733,11 +661,10 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
         array index (3 arrays corresponding to the X, Y, and Z indices)
         dimensional array. Default is unravled
     flat : bool, optional
-        Stores the data in two np.arrays with raveled pixel indices and
-        intersection lengths. This format loses spatial encoding implict in trg
-        and srcs arrays, but improves performance in accessing indices and 
-        intersection lengths. Applicable in averaging across multiple rays to
-        calculate solid angles
+        Stores the data in three np.arrays with raveled pixel indices,
+        intersection lengths, and ray offsets. This format loses spatial
+        encoding implict in trg and srcs arrays, but improves performance in
+        accessing indices and intersection lengths. 
 
     Returns
     -------
@@ -772,6 +699,9 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
         f0 = 0
         flat_len = np.zeros(3*Rays.size*np.max(nPixels),dtype=np.float32)
         flat_ind = np.zeros(3*Rays.size*np.max(nPixels),dtype=np.int32)
+        flat_off = np.zeros(Rays.size+1,dtype=np.int32)
+        fN = 0
+        flat_off[0] = fN
         
     #Creates the array of grid boundaries
     p0 = np.array([g.Xb[0],g.Yb[0],g.Zb[0]], dtype=np.float32)
@@ -785,7 +715,7 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
     #first and last grid lines. In the case of paralle lines where dST is equal
     #to 0.0, dST is set to epislon for alpha0 and alphaN caluclations. This will
     #allow ensure ray the grid intersection check works 
-    with np.errstate(divide='ignore'):
+    with np.errstate(divide='ignore', invalid='ignore'):
         alpha0 = np.where(dST != 0.0, (p0-src)/dST, (p0-src)/epsilon)
         alphaN = np.where(dST != 0.0, (pN-src)/dST, (pN-src)/epsilon)
             
@@ -822,6 +752,8 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
     
     #Loops through the rays intersecting the source and target
     for ray_idx, ray in np.ndenumerate(Rays):
+        flat_idx = np.ravel_multi_index(ray_idx, Rays.shape)
+        
         
         #If alpha_max <= alpha_min, then the ray doesn't pass through the grid.
         if alpha_bounds[ray_idx + (1,)] > alpha_bounds[ray_idx + (0,)] and \
@@ -869,6 +801,12 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
             z_ind = ((src[idxZ] + mAlpha*dST[idxZ] - g.Zb[0])/g.dZ).astype(np.int32)
            
             length = (distance[ray_idx]*dAlpha).astype(np.float32)
+
+            #Removes elements whith a length of 0.0            
+            x_ind = x_ind[length>0]
+            y_ind = y_ind[length>0]
+            z_ind = z_ind[length>0]
+            length = length[length>0]
             
             #Stores the index and intersection length in flat, raveled, or
             #unraveled form
@@ -884,16 +822,26 @@ def siddons(src, trg, nPixels=128, dPixels=1.0, origin=0.0,\
                 else:
                     Rays[ray_idx] = [x_ind,y_ind,z_ind,length]
                 
+        if flat == True:
+            flat_off[flat_idx+1] = fN
     
     #Returns results as a list for space efficiency or in an array for
     #numerical operation efficiency
     if flat == True:
-        return flat_ind[flat_len>0],flat_len[flat_len>0]
+        return flat_ind[flat_len>0],flat_len[flat_len>0], flat_off
     else:
         return Rays
 
 
 
+"""
+
+
+
+try:
+    c_test = ctypes.CDLL(__file__.rsplit("/",1)[0] + "/siddons.so")
+except:
+    print("Warning. PSiddons shared object libray not present.")
 
 def calc_grid_lines(X,Y,Z, x_size, y_size, z_size):    
     
@@ -935,6 +883,8 @@ class VectF(ctypes.Structure):
 class VoxelLength(ctypes.Structure):
      _fields_ = [("idx", ctypes.c_int),
                 ("length", ctypes.c_float)]
+
+
 
 
 def siddon_c(src, trg, nPixels=128, dPixels=1.0):
@@ -1015,4 +965,4 @@ def forward_project_c(iArray, dArray, nPixels=128, dPixels=1.0):
     #Calculates the grid lines
     c_test.forward_project(iArray_c, dArray_c, nPixels_c, dPixels_c)
  
-
+"""

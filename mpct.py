@@ -6,11 +6,13 @@ Created on Thu Mar 10 13:53:21 2022
 @author: vargasp
 """
 
-import multiprocessing as mp
-import numpy as np
 #import os, psutil
-
+import multiprocessing as mp
 import ctypes
+
+import numpy as np
+import vir.sys_mat.siddon as sd
+
 
 
 """
@@ -33,27 +35,6 @@ def ps_info(out='', m=[]):
 c_int_p = ctypes.POINTER(ctypes.c_int)
 c_float_p = ctypes.POINTER(ctypes.c_float)
 c_double_p = ctypes.POINTER(ctypes.c_double)
-
-
-class UnraveledRay(ctypes.Structure):
-     _fields_ = [("n", ctypes.c_int),
-                 ("X", c_int_p),
-                 ("Y", c_int_p),
-                 ("Z", c_int_p),
-                 ("L", c_float_p)]
-
-
-class RaveledRay(ctypes.Structure):
-     _fields_ = [("n", ctypes.c_int),
-                 ("R", c_int_p),
-                 ("L", c_float_p)]
-
-
-
-class Coord(ctypes.Structure):
-     _fields_ = [("x", ctypes.c_int),
-                 ("y", ctypes.c_int),
-                 ("z", ctypes.c_int)]
 
 
 def c_int(var):
@@ -90,38 +71,6 @@ def c_float(var):
         Float ctypes data type
     """
     return ctypes.c_float(var)
-
-
-def ctypes_coord(x,y,z):
-    return ctypes.byref(Coord(ctypes.c_int(x),\
-                              ctypes.c_int(y),\
-                              ctypes.c_int(z)))
-
-
-def ctypes_unraveled_ray(n,X,Y,Z,L, byref=True):
-    if byref:
-        return ctypes.byref(UnraveledRay(ctypes.c_int(n),
-                                       X.ctypes.data_as(c_int_p),\
-                                       Y.ctypes.data_as(c_int_p),\
-                                       Z.ctypes.data_as(c_int_p),\
-                                       L.ctypes.data_as(c_float_p)))
-    else:
-        return UnraveledRay(ctypes.c_int(n),\
-                          X.ctypes.data_as(c_int_p),\
-                          Y.ctypes.data_as(c_int_p),\
-                          Z.ctypes.data_as(c_int_p),\
-                          L.ctypes.data_as(c_float_p))
-
-
-def ctypes_raveled_ray(n,R,L, byref=True):
-    if byref:
-        return ctypes.byref(RaveledRay(ctypes.c_int(n),\
-                                     R.ctypes.data_as(c_int_p),\
-                                     L.ctypes.data_as(c_float_p)))
-    else:
-        return RaveledRay(ctypes.c_int(n),\
-                        R.ctypes.data_as(c_int_p),\
-                        L.ctypes.data_as(c_float_p))
 
 
 def ctypes_vars(var):
@@ -200,6 +149,119 @@ def ctypes_vars(var):
     # Checks 
     else:
         raise ValueError(type(var),  " is not yet supported in mpct")
+
+
+class UnraveledRay(ctypes.Structure):
+     _fields_ = [("n", ctypes.c_int),
+                 ("X", c_int_p),
+                 ("Y", c_int_p),
+                 ("Z", c_int_p),
+                 ("L", c_float_p)]
+
+
+class RaveledRay(ctypes.Structure):
+     _fields_ = [("n", ctypes.c_int),
+                 ("R", c_int_p),
+                 ("L", c_float_p)]
+
+
+
+class Coord(ctypes.Structure):
+     _fields_ = [("x", ctypes.c_int),
+                 ("y", ctypes.c_int),
+                 ("z", ctypes.c_int)]
+
+def ctypes_coord(x,y,z):
+    return ctypes.byref(Coord(ctypes.c_int(x),\
+                              ctypes.c_int(y),\
+                              ctypes.c_int(z)))
+
+
+def ctypes_unraveled_ray(n,X,Y,Z,L, byref=True):
+    if byref:
+        return ctypes.byref(UnraveledRay(ctypes.c_int(n),
+                                       X.ctypes.data_as(c_int_p),\
+                                       Y.ctypes.data_as(c_int_p),\
+                                       Z.ctypes.data_as(c_int_p),\
+                                       L.ctypes.data_as(c_float_p)))
+    else:
+        return UnraveledRay(ctypes.c_int(n),\
+                          X.ctypes.data_as(c_int_p),\
+                          Y.ctypes.data_as(c_int_p),\
+                          Z.ctypes.data_as(c_int_p),\
+                          L.ctypes.data_as(c_float_p))
+
+
+def ctypes_raveled_ray(n,R,L, byref=True):
+    if byref:
+        return ctypes.byref(RaveledRay(ctypes.c_int(n),\
+                                     R.ctypes.data_as(c_int_p),\
+                                     L.ctypes.data_as(c_float_p)))
+    else:
+        return RaveledRay(ctypes.c_int(n),\
+                        R.ctypes.data_as(c_int_p),\
+                        L.ctypes.data_as(c_float_p))
+
+
+def list_ctypes_object(sdlist,ravel=False,flat=True):
+    """
+    Converts the data in unraveled array created by siddons to C data types.
+    WARNING!!! It's not clear if this process creates a copy of the data or
+    pointers to the data. 
+
+    Parameters
+    ----------
+    sdlist : (...) numpy ndarray of objects
+        the returned array is of shape (...) with 2 lists of the raveled pixel
+        index and intersection lengths or 4 listst of the unraveled pixel 
+        indexes and intersection lengths from siddons 
+
+    Returns
+    -------
+    sdlist_c : (...) numpy ndarray of C pointers 
+        the returned array is of shape (...) with 2 lists of the raveled pixel
+        index and intersection lengths or 4 listst of the unraveled pixel 
+        indexes and intersection lengths from siddons       
+    """
+     
+    if flat:
+        count = sd.list_count_elem(sdlist).flatten()
+        
+        if ravel:
+            sdlist_c = (RaveledRay*np.prod(sdlist.shape))()
+        else:
+            sdlist_c = (UnraveledRay*np.prod(sdlist.shape))()
+
+    
+        for ray_idx, ray in enumerate(sdlist.flatten()):
+            sdlist_c[ray_idx].n =  ctypes_vars(count[ray_idx])[1]
+ 
+            if ray != None and ravel==True:
+                sdlist_c[ray_idx].R = ctypes_vars(ray[0])[1]
+                sdlist_c[ray_idx].L = ctypes_vars(ray[1])[1]
+
+            elif ray != None and ravel==False:
+                sdlist_c[ray_idx].X = ctypes_vars(ray[0])[1]
+                sdlist_c[ray_idx].Y = ctypes_vars(ray[1])[1]
+                sdlist_c[ray_idx].Z = ctypes_vars(ray[2])[1]
+                sdlist_c[ray_idx].L = ctypes_vars(ray[3])[1]
+        sdlist_c = ctypes.byref(sdlist_c)
+
+    else:
+        count = sd.list_count_elem(sdlist)
+        sdlist_c = np.empty(sdlist.shape, dtype=object)
+
+        for ray_idx, ray in np.ndenumerate(sdlist):
+            if ray != None and ravel==True:
+                sdlist_c[ray_idx] = ctypes_raveled_ray(count[ray_idx],\
+                                                          ray[0],ray[1])
+                                                          
+            elif ray != None and ravel==False:
+                sdlist_c[ray_idx] = ctypes_unraveled_ray(count[ray_idx],\
+                                                            ray[0],ray[1],\
+                                                            ray[2],ray[3])
+    return sdlist_c
+
 
 
 def init_shared_array(arr, shape, dtype=float, l=None):

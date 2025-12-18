@@ -61,8 +61,11 @@ srcs, trgs = pg.geom_circular(d.Dets, Thetas, geom="cone", DetsZ=d.Dets,\
 
 sdlist_r = sd.siddons(srcs,trgs,nPixels, dPix, ravel=True, flat=False)
 sdlist_u = sd.siddons(srcs,trgs,nPixels, dPix, ravel=False, flat=False)
+sdlist_f = sd.siddons(srcs,trgs,nPixels, dPix, ravel=True, flat=True)
+
 np.save("sdlist_test_r",sdlist_r)
 np.save("sdlist_test_u",sdlist_u)
+np.save("sdlist_test_f",sdlist_f)
 """
 
 
@@ -75,9 +78,10 @@ infile_root = os.path.dirname(script_path) + os.sep
 
 sdlist_r = np.load(infile_root+"sdlist_test_r.npy", allow_pickle=True)
 sdlist_u = np.load(infile_root+"sdlist_test_u.npy", allow_pickle=True)
+sdlist_f = np.load(infile_root+"sdlist_test_f.npy", allow_pickle=True)
 
-sdlist_r_c = sd.list_ctypes_object(sdlist_r, ravel=True, flat=True)
-sdlist_u_c = sd.list_ctypes_object(sdlist_u, ravel=False, flat=True)
+sdlist_r_c = mpct.list_ctypes_object(sdlist_r, ravel=True, flat=True)
+sdlist_u_c = mpct.list_ctypes_object(sdlist_u, ravel=False, flat=True)
 
 
 import functools
@@ -86,8 +90,14 @@ import vir.mpct as mpct
 iters = 20
 
 
-sino1r = proj.sd_f_proj(phantom, sdlist_r, ravel=True)
-sino1u = proj.sd_f_proj(phantom, sdlist_u, ravel=False)
+sino1r = proj.sd_f_proj(phantom, sdlist_r, ravel=True, flat=False)
+sino1u = proj.sd_f_proj(phantom, sdlist_u, ravel=False, flat=False)
+sino1f = proj.sd_f_proj(phantom, sdlist_f, ravel=True, flat=True,sino_shape=sdlist_r.shape)
+
+sino1n = proj.sd_f_proj_numba(phantom, sdlist_f,sdlist_r.shape)
+sino1np = proj.sd_f_proj_numba_p(phantom, sdlist_f,sdlist_r.shape)
+sino1g = proj.sd_f_proj_numba_g(phantom, sdlist_f,sdlist_r.shape)
+
 
 sino2r = np.zeros(sdlist_r.shape, dtype=np.float32)
 sino2u = np.zeros(sdlist_u.shape, dtype=np.float32) 
@@ -110,17 +120,31 @@ diff21 = np.max(np.abs(sino2r - sino1r))
 diff32 = np.max(np.abs(sino3r - sino2r))
 
 
-"""
-partial_function = functools.partial(proj.sd_f_proj, phantom, sdlist_u,False)
+partial_function = functools.partial(proj.sd_f_proj, phantom, sdlist_u,True,False)
 a = timeit.timeit(partial_function, number=iters)/iters
 print(f"{'FP Single Core Python Unraveled':<25} Time: {a:.5f}s")
 
-partial_function = functools.partial(proj.sd_f_proj, phantom, sdlist_r,True)
+partial_function = functools.partial(proj.sd_f_proj, phantom, sdlist_r,True,False)
 a = timeit.timeit(partial_function, number=iters)/iters
 print(f"{'FP Single Core Python Raveled':<25} Time: {a:.5f}s")
+
+partial_function = functools.partial(proj.sd_f_proj, phantom, sdlist_f,True,True,sdlist_r.shape)
+a = timeit.timeit(partial_function, number=iters)/iters
+print(f"{'FP Single Core Python Flat':<25} Time: {a:.5f}s")
+
+partial_function = functools.partial(proj.sd_f_proj_numba, phantom, sdlist_f,sdlist_r.shape)
+a = timeit.timeit(partial_function, number=iters)/iters
+print(f"{'FP Single Core numba Flat':<25} Time: {a:.5f}s")
+
+partial_function = functools.partial(proj.sd_f_proj_numba_p, phantom, sdlist_f,sdlist_r.shape)
+a = timeit.timeit(partial_function, number=iters)/iters
+print(f"{'FP Single Core numba/par Flat':<25} Time: {a:.5f}s")
+
+
+
 print(f"Difference Ravel: {diff1ru:.2e}\n")
 
-      
+"""
 partial_function = functools.partial(proj.sd_f_proj_c, phantom,sino2u,sdlist_u_c,False,False)
 a = timeit.timeit(partial_function, number=iters)/iters
 print(f"{'FP Single Core C Unraveled':<25} Time: {a:.5f}s")    
@@ -145,6 +169,13 @@ print(f"Difference Python/C: {diff32:.2e}\n")
 
 """
 
+
+
+#################################
+# Backprojection Testing
+################################
+
+"""
 
 bp1r = proj.sd_b_proj(sino1r, sdlist_r, nPixels, ravel=True)
 bp1u = proj.sd_b_proj(sino1u, sdlist_u, nPixels, ravel=False)
@@ -202,6 +233,37 @@ a = timeit.timeit(partial_function, number=iters)/iters
 print(f"{'BP Single Core C Raveled':<30} Time: {a:.5f}s") 
 print(f"Difference Ravel: {diff3ru:.2e}")
 print(f"Difference C/C: {diff32:.2e}\n")
+
+
+
+
+
+
+
+"""
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
