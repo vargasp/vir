@@ -9,16 +9,16 @@ import os
 from sys import path
 from functools import partial as pfunc
 import timeit
-path.append('C:\\Users\\varga\\Codebase\\Libraries')
+#path.append('C:\\Users\\varga\\Codebase\\Libraries')
 
 
 import numpy as np
 import vir
 import vir.sys_mat.siddon as sd
 import vir.projection.proj as proj
-#import vir.projection.proj_ctype as proj_ctype
+import vir.projection.proj_ctype as proj_ctype
 import vir.projection.proj_numba as proj_numba
-import vir.projection.proj_cuda as proj_cuda
+#import vir.projection.proj_cuda as proj_cuda
 
 import vir.proj_geom as pg
 import vir.mpct as mpct
@@ -77,19 +77,16 @@ sino3r, sino3r_c = mpct.ctypes_vars(sino3r)
 sino3u, sino3u_c = mpct.ctypes_vars(sino3u)
 phantom, phantom_c = mpct.ctypes_vars(phantom)
 
-"""
 proj_ctype.sd_f_proj_c(phantom, sino2u, sdlist_u_c, ravel=False, C=False)
 proj_ctype.sd_f_proj_c(phantom, sino2r, sdlist_r_c, ravel=True, C=False)
 proj_ctype.sd_f_proj_c(phantom_c, sino3u_c, sdlist_u_c, ravel=False, C=True,dims=phantom.shape,nRays=sino3u.size)
 proj_ctype.sd_f_proj_c(phantom_c, sino3r_c, sdlist_r_c, ravel=True, C=True,dims=phantom.shape,nRays=sino3r.size)
-"""
 
 
 sino4s = proj_numba.sd_f_proj_numba(phantom, sdlist_f,sdlist_r.shape)
 sino4p = proj_numba.sd_f_proj_numba_p(phantom, sdlist_f,sdlist_r.shape)
 
-sino5 = proj_cuda.sd_f_proj_numba_g(phantom, sdlist_f,sdlist_r.shape)
-print(sino5.max())
+#sino5 = proj_cuda.sd_f_proj_numba_g(phantom, sdlist_f,sdlist_r.shape)
 
 
 diff1u = np.max(np.abs(sino1r - sino1u))
@@ -100,7 +97,7 @@ diff3u = np.max(np.abs(sino3u - sino1u))
 diff3r = np.max(np.abs(sino3r - sino1u))
 diff4s = np.max(np.abs(sino4s - sino1u))
 diff4p = np.max(np.abs(sino4p - sino1u))
-diff5 = np.max(np.abs(sino5 - sino1u))
+#diff5 = np.max(np.abs(sino5 - sino1u))
 
 iters = 50
 
@@ -116,7 +113,7 @@ pf = pfunc(proj.sd_f_proj, phantom,sdlist_f,True,True,sdlist_r.shape)
 a = timeit.timeit(pf, number=iters)/iters
 print(f"{'FP S-Core Python Flt-Rav':<27} Time: {a:.5f}s, Diff: {diff1f:.2e}")
 
-"""
+
 pf = pfunc(proj_ctype.sd_f_proj_c, phantom,sino2u,sdlist_u_c,False,False)
 a = timeit.timeit(pf, number=iters)/iters
 print(f"{'FP S-Core Ctype Shp-Unrav':<27} Time: {a:.5f}s, Diff: {diff3u:.2e}")    
@@ -135,7 +132,7 @@ pf = pfunc(proj_ctype.sd_f_proj_c, \
 a = timeit.timeit(pf, number=iters)/iters
 print(f"{'FP S-Core Ctype C-Shp-Rav':<27} Time: {a:.5f}s, Diff: {diff3r:.2e}")    
 
-"""
+
 pf = pfunc(proj_numba.sd_f_proj_numba, phantom, sdlist_f,sdlist_r.shape)
 a = timeit.timeit(pf, number=iters)/iters
 print(f"{'FP S-Core Numba Flt-Rav':<27} Time: {a:.5f}s, Diff: {diff4s:.2e}")
@@ -144,11 +141,11 @@ pf = pfunc(proj_numba.sd_f_proj_numba_p, phantom, sdlist_f,sdlist_r.shape)
 a = timeit.timeit(pf, number=iters)/iters
 print(f"{'FP M-Core Numba Flt-Rav':<27} Time: {a:.5f}s, Diff: {diff4p:.2e}")
 
-
+"""
 pf = pfunc(proj_cuda.sd_f_proj_numba_g, phantom, sdlist_f,sdlist_r.shape)
 a = timeit.timeit(pf, number=iters)/iters
 print(f"{'FP GPU Numba Flt-Rav':<27} Time: {a:.5f}s, Diff: {diff5:.2e}")
-
+"""
 
 
 
