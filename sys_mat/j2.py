@@ -78,9 +78,10 @@ def back_projection_siddon(volume, rays, projections):
     for ray, proj_val in zip(rays, projections):
         for (ix,iy,iz), length in zip(ray['indices'], ray['lengths']):
             volume[ix,iy,iz] += proj_val * length
-3. Example Usage
-python
-Copy code
+
+
+
+
 # Volume setup
 nx, ny, nz = 64, 64, 64
 voxel_size = np.array([1.0, 1.0, 1.0])
