@@ -282,12 +282,11 @@ def separable_footprint_fp_2d(img, angles, nDets, dPix=1.0, dDet=1.0):
 
                 # For each overlapped bin, calculate geometric overlap
                 for iDet in range(max(0, k_start), min(nDets, k_end)):
-                    overlap_left = max(u_min, Dets_bnd[iDet])
-                    overlap_right = min(u_max, Dets_bnd[iDet+1])
-                    overlap_length = overlap_right - overlap_left
-                    if overlap_length > 0:
+                    left = max(u_min, Dets_bnd[iDet])
+                    right = min(u_max, Dets_bnd[iDet+1])
+                    if right > left:
                         # Normalize by bin width
-                        sino[idxAngle, iDet] += img[iX, iY] * overlap_length / dDet
+                        sino[idxAngle, iDet] += img[iX, iY] * (right - left) / dDet
 
     return sino
 
