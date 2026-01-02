@@ -7,7 +7,7 @@ def project_point_to_detector(P, S, D0, u_hat, v_hat):
 
     Parameters
     ----------
-    P : ndarray, shape (3,)
+    P : ndarray, shape (8,3,)
         3D point in world coordinates.
     S : ndarray, shape (3,)
         Source position.
@@ -23,18 +23,20 @@ def project_point_to_detector(P, S, D0, u_hat, v_hat):
     """
     r = P - S
     n = np.cross(u_hat, v_hat)
+    
+    t = np.sum( (D0 - S)* n) / np.sum(r*n,axis=-1)
+    
+    Q = S + t[:,np.newaxis] * r
 
-    t = np.dot(D0 - S, n) / np.dot(r, n)
-    Q = S + t * r
-
-    u = np.dot(Q - D0, u_hat)
-    v = np.dot(Q - D0, v_hat)
+    u = np.sum((Q - D0)* u_hat,axis=-1)
+    v = np.sum((Q - D0)* v_hat,axis=-1)
 
     return u, v
 
+
 def precompute_dd_weights_3d_uniform(
-    vol_shape,
-    voxel_size,
+    nVoxel,
+    dVoxel,
     sources,
     detectors,
     du,
@@ -47,9 +49,9 @@ def precompute_dd_weights_3d_uniform(
 
     Parameters
     ----------
-    vol_shape : tuple
+    nVoxel : tuple
         (Nx, Ny, Nz) volume dimensions.
-    voxel_size : float
+    dVoxel : float
         Isotropic voxel edge length.
     sources : ndarray, shape (V, 3)
         Source positions.
@@ -64,7 +66,7 @@ def precompute_dd_weights_3d_uniform(
         weights[v] is a list of tuples:
         (ix, iy, iz, iu, iv, w)
     """
-    Nx, Ny, Nz = vol_shape
+    Nx, Ny, Nz = nVoxel
     V = len(sources)
     weights = [[] for _ in range(V)]
 
@@ -78,53 +80,32 @@ def precompute_dd_weights_3d_uniform(
         D0, u_hat, v_hat = detectors[v]
 
         for ix in range(Nx):
-            corners[:4,0] = ox + ix * voxel_size
-            corners[4:,0] = ox + ix * voxel_size + voxel_size
+            corners[:4,0] = ox + ix*voxel_size
+            corners[4:,0] = ox + ix*voxel_size + voxel_size
             
             for iy in range(Ny):
-                corners[[0,1,4,5],1] = oy + iy * voxel_size
-                corners[[2,3,6,7],1] = oy + iy * voxel_size+ voxel_size
+                corners[[0,1,4,5],1] = oy + iy*voxel_size
+                corners[[2,3,6,7],1] = oy + iy*voxel_size + voxel_size
                 
                 for iz in range(Nz):
-                    corners[::2,2] = oz + iz * voxel_size
-                    corners[1::2,2] = oz + iz * voxel_size+ voxel_size
+                    corners[::2,2] = oz + iz*voxel_size
+                    corners[1::2,2] = oz + iz*voxel_size + voxel_size
 
+                   # project the voxel corner
+                    #u_vals, v_vals = project_point_to_detector(corners, S, D0, u_hat, v_hat)
                     
-                    """
-                    # voxel corners
-                    corners = []
-                    for dx in [0, voxel_size]:
-                        for dy in [0, voxel_size]:
-                            for dz in [0, voxel_size]:
-                                corners.append(np.array([
-                                    ox + ix * voxel_size + dx,
-                                    oy + iy * voxel_size + dy,
-                                    oz + iz * voxel_size + dz
-                                ]))
+                    r = corners - S
+                    n = np.cross(u_hat, v_hat)
+                    
+                    t = np.sum( (D0 - S)* n) / np.sum(r*n,axis=-1)
+                    
+                    Q = S + t[:,np.newaxis] * r
 
-                    corners = np.array(corners)
-                    """
+                    u_vals = np.sum((Q - D0)* u_hat,axis=-1)
+                    v_vals = np.sum((Q - D0)* v_hat,axis=-1)
                     
-                    """
-                    counter = 0
-                    for dx in [0, voxel_size]:
-                        for dy in [0, voxel_size]:
-                            for dz in [0, voxel_size]:
-                                corners[counter:] = [ox + ix * voxel_size + dx,
-                                oy + iy * voxel_size + dy,
-                                oz + iz * voxel_size + dz]
-                                counter +=1 
-                                
-                                
-                    """
-                    #uv = [project_point_to_detector(P, S, D0, u_hat, v_hat) for P in corners]
                     
-                    uv = []  # initialize an empty list to store projected coordinates
-                    for P in corners:
-                        uv_point = project_point_to_detector(P, S, D0, u_hat, v_hat)  # project the voxel corner
-                        uv.append(uv_point)  # append the resulting (u, v) coordinates to the list
 
-                    u_vals, v_vals = zip(*uv)
                     u_min, u_max = min(u_vals), max(u_vals)
                     v_min, v_max = min(v_vals), max(v_vals)
 
@@ -256,8 +237,8 @@ sources = np.array(sources)
 
 print("Precomputing distance-driven weights...")
 weights = precompute_dd_weights_3d_uniform(
-    vol_shape=(Nx, Ny, Nz),
-    voxel_size=voxel_size,
+    nVoxel=(Nx, Ny, Nz),
+    dVoxel=voxel_size,
     sources=sources,
     detectors=detectors,
     du=du,
