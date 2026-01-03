@@ -37,12 +37,12 @@ def distance_driven_fp_2d(img, Angs, nDets, dPix=1.0, dDet=1.0):
     Dets_bnd = dDet * (np.arange(nDets+1) - nDets/2.0)
 
     for iAng, angle in enumerate(Angs):
-        Angs_cos, Angs_sin = np.cos(angle), np.sin(angle)
+        ang_cos, ang_sin = np.cos(angle), np.sin(angle)
         
         # X-driven: projection axis is closer to X
-        if abs(Angs_cos) >= abs(Angs_sin):
-            X_cos = Angs_cos * X_bnd
-            Y_sin = Angs_sin * -Y_cnt
+        if abs(ang_cos) >= abs(ang_sin):
+            X_cos = ang_cos * X_bnd
+            Y_sin = ang_sin * -Y_cnt
             
             # If X_cos is decreasing, create reverse views of relevant axes
             if X_cos[1] < X_cos[0]:
@@ -61,7 +61,7 @@ def distance_driven_fp_2d(img, Angs, nDets, dPix=1.0, dDet=1.0):
                     left  = max(P_bnd[iP],   Dets_bnd[iDet])
                     right = min(P_bnd[iP+1], Dets_bnd[iDet+1])
                     if right > left:
-                        sino[iAng,iDet] += row[iP] * (right-left) / (dDet*abs(Angs_cos))
+                        sino[iAng,iDet] += row[iP] * (right-left) / (dDet*abs(ang_cos))
                     
                     # Advance to next pixel or detector
                     if P_bnd[iP+1] < Dets_bnd[iDet+1]:
@@ -71,8 +71,8 @@ def distance_driven_fp_2d(img, Angs, nDets, dPix=1.0, dDet=1.0):
                         
         # Y-driven: projection axis is closer to Y
         else:
-            Y_sin = Angs_sin * -Y_bnd
-            X_cos = Angs_cos * X_cnt
+            Y_sin = ang_sin * -Y_bnd
+            X_cos = ang_cos * X_cnt
             
             # If Y_sin is decreasing, create reverse views of relevant axes
             if Y_sin[1] < Y_sin[0]:
@@ -91,7 +91,7 @@ def distance_driven_fp_2d(img, Angs, nDets, dPix=1.0, dDet=1.0):
                     left  = max(P_bnd[iP],   Dets_bnd[iDet])
                     right = min(P_bnd[iP+1], Dets_bnd[iDet+1])
                     if right > left:
-                        sino[iAng,iDet] += col[iP] * (right-left) / (dDet*abs(Angs_sin))
+                        sino[iAng,iDet] += col[iP] * (right-left) / (dDet*abs(ang_sin))
                     
                     # Advance to next pixel or detector
                     if P_bnd[iP+1] < Dets_bnd[iDet+1]:
@@ -176,53 +176,62 @@ def joseph_fp_2d(img, angles, nDets, dPix=1.0, dDet=1.0):
     sino = np.zeros((angles.size, nDets), dtype=np.float32)
     
     # Grid: centered at zero, units in physical space
-    x0 = - (nX * dPix) / 2.0 + dPix / 2.0  # First pixel center (x)
-    y0 = - (nY * dPix) / 2.0 + dPix / 2.0  # First pixel center (y)
-    x_centers = x0 + np.arange(nX) * dPix
-    y_centers = y0 + np.arange(nY) * dPix
-    det_centers = dDet * (np.arange(nDets) - nDets / 2.0 + 0.5)
+    x0 = -dPix*(nX + 1)/2.0  # First pixel center (x)
+    y0 = -dPix*(nY + 1)/2.0  # First pixel center (y)
 
-    for idxAngle, angle in enumerate(angles):
-        cos_a, sin_a = np.cos(angle), np.sin(angle)
+    Dets_cnt = dDet*(np.arange(nDets) - nDets / 2.0 + 0.5)
+
+
+
+    # Project image grid boundaries onto the ray
+    # Ray length: covers diagonal of image for safety
+    L = dPix * max(nX, nY) * 2
+ 
+    # Find t range so that we cover the whole image
+    t0 = -L / 2
+    t1 =  L / 2
+
+
+    for iAng, angle in enumerate(angles):
+        ang_cos, ang_sin = np.cos(angle), np.sin(angle)
+        
         # Ray direction is [cos_a, sin_a], detector axis is [-sin_a, cos_a]
-        for k in range(nDets):
+        for iDet, det_cnt in enumerate(Dets_cnt):
             # Ray passes through (x_s, y_s)
-            t_det = det_centers[k]
-            x_s = -sin_a * t_det
-            y_s =  cos_a * t_det
 
-            # Project image grid boundaries onto the ray
-            # Ray length: covers diagonal of image for safety
-            L = dPix * max(nX, nY) * 2
+            x_s = -ang_sin * det_cnt
+            y_s =  ang_cos * det_cnt
+           
             # Step size along ray (Joseph typically steps in 1-pixel increments)
-            step = dPix / max(abs(cos_a), abs(sin_a))
-            # Find t range so that we cover the whole image
-            t0 = -L / 2
-            t1 =  L / 2
-
+            step = dPix / max(abs(ang_cos), abs(ang_sin))
+            
             t = t0
             while t <= t1:
                 # Current position along ray
-                x = x_s + cos_a * t
-                y = y_s + sin_a * t
+                x = x_s + ang_cos * t
+                y = y_s + ang_sin * t
+                
                 # Convert to pixel index
                 ix = (x - x0) / dPix
                 iy = (y - y0) / dPix
+                
                 if 0 <= ix < nX-1 and 0 <= iy < nY-1:
                     # Bilinear interpolation
                     ix0 = int(np.floor(ix))
                     iy0 = int(np.floor(iy))
                     dx = ix - ix0
                     dy = iy - iy0
-                    v00 = img[ix0    , iy0    ]
-                    v01 = img[ix0    , iy0 + 1]
-                    v10 = img[ix0 + 1, iy0    ]
-                    v11 = img[ix0 + 1, iy0 + 1]
+                    
+                    v00 = img[ix0  , iy0  ]
+                    v01 = img[ix0  , iy0+1]
+                    v10 = img[ix0+1, iy0  ]
+                    v11 = img[ix0+1, iy0+1]
+                    
                     val = (v00 * (1-dx)*(1-dy) +
                            v10 *    dx *(1-dy) +
                            v01 * (1-dx)*   dy  +
                            v11 *    dx *   dy)
-                    sino[idxAngle, k] += val * step
+                    sino[iAng, iDet] += val * step
                 t += step
     return sino
 
@@ -255,8 +264,8 @@ def separable_footprint_fp_2d(img, angles, nDets, dPix=1.0, dDet=1.0):
     X_bnd = dPix * (np.arange(nX+1) - nX/2.0)
     Y_bnd = dPix * (np.arange(nY+1) - nY/2.0)
 
-    for idxAngle, angle in enumerate(angles):
-        c, s = np.cos(angle), np.sin(angle)
+    for iAng, angle in enumerate(angles):
+        Angs_cos, Angs_sin = np.cos(angle), np.sin(angle)
 
         for iX, (xmin,xmax) in enumerate(zip(X_bnd[:-1],X_bnd[1:])):
             for iY, (ymin,ymax) in enumerate(zip(Y_bnd[:-1],Y_bnd[1:])):
@@ -264,29 +273,26 @@ def separable_footprint_fp_2d(img, angles, nDets, dPix=1.0, dDet=1.0):
                 if img[iX, iY] == 0: continue
                 
                 # Project pixel corners to detector axis
-                # Rectangle projects to interval [u_min, u_max]
                 # These are the min/max of axis_u . (corner position)
-                corners = [
-                    c*ymin - s*xmin,
-                    c*ymax - s*xmin,
-                    c*ymin - s*xmax,
-                    c*ymax - s*xmax]
-                u_min = min(corners)
-                u_max = max(corners)
+                corners = [Angs_cos*ymin - Angs_sin*xmin, Angs_cos*ymax - Angs_sin*xmin,
+                           Angs_cos*ymin - Angs_sin*xmax, Angs_cos*ymax - Angs_sin*xmax]
+
+                P_min = min(corners)
+                P_max = max(corners)
 
                 # Footprint: find detector bins that overlap with rectangle projection
 
                 # Bin k: between det_edges[k], det_edges[k+1]
-                k_start = np.searchsorted(Dets_bnd, u_min, side='right') - 1
-                k_end = np.searchsorted(Dets_bnd, u_max, side='left')
+                iDet0 = np.searchsorted(Dets_bnd, P_min, side='right') - 1
+                iDetN = np.searchsorted(Dets_bnd, P_max, side='left')
 
                 # For each overlapped bin, calculate geometric overlap
-                for iDet in range(max(0, k_start), min(nDets, k_end)):
-                    left = max(u_min, Dets_bnd[iDet])
-                    right = min(u_max, Dets_bnd[iDet+1])
+                for iDet in range(max(0, iDet0), min(nDets, iDetN)):
+                    left = max(P_min, Dets_bnd[iDet])
+                    right = min(P_max, Dets_bnd[iDet+1])
                     if right > left:
                         # Normalize by bin width
-                        sino[idxAngle, iDet] += img[iX, iY] * (right - left) / dDet
+                        sino[iAng, iDet] += img[iX, iY] * (right - left) / dDet
 
     return sino
 
