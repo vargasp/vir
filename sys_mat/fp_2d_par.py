@@ -149,10 +149,6 @@ def dd_fp_par_2d(img, angles, n_det, d_pix=1.0, d_det=1.0):
             u_pix_offset_orth = -sin_t * y_cnt
             img_rot = img #No rotation needed
 
-            # Ensure monotonicity
-            if u_pix_bnd_drive[1] < u_pix_bnd_drive[0]:
-                u_pix_bnd_drive = u_pix_bnd_drive[::-1]
-                img_rot = img_rot[::-1, :]
 
         else:
             # Y-driven
@@ -168,9 +164,11 @@ def dd_fp_par_2d(img, angles, n_det, d_pix=1.0, d_det=1.0):
             # Transposes image so axis 0 correspondsto the driving (sweep) axis
             img_rot = img.T 
 
-            if u_pix_bnd_drive[1] < u_pix_bnd_drive[0]:
-                u_pix_bnd_drive = u_pix_bnd_drive[::-1]
-                img_rot = img_rot[::-1, :]
+        # Ensure monotonicity
+        if u_pix_bnd_drive[1] < u_pix_bnd_drive[0]:
+            u_pix_bnd_drive = u_pix_bnd_drive[::-1]
+            img_rot = img_rot[::-1, :]
+
 
         _dd_fp_par_sweep(
             sino,
@@ -378,7 +376,7 @@ def dd_fp_fan_2d(img, angles, n_det, DSO, DSD, d_pix=1.0, d_det=1.0):
 
 
 
-def _dd_bp_2d_sweep(img,proj,drive_axis,offset,det_bnd,nP,nP2,inv,flip,swap_xy):
+def _dd_bp_2d_sweep(img,proj,drive_axis,offset,det_bnd,nP,nP2,inv):
     """
     Distance-driven backprojection sweep.
 
@@ -396,9 +394,6 @@ def _dd_bp_2d_sweep(img,proj,drive_axis,offset,det_bnd,nP,nP2,inv,flip,swap_xy):
     swap_xy        : bool (write as img[y, x] instead of img[x, y])
     """
 
-    if inv < 1e-12:
-        inv = 1e-12
-
     n_dets = det_bnd.size - 1
 
     for i_orth in range(nP2):
@@ -408,33 +403,20 @@ def _dd_bp_2d_sweep(img,proj,drive_axis,offset,det_bnd,nP,nP2,inv,flip,swap_xy):
         if P_bnd[-1] <= det_bnd[0] or P_bnd[0] >= det_bnd[-1]:
             continue
 
-        i_pix = 0
-        i_det = 0
-
+        i_pix = i_det = 0
         while i_pix < nP and i_det < n_dets:
-            left  = P_bnd[i_pix]     if P_bnd[i_pix]     > det_bnd[i_det]     else det_bnd[i_det]
-            right = P_bnd[i_pix + 1] if P_bnd[i_pix + 1] < det_bnd[i_det + 1] else det_bnd[i_det + 1]
+            left  = max(P_bnd[i_pix],     det_bnd[i_det])
+            right = min(P_bnd[i_pix + 1], det_bnd[i_det + 1])
 
             if right > left:
-                val = proj[i_det] * (right - left) / inv
-
-                ip = nP - 1 - i_pix if flip else i_pix
-
-                if swap_xy:
-                    img[i_orth, ip] += val
-                else:
-                    img[ip, i_orth] += val
+                img[i_pix, i_orth] += proj[i_det] * (right - left) / inv
+            
             # Advance to next pixel or detector
             if P_bnd[i_pix + 1] < det_bnd[i_det + 1]:
                 i_pix += 1
             else:
                 i_det += 1
                 
-
-
-
-
-
 
 def dd_bp_2d(sino, Angs, nX, nY, dPix=1.0, dDet=1.0):
     """
@@ -477,13 +459,7 @@ def dd_bp_2d(sino, Angs, nX, nY, dPix=1.0, dDet=1.0):
             drive_axis = ang_cos * X_bnd
             offset = ang_sin * -Y_cnt
 
-            if drive_axis[1] < drive_axis[0]:
-                drive_axis = drive_axis[::-1]
-                flip_ax = True
-            else:
-                flip_ax = False
-
-            swap_xy = False
+            img_rot = img
             
         # Y-driven
         else:
@@ -492,15 +468,15 @@ def dd_bp_2d(sino, Angs, nX, nY, dPix=1.0, dDet=1.0):
             drive_axis = ang_sin * -Y_bnd
             offset = ang_cos * X_cnt
 
-            if drive_axis[1] < drive_axis[0]:
-                drive_axis = drive_axis[::-1]
-                flip_ax = True
-            else:
-                flip_ax = False
+            img_rot = img.T 
             
-            swap_xy = True
             
-        _dd_bp_2d_sweep(img,proj,drive_axis,offset,Dets_bnd,nP,nP2,inv,flip_ax,swap_xy)
+        if drive_axis[1] < drive_axis[0]:
+            drive_axis = drive_axis[::-1]
+            img_rot = img_rot[::-1, :]
+
+            
+        _dd_bp_2d_sweep(img_rot,proj,drive_axis,offset,Dets_bnd,nP,nP2,inv)
             
     return img
 
@@ -533,6 +509,7 @@ def _dd_bp_fan_sweep(
 
         y_rot = cos_t * o
         denom = DSO - y_rot
+        
         if denom <= 1e-12:
             continue
 
@@ -540,26 +517,22 @@ def _dd_bp_fan_sweep(
         for i in range(n_sweep + 1):
             s = sweep_bnd[i]
             if swap_xy:
+                img_rot = img.T 
                 x_rot = cos_t * orth_cnt[i_orth] + sin_t * s
             else:
                 x_rot = cos_t * s + sin_t * orth_cnt[i_orth]
+                img_rot = img
 
             u_bnd[i] = DSD * x_rot / denom
 
-        i_pix = 0
-        i_det = 0
-
+        i_pix = i_det = 0
         while i_pix < n_sweep and i_det < n_det:
             left  = max(u_bnd[i_pix],     det_bnd[i_det])
             right = min(u_bnd[i_pix + 1], det_bnd[i_det + 1])
 
             if right > left:
-                val = proj[i_det] * (right - left)
-                if swap_xy:
-                    img[i_orth, i_pix] += val
-                else:
-                    img[i_pix, i_orth] += val
-
+                img_rot[i_pix, i_orth] += proj[i_det] * (right - left)
+                
             if u_bnd[i_pix + 1] < det_bnd[i_det + 1]:
                 i_pix += 1
             else:
@@ -602,6 +575,14 @@ def dd_bp_fan_2d(sino, Angs, nX, nY, DSO, DSD, dPix=1.0, dDet=1.0):
         )
 
     return img
+
+
+
+
+
+
+
+
 
 
 
