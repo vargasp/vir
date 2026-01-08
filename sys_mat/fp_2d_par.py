@@ -9,212 +9,366 @@ Created on Thu Jan  1 08:57:56 2026
 import numpy as np
 
 
-def _dd_fp_2d_sweep(sino, img, drive_axis, offset, Dets_bnd, nP, nP2, inv, iAng):
+def _dd_fp_par_sweep(sino,img_rot,u_pix_bnd_drive,u_pix_offset_orth,
+                          u_det_bnd,n_pix_drive,n_pix_orth,proj_scale,i_ang):
+    """
+    Distance-driven sweep kernel for 2D parallel-beam forward projection.
 
-    nDets = Dets_bnd.size - 1
-    
-    for iP2 in range(nP2):
-        
-        # Projected pixel boundaries at the detector plane
-        P_bnd = drive_axis + offset[iP2]
-        img_vec = img[:, iP2]
+    This function performs the core distance-driven accumulation for a single
+    projection angle. It assumes that pixel boundaries projected onto the
+    detector coordinate are monotonic along the driving axis, enabling a
+    linear-time sweep over pixels and detector bins.
 
-        iP = iDet = 0
-        while iP < nP and iDet < nDets:
-            left = max(P_bnd[iP],   Dets_bnd[iDet])
-            right = min(P_bnd[iP+1], Dets_bnd[iDet+1])
+    Geometry:
+        - Parallel-beam
+        - Detector coordinate u is linear and orthogonal to ray direction
+
+    Parameters
+    ----------
+    sino : ndarray, shape (n_angles, n_det)
+        Output sinogram array to be accumulated in-place.
+    img_rot : ndarray, shape (n_pix_drive, n_pix_orth)
+        Image data after transpose and/or flip so that axis 0 corresponds
+        to the driving (sweep) axis.
+    u_pix_bnd_drive : ndarray, shape (n_pix_drive + 1,)
+        Projected pixel boundary coordinates along the driving axis in
+        detector space, independent of orthogonal pixel index.
+    u_pix_offset_orth : ndarray, shape (n_pix_orth,)
+        Orthogonal pixel-center offsets projected onto the detector coordinate.
+    u_det_bnd : ndarray, shape (n_det + 1,)
+        Detector bin boundary coordinates in detector space.
+    n_pix_drive : int
+        Number of pixels along the driving axis.
+    n_pix_orth : int
+        Number of pixels along the orthogonal axis.
+    proj_scale : float
+        Projection scaling factor (typically |cos(theta)| or |sin(theta)|)
+        accounting for pixel width along the ray direction.
+    i_ang : int
+        Index of the current projection angle in the sinogram.
+
+    Notes
+    -----
+    - The sweep assumes strictly monotonic projected pixel boundaries.
+    - Contributions outside the detector range are implicitly discarded.
+    - This function does not allocate memory and updates `sino` in-place.
+    """
+
+    n_det = u_det_bnd.size - 1
+
+    # Loop over orthogonal pixel lines
+    for i_orth in range(n_pix_orth):
+        pix_line = img_rot[:, i_orth]
+
+        # Actual projected pixel boundaries for this pixel row/column
+        u_pix_bnd = u_pix_bnd_drive + u_pix_offset_orth[i_orth]
+
+        i_pix = i_det = 0
+        while i_pix < n_pix_drive and i_det < n_det:
+
+            # Overlap between projected pixel and detector bin
+            left  = max(u_pix_bnd[i_pix],   u_det_bnd[i_det])
+            right = min(u_pix_bnd[i_pix+1], u_det_bnd[i_det+1])
+
             if right > left:
-                sino[iAng, iDet] += img_vec[iP] * (right-left) / inv
+                sino[i_ang, i_det] += pix_line[i_pix] * (right - left) / proj_scale
 
-            # Advance to next pixel or detector
-            if P_bnd[iP+1] < Dets_bnd[iDet+1]:
-                iP += 1
+            # Advance the boundary that ends first
+            if u_pix_bnd[i_pix+1] < u_det_bnd[i_det+1]:
+                i_pix += 1
             else:
-                iDet += 1
+                i_det += 1
 
 
-
-
-
-
-
-def dd_fp_2d(img, Angs, nDets, dPix=1.0, dDet=1.0):
+def dd_fp_par_2d(img, angles, n_det, d_pix=1.0, d_det=1.0):
     """
     Distance-driven forward projection for 2D parallel-beam CT.
 
-    Parameters:
-        img     : ndarray shape (nX, nY)
-        Angs    : ndarray of projection Angs (radians)
-        nDets   : number of detector bins
-        dPix    : pixel width
-        dDet    : detector bin width
-    Returns:
-        sino    : ndarray shape (len(angles), nDets) -- the sinogram
-    """
-    nX, nY = img.shape
-    sino = np.zeros((Angs.size, nDets), dtype=np.float32)
+    This function computes a sinogram from a 2D image using the
+    distance-driven method. For each projection angle, a driving axis
+    (x or y) is selected to ensure well-conditioned, monotonic projection
+    of pixel boundaries onto the detector.
 
-    # Pixel boundaries coordinates
-    X_bnd = dPix * (np.arange(nX+1) - nX/2.0)
-    Y_bnd = dPix * (np.arange(nY+1) - nY/2.0)
+    Geometry:
+        - Parallel-beam
+        - Detector centered at origin
+        - Rays are orthogonal to detector
+
+    Parameters
+    ----------
+    img : ndarray, shape (n_x, n_y)
+        Input 2D image (attenuation coefficients).
+    angles : ndarray, shape (n_angles,)
+        Projection angles in radians.
+    n_det : int
+        Number of detector bins.
+    d_pix : float, optional
+        Pixel width (default is 1.0).
+    d_det : float, optional
+        Detector bin width (default is 1.0).
+
+    Returns
+    -------
+    sino : ndarray, shape (n_angles, n_det)
+        Computed sinogram.
+
+    Notes
+    -----
+    - The distance-driven method conserves total image mass under projection.
+    - Detector and image grids are assumed to be centered at zero.
+    - This implementation performs no explicit ray truncation checks.
+    """
+
+    n_x, n_y = img.shape
+    sino = np.zeros((angles.size, n_det), dtype=np.float32)
+
+    # Pixel boundary coordinates
+    x_bnd = d_pix * (np.arange(n_x + 1) - n_x / 2.0)
+    y_bnd = d_pix * (np.arange(n_y + 1) - n_y / 2.0)
 
     # Pixel center coordinates
-    X_cnt = 0.5 * (X_bnd[:-1] + X_bnd[1:])
-    Y_cnt = 0.5 * (Y_bnd[:-1] + Y_bnd[1:])
+    x_cnt = 0.5 * (x_bnd[:-1] + x_bnd[1:])
+    y_cnt = 0.5 * (y_bnd[:-1] + y_bnd[1:])
 
-    # Detector coordinates
-    Dets_bnd = dDet * (np.arange(nDets+1) - nDets/2.0)
+    # Detector bin boundaries (detector coordinate u)
+    u_det_bnd = d_det * (np.arange(n_det + 1) - n_det / 2.0)
 
-    for iAng, angle in enumerate(Angs):
-        ang_cos, ang_sin = np.cos(angle), np.sin(angle)
+    for i_ang, theta in enumerate(angles):
+        cos_t, sin_t = np.cos(theta), np.sin(theta)
 
-        # X-driven: projection axis is closer to X
-        if abs(ang_cos) >= abs(ang_sin):
-            nP1, nP2 = nX, nY
-            inv = max(dDet*abs(ang_cos), 1e-12)
+        # Choose driving axis so projected boundaries are well-conditioned
+        if abs(cos_t) >= abs(sin_t):
+            # X-driven
+            n_pix_drive, n_pix_orth = n_x, n_y
+            proj_scale = max(abs(cos_t), 1e-12)
 
-            # Rotate the driving axis
-            drive_axis = ang_cos * X_bnd
-            offset = ang_sin * -Y_cnt
+            # Project pixel boundaries onto detector axis
+            u_pix_bnd_drive = cos_t * x_bnd
+            
+            # Orthogonal pixel-center offset added to base detector projection
+            u_pix_offset_orth = -sin_t * y_cnt
+            img_rot = img #No rotation needed
 
-            # If X_cos is decreasing, create reverse views of relevant axes
-            if drive_axis[1] < drive_axis[0]:
-                drive_axis = drive_axis[::-1]
-                imgP = img[::-1, :]
-            else:
-                imgP = img
+            # Ensure monotonicity
+            if u_pix_bnd_drive[1] < u_pix_bnd_drive[0]:
+                u_pix_bnd_drive = u_pix_bnd_drive[::-1]
+                img_rot = img_rot[::-1, :]
 
-        # Y-driven: projection axis is closer to Y
         else:
-            nP1, nP2 = nY, nX
-            inv = max(dDet*abs(ang_sin), 1e-12)
-            drive_axis = ang_sin * -Y_bnd
-            offset = ang_cos * X_cnt
+            # Y-driven
+            n_pix_drive, n_pix_orth = n_y, n_x
+            proj_scale = max(abs(sin_t), 1e-12)
 
-            # If drive_axis is decreasing, create reverse views of relevant axes
-            if drive_axis[1] < drive_axis[0]:
-                drive_axis = drive_axis[::-1]
-                imgP = img[:, ::-1].T
-            else:
-                imgP = img.T
+            # Project pixel boundaries onto detector axis
+            u_pix_bnd_drive = -sin_t * y_bnd
 
-        _dd_fp_2d_sweep(sino, imgP, drive_axis, offset,
-                        Dets_bnd, nP1, nP2, inv, iAng)
+            # Orthogonal pixel-center offset added to base detector projection
+            u_pix_offset_orth = cos_t * x_cnt
+
+            # Transposes image so axis 0 correspondsto the driving (sweep) axis
+            img_rot = img.T 
+
+            if u_pix_bnd_drive[1] < u_pix_bnd_drive[0]:
+                u_pix_bnd_drive = u_pix_bnd_drive[::-1]
+                img_rot = img_rot[::-1, :]
+
+        _dd_fp_par_sweep(
+            sino,
+            img_rot,
+            u_pix_bnd_drive,
+            u_pix_offset_orth,
+            u_det_bnd,
+            n_pix_drive,
+            n_pix_orth,
+            proj_scale,
+            i_ang
+        )
 
     return sino
 
 
-
-
-def dd_fp_fan_2d(img, Angs, nDets, DSO, DSD, dPix=1.0, dDet=1.0):
+def _dd_fp_fan_sweep(sino,img_rot,x_rot_bnd_drive,y_rot_bnd_drive,
+                     x_rot_cnt_orth,y_rot_cnt_orth,u_det_bnd,
+                     n_pix_drive,n_pix_orth,DSO,DSD,i_ang):
     """
-    Distance-driven fan-beam forward projector with full 360° coverage.
-    Handles negative slopes and rays behind the source.
+    Distance-driven sweep kernel for 2D fan-beam forward projection.
+
+    This function performs the core distance-driven accumulation for a single
+    fan-beam projection angle. Pixel boundaries are rotated into the scanner
+    coordinate system and then projected onto the detector via perspective
+    geometry.
+
+    Geometry:
+        - Fan-beam
+        - Point source at distance DSO from origin
+        - Flat detector at distance DSD from source
 
     Parameters
     ----------
-    img     : ndarray shape (nX, nY)
-    Angs    : ndarray of projection angles (radians)
-    nDets   : number of detector bins
-    DSO     : distance from source to origin
-    DSD     : distance from source to detector
-    dPix    : pixel width
-    dDet    : detector bin width
+    sino : ndarray, shape (n_angles, n_det)
+        Output sinogram array to be accumulated in-place.
+    img_rot : ndarray, shape (n_pix_drive, n_pix_orth)
+        Image data after transpose and/or flip so that axis 0 corresponds
+        to the driving (sweep) axis.
+    x_rot_bnd_drive : ndarray, shape (n_pix_drive + 1,)
+        Rotated x-coordinates of pixel boundaries along the driving axis,
+        independent of orthogonal pixel index.
+    y_rot_bnd_drive : ndarray, shape (n_pix_drive + 1,)
+        Rotated y-coordinates of pixel boundaries along the driving axis,
+        independent of orthogonal pixel index.
+    x_rot_cnt_orth : ndarray, shape (n_pix_orth,)
+        Orthogonal pixel-center x-offsets after rotation.
+    y_rot_cnt_orth : ndarray, shape (n_pix_orth,)
+        Orthogonal pixel-center y-offsets after rotation.
+    u_det_bnd : ndarray, shape (n_det + 1,)
+        Detector bin boundary coordinates in detector space.
+    n_pix_drive : int
+        Number of pixels along the driving axis.
+    n_pix_orth : int
+        Number of pixels along the orthogonal axis.
+    DSO : float
+        Distance from source to origin.
+    DSD : float
+        Distance from source to detector.
+    i_ang : int
+        Index of the current projection angle in the sinogram.
+
+    Notes
+    -----
+    - Pixel boundaries are projected using u = DSD * x / (DSO - y).
+    - The sweep assumes projected pixel boundaries are monotonic.
+    - Rays behind the source are not explicitly filtered.
+    - Accumulation is performed in-place.
+    """
+
+    n_det = u_det_bnd.size - 1
+
+    for i_orth in range(n_pix_orth):
+        pix_line = img_rot[:, i_orth]
+
+        # Rotate pixel boundary coordinates for this pixel line
+        x_rot = x_rot_bnd_drive + x_rot_cnt_orth[i_orth]
+        y_rot = y_rot_bnd_drive + y_rot_cnt_orth[i_orth]
+
+        # Project pixel boundaries onto detector coordinate u
+        # u = DSD * x / (DSO - y)
+        u_pix_bnd = DSD * x_rot / (DSO - y_rot)
+
+        i_pix = i_det = 0
+        while i_pix < n_pix_drive and i_det < n_det:
+
+            left  = max(u_pix_bnd[i_pix],   u_det_bnd[i_det])
+            right = min(u_pix_bnd[i_pix+1], u_det_bnd[i_det+1])
+
+            if right > left:
+                #u_pix_bnd already includes fan-beam magnification; no additional DSD scaling here
+                sino[i_ang, i_det] += pix_line[i_pix] * (right - left)
+
+            if u_pix_bnd[i_pix+1] < u_det_bnd[i_det+1]:
+                i_pix += 1
+            else:
+                i_det += 1
+
+
+
+
+def dd_fp_fan_2d(img, angles, n_det, DSO, DSD, d_pix=1.0, d_det=1.0):
+    """
+    Distance-driven forward projection for 2D fan-beam CT.
+
+    This function computes a sinogram from a 2D image using a distance-driven
+    formulation for fan-beam geometry with a flat detector. For each angle,
+    a driving axis is selected to ensure monotonicity of projected pixel
+    boundaries.
+
+    Geometry:
+        - Point source rotating around image origin
+        - Flat detector opposite the source
+        - Full 360-degree angular coverage
+
+    Parameters
+    ----------
+    img : ndarray, shape (n_x, n_y)
+        Input 2D image (attenuation coefficients).
+    angles : ndarray, shape (n_angles,)
+        Projection angles in radians.
+    n_det : int
+        Number of detector bins.
+    DSO : float
+        Distance from source to origin.
+    DSD : float
+        Distance from source to detector.
+    d_pix : float, optional
+        Pixel width (default is 1.0).
+    d_det : float, optional
+        Detector bin width (default is 1.0).
 
     Returns
     -------
-    sino    : ndarray shape (len(Angs), nDets)
+    sino : ndarray, shape (n_angles, n_det)
+        Computed fan-beam sinogram.
+
+    Notes
+    -----
+    - Uses a flat detector parameterized by linear coordinate u.
+    - The distance-driven method conserves projected mass but does not
+      include explicit fan-beam Jacobian weighting.
+    - Pixel and detector grids are assumed to be centered at zero.
+    - Monotonicity of projected boundaries is enforced via axis flipping.
     """
-    nX, nY = img.shape
-    sino = np.zeros((len(Angs), nDets), dtype=np.float32)
+
+    n_x, n_y = img.shape
+    sino = np.zeros((len(angles), n_det), dtype=np.float32)
 
     # Pixel boundaries and centers
-    X_bnd = dPix*(np.arange(nX+1) - nX/2)
-    Y_bnd = dPix*(np.arange(nY+1) - nY/2)
-    X_cnt = 0.5*(X_bnd[:-1] + X_bnd[1:])
-    Y_cnt = 0.5*(Y_bnd[:-1] + Y_bnd[1:])
+    x_bnd = d_pix * (np.arange(n_x + 1) - n_x / 2.0)
+    y_bnd = d_pix * (np.arange(n_y + 1) - n_y / 2.0)
+    x_cnt = 0.5 * (x_bnd[:-1] + x_bnd[1:])
+    y_cnt = 0.5 * (y_bnd[:-1] + y_bnd[1:])
 
-    # Detector boundaries
-    Dets_bnd = dDet*(np.arange(nDets+1) - nDets/2)
+    # Detector bin boundaries
+    u_det_bnd = d_det * (np.arange(n_det + 1) - n_det / 2.0)
 
-    for iAng, ang in enumerate(Angs):
-        cos_t, sin_t = np.cos(ang), np.sin(ang)
+    for i_ang, theta in enumerate(angles):
+        cos_t, sin_t = np.cos(theta), np.sin(theta)
 
-        # Determine driving axis
         if abs(cos_t) >= abs(sin_t):
             # X-driven
-            nP, nP2 = nX, nY
-            drive_axis = X_bnd
-            offset     = -Y_cnt
-            imgP       = img
-            swap_xy = False
-            
+            n_pix_drive, n_pix_orth = n_x, n_y
+
+            x_rot_bnd_drive = cos_t * x_bnd
+            y_rot_bnd_drive = -sin_t * x_bnd
+
+            x_rot_cnt_orth = -sin_t * y_cnt
+            y_rot_cnt_orth = -cos_t * y_cnt
+
+            img_rot = img
+
         else:
             # Y-driven
-            nP, nP2 = nY, nX
-            drive_axis = -Y_bnd
-            offset     = X_cnt
-            imgP       = img.T
-            swap_xy = True
+            n_pix_drive, n_pix_orth = n_y, n_x
 
-        #Precompute P_bnd_ref for iP2=0
-        if swap_xy:
-            x = np.full(nP+1, offset[0])
-            y = drive_axis
-        else:
-            x = drive_axis
-            y = np.full(nP+1, offset[0])
-        
-        x_rot = cos_t*x + sin_t*y
-        y_rot = -sin_t*x + cos_t*y
-        P_bnd_ref = DSD * x_rot / (DSO - y_rot)
-        flip_sweep = P_bnd_ref[-1] < P_bnd_ref[0]
+            x_rot_bnd_drive = -sin_t * y_bnd
+            y_rot_bnd_drive = -cos_t * y_bnd
 
+            x_rot_cnt_orth = cos_t * x_cnt
+            y_rot_cnt_orth = -sin_t * x_cnt
 
-        c_drive_axis = cos_t * drive_axis
-        s_drive_axis = sin_t * drive_axis
-        c_off_axis = cos_t * offset
-        s_off_axis = sin_t * offset
+            img_rot = img.T
 
-        # Loop over orthogonal pixels
-        for iP2 in range(nP2):
-            img_vec = imgP[:, iP2]
+        # Ensure projected boundaries are monotonic
+        x_test = x_rot_bnd_drive + x_rot_cnt_orth[0]
+        y_test = y_rot_bnd_drive + y_rot_cnt_orth[0]
+        u_test = DSD * x_test / (DSO - y_test)
 
-            
-            #o = np.full(nP+1, offset[iP2])
-            if swap_xy:
-                x_rot = s_drive_axis + c_off_axis[iP2]
-                y_rot = c_drive_axis - s_off_axis[iP2]
-            else:
-                x_rot = c_drive_axis + s_off_axis[iP2]
-                y_rot = -s_drive_axis + c_off_axis[iP2]
+        if u_test[-1] < u_test[0]:
+            x_rot_bnd_drive = x_rot_bnd_drive[::-1]
+            y_rot_bnd_drive = y_rot_bnd_drive[::-1]
+            img_rot = img_rot[::-1, :]
 
-            
-            # Compute denominators
-            denom = DSO - y_rot
-                        
-            # Compute projected boundaries
-            P_bnd = DSD * x_rot / denom
-            
-            # Detect overall negative slope and flip sweep if needed
-            if flip_sweep:
-                P_bnd = P_bnd[::-1]
-                img_vec = img_vec[::-1]
-
-            # Distance-driven sweep
-            iP = iDet = 0
-            while iP < nP and iDet < nDets:
-                left  = max(P_bnd[iP],     Dets_bnd[iDet])
-                right = min(P_bnd[iP+1],   Dets_bnd[iDet+1])
-                if right > left:
-                    sino[iAng, iDet] += img_vec[iP] * (right - left)/DSD
-
-                
-                # Advance to next pixel or detector                
-                if P_bnd[iP+1] < Dets_bnd[iDet+1]:
-                    iP += 1
-                else:
-                    iDet += 1
+        _dd_fp_fan_sweep(sino,img_rot,x_rot_bnd_drive,y_rot_bnd_drive,
+                         x_rot_cnt_orth,y_rot_cnt_orth,u_det_bnd,
+                         n_pix_drive,n_pix_orth,DSO, DSD,i_ang)
 
     return sino
 

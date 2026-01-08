@@ -56,13 +56,15 @@ plt.show()
 """
 
 #Disatance to source iso cneter
-DSO =500
+DSO =1e8-1
 
 #Det 2 source
-DSD = 750
+DSD = 1e8
 
-sino1f = proj_2d.dd_fp_fan_2d(img, angles, nDets, DSO, DSD, dPix=1.0, dDet=1.0)
+sino1p = proj_2d.dd_fp_par_2d(img, angles, nDets, d_pix=1.0, d_det=1.0)
+sino1f = proj_2d.dd_fp_fan_2d(img, angles, nDets, DSO, DSD, d_pix=1.0, d_det=1.0)
 plt.imshow(sino1f)
+
 
 """
 
