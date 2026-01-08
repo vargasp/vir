@@ -14,9 +14,12 @@ import vir.sys_mat.fp_2d_par as proj_2d
 
 """
 img = np.zeros((32, 32))
+#img[4:28, 4:28] = 1.0  # center impulse
 img[4:8, 4:8] = 1.0  # center impulse
 
 angles = np.linspace(0, 2*np.pi, 64, endpoint=False)
+#angles = np.array([45*np.pi/4.0])
+
 #angles = np.array([np.pi/4])
 nDets = 64
 dDet = .5
@@ -76,14 +79,16 @@ plt.title("DD Fanbean")
 plt.xlabel("Detector bin")
 plt.ylabel("Angle")
 
+#plt.plot(sino1p[0,:])
+#plt.plot(sino1f[0,:])
 
 
 """
 #Disatance to source iso cneter
-DSO =1e8-1
+DSO = 1
 
 #Det 2 source
-DSD = 1e8
+DSD = 1
 
 dDet = .5
 nDets = 64
@@ -91,7 +96,7 @@ nAngs = 32
 r = 2
 x0 = 4
 y0 =4
-
+d_pix = 1.5
 Dets = dDet*(np.arange(nDets) - nDets / 2.0 + 0.5)
 
 
@@ -109,8 +114,8 @@ for i, theta in enumerate(Angs):
 
 
 
-rec1p = proj_2d.dd_bp_2d(sino, Angs, nX, nY, dPix=1.0, dDet=dDet)
-rec1f = proj_2d.dd_bp_fan_2d(sino, Angs, nX, nY, DSO, DSD, dPix=1.0, dDet=1.0)
+rec1p = proj_2d.dd_bp_2d(sino, Angs, nX, nY, d_pix=d_pix, d_det=dDet)
+rec1f = proj_2d.dd_bp_fan_2d(sino, Angs, nX, nY, DSO, DSD, d_pix=d_pix, d_det=dDet)
 # plt.imshow(rec)
 
 plt.figure(figsize=(4,2))
@@ -125,5 +130,10 @@ plt.imshow(rec1f, cmap='gray', aspect='auto', origin='lower')
 plt.title("DD Fanbean")
 plt.xlabel("Detector bin")
 plt.ylabel("Angle")
+
+
+#plt.plot(rec1p[20,:])
+#plt.plot(rec1f[20,:])
+
 
 
