@@ -173,21 +173,22 @@ def dd_fp_fan_2d(img, Angs, nDets, DSO, DSD, dPix=1.0, dDet=1.0):
 
         c_drive_axis = cos_t * drive_axis
         s_drive_axis = sin_t * drive_axis
+        c_off_axis = cos_t * offset
+        s_off_axis = sin_t * offset
 
         # Loop over orthogonal pixels
         for iP2 in range(nP2):
             img_vec = imgP[:, iP2]
 
             
-            o = np.full(nP+1, offset[iP2])
+            #o = np.full(nP+1, offset[iP2])
             if swap_xy:
-                x_rot = cos_t * o + s_drive_axis
-                y_rot = -sin_t * o + c_drive_axis
+                x_rot = s_drive_axis + c_off_axis[iP2]
+                y_rot = c_drive_axis - s_off_axis[iP2]
             else:
-                x_rot = c_drive_axis + sin_t * o
-                y_rot = -s_drive_axis + cos_t * o
+                x_rot = c_drive_axis + s_off_axis[iP2]
+                y_rot = -s_drive_axis + c_off_axis[iP2]
 
-            
             
             # Compute denominators
             denom = DSO - y_rot
