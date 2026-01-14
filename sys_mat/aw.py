@@ -459,7 +459,7 @@ def aw_bp_2d_fan_flat(sino, Angs, img_shape, DSO, DSD, dPix=1.0, d_det=1.0):
     cosA = np.cos(Angs)
     sinA = np.sin(Angs)
 
-    det_u =(DSD / DSO)* d_det * (np.arange(n_dets) - 0.5 * n_dets + 0.5)
+    det_u = d_det * (np.arange(n_dets) - 0.5 * n_dets + 0.5)
 
     for ia in range(nAng):
 
