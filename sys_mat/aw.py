@@ -97,7 +97,7 @@ def _fp_2d_traverse_grid(img,sino,ia,idt,t0,t1,tMaxX,tMaxY,tDeltaX,tDeltaY,
     sino[ia, idt] = acc
 
 
-def aw_fp_2d(img, Angs, n_dets, d_det=1.0, d_pix=1.0):
+def aw_fp_2d(img, angles, n_dets, d_det=1.0, d_pix=1.0):
     """
     2D parallel-beam forward projection using Amanatides–Woo ray traversal.
 
@@ -122,7 +122,7 @@ def aw_fp_2d(img, Angs, n_dets, d_det=1.0, d_pix=1.0):
     ----------
     img : ndarray, shape (nX, nY)
         Input image (voxel values).
-    Angs : ndarray, shape (nAng,)
+    angles : ndarray, shape (nAng,)
         Projection angles in radians.
     n_dets : int
         Number of detector bins.
@@ -137,32 +137,26 @@ def aw_fp_2d(img, Angs, n_dets, d_det=1.0, d_pix=1.0):
         Sinogram (line integrals).
     """
 
-    nX, nY = img.shape          # number of pixels in x and y
-    nAng = Angs.size            # number of projection angles
+    n_x, n_y = img.shape          # number of pixels in x and y
 
     # Output sinogram: one value per (angle, detector)
-    sino = np.zeros((nAng, n_dets), dtype=np.float32)
+    sino = np.zeros((angles.size, n_dets), dtype=np.float32)
 
     # Define image bounding box in world coordinates
-    Xmin = -0.5 * nX * d_pix
-    Xmax =  0.5 * nX * d_pix
-    Ymin = -0.5 * nY * d_pix
-    Ymax =  0.5 * nY * d_pix
+    Xmin = -0.5 * n_x * d_pix
+    Xmax =  0.5 * n_x * d_pix
+    Ymin = -0.5 * n_y * d_pix
+    Ymax =  0.5 * n_y * d_pix
 
-    # Precompute trigonometric values for all angles
-    cosA = np.cos(Angs)
-    sinA = np.sin(Angs)
+    # Precompute ray direction for all angles
+    cos_angles = np.cos(angles)
+    sin_angles = np.sin(angles)
 
-    # Detector positions
-    det_u = d_det * (np.arange(n_dets) - n_dets/2 + 0.5)
-
+    # Detector bin centers (detector coordinate u)
+    u_cnt = d_det * (np.arange(n_dets) - n_dets/2 + 0.5)
 
     # Main loops: angles → detectors → voxel traversal
-    for ia in range(nAng):
-
-        # Ray direction for this angle
-        dx = cosA[ia]
-        dy = sinA[ia]
+    for i_ang, (dx,dy) in enumerate(zip(cos_angles,sin_angles)):
 
         # Absolute values are used for step size calculations
         adx = abs(dx)
@@ -171,7 +165,7 @@ def aw_fp_2d(img, Angs, n_dets, d_det=1.0, d_pix=1.0):
         for idt in range(n_dets):
             # Each ray is parameterized as:
             #   r(t) = (x0, y0) + t * (dx, dy)
-            det = det_u[idt]
+            det = u_cnt[idt]
             x0 = -dy * det
             y0 =  dx * det
 
@@ -204,8 +198,8 @@ def aw_fp_2d(img, Angs, n_dets, d_det=1.0, d_pix=1.0):
             step_y, tDeltaY, tMaxY = _fp_2d_step_init(y0, iy, dy, ady, Ymin, d_pix)
             
             # Traverse the grid voxel-by-voxel
-            _fp_2d_traverse_grid(img,sino,ia,idt,t0,t1,tMaxX,tMaxY,tDeltaX,tDeltaY,
-                                     step_x,step_y,ix,iy,nX,nY,d_pix)
+            _fp_2d_traverse_grid(img,sino,i_ang,idt,t0,t1,tMaxX,tMaxY,tDeltaX,tDeltaY,
+                                     step_x,step_y,ix,iy,n_x,n_y,d_pix)
 
     #Returns the sino
     return sino

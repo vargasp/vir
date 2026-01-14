@@ -12,6 +12,7 @@ import numpy as np
 
 import vir.sys_mat.dd as dd
 import vir.sys_mat.aw as aw
+import vir.sys_mat.joseph as jp
 import vir.sys_mat.fp_2d_par as proj_2d
 
 
@@ -42,13 +43,14 @@ img = np.zeros((nX, nY))
 #img[14:18, 14:18] = 1.0  # center impulse
 img[4:8, 4:8] = 1.0  # center impulse
 
+"""
 plt.figure(figsize=(3,3))
 plt.subplot(1,1,1)
 plt.imshow(img.T, cmap='gray', aspect='auto', origin='lower')
 plt.title("Image Phantom")
 plt.xlabel("X Pixels")
 plt.ylabel("Y Pixels")
-
+"""
 
 
 #Test Sino
@@ -64,7 +66,7 @@ for i, theta in enumerate(angles):
 
 
 sino1 = proj_2d.siddons_fp_2d(img, angles, n_dets, d_det=d_det, d_pix=d_pix)
-sino2 = proj_2d.joseph_fp_2d( img, angles, n_dets, d_det=d_det, d_pix=d_pix)
+sino2 = jp.joseph_fp_2d( img, angles, n_dets, d_det=d_det, d_pix=d_pix)
 sino3 = dd.dd_fp_par_2d(      img, angles, n_dets, d_det=d_det, d_pix=d_pix)
 sino4 = aw.aw_fp_2d(     img, angles, n_dets, d_det=d_det, d_pix=d_pix)
 
@@ -97,7 +99,7 @@ plt.ylabel("Angle")
 plt.tight_layout()
 plt.show()
 
-
+"""
 plt.subplot(1,1,1)
 plt.plot(sino1[0,:], label='Siddon Parallel')
 plt.plot(sino2[0,:], label='Joseph Parallel')
@@ -109,9 +111,10 @@ plt.ylabel("Intensity")
 plt.legend()
 plt.show()
 
-
+"""
 print("Siddons/AW Diff:", (sino1-sino4).max())
-print("DD AW 1st Ang Diff:", (sino1[0,:]-sino3[0,:]).max())
+print("Siddons/Joe Diff:", (sino1-sino2).max())
+print("Siddons/DD Diff:", (sino1-sino3).max())
 
 """
 

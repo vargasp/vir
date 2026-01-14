@@ -9,7 +9,7 @@ Created on Wed Jan 14 13:13:31 2026
 
 import numpy as np
 
-def joseph_fp_2d(img, Angs, n_dets, d_det=1.0, d_pix=1.0):
+def joseph_fp_2d(img, angles, n_dets, d_det=1.0, d_pix=1.0):
     """
     Joseph's ray-interpolation forward projector for 2D parallel-beam CT.
 
@@ -23,32 +23,35 @@ def joseph_fp_2d(img, Angs, n_dets, d_det=1.0, d_pix=1.0):
     Returns:
         sino    : ndarray (len(angles), nDets)
     """
-    img = np.ascontiguousarray(img, dtype=np.float32)
-    Angs = np.asarray(Angs)
-    nX, nY = img.shape
-    sino = np.zeros((Angs.size, n_dets), dtype=np.float32)
+
+    n_x, n_y = img.shape
+    sino = np.zeros((angles.size, n_dets), dtype=np.float32)
 
     # Grid: centered at zero, units in physical space
-    x0 = -d_pix * nX/2 + d_pix/2 # First pixel center (x)
-    y0 = -d_pix * nY/2 + d_pix/2 # First pixel center (y)
+    x0 = -d_pix * n_x/2 + d_pix/2 # First pixel center (x)
+    y0 = -d_pix * n_y/2 + d_pix/2 # First pixel center (y)
 
-    Dets_cnt = d_det*(np.arange(n_dets) - n_dets / 2.0 + 0.5)
+    # Detector bin centers (detector coordinate u)
+    u_cnt = d_det*(np.arange(n_dets) - n_dets / 2.0 + 0.5)
 
     # Project image grid boundaries onto the ray
     # Ray length: covers diagonal of image for safety
-    L = d_pix * max(nX, nY) * 2
+    L = d_pix * max(n_x, n_y) * 2
 
     # Find t range so that we cover the whole image
     t0 = -L / 2
     t1 = L / 2
 
-    for iAng, angle in enumerate(Angs):
-        ang_cos, ang_sin = np.cos(angle), np.sin(angle)
+    # Precompute trig functions for all angles
+    cos_angles = np.cos(angles)
+    sin_angles = np.sin(angles)
+
+    for i_ang, (ang_cos,ang_sin) in enumerate(zip(cos_angles,sin_angles)):
 
         # Ray direction is [cos_a, sin_a], detector axis is [-sin_a, cos_a]
-        for iDet, det_cnt in enumerate(Dets_cnt):
+        for iDet, det_cnt in enumerate(u_cnt):
+            
             # Ray passes through (x_s, y_s)
-
             x_s = -ang_sin * det_cnt
             y_s = ang_cos * det_cnt
 
@@ -65,7 +68,7 @@ def joseph_fp_2d(img, Angs, n_dets, d_det=1.0, d_pix=1.0):
                 ix = (x - x0) / d_pix
                 iy = (y - y0) / d_pix
 
-                if 0 <= ix < nX-1 and 0 <= iy < nY-1:
+                if 0 <= ix < n_x-1 and 0 <= iy < n_y-1:
                     # Bilinear interpolation
                     ix0 = int(np.floor(ix))
                     iy0 = int(np.floor(iy))
@@ -81,7 +84,7 @@ def joseph_fp_2d(img, Angs, n_dets, d_det=1.0, d_pix=1.0):
                            v10 * dx * (1-dy) +
                            v01 * (1-dx) * dy +
                            v11 * dx * dy)
-                    sino[iAng, iDet] += val * step
+                    sino[i_ang, iDet] += val * step
                 t += step
     return sino
 

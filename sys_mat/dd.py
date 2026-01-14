@@ -132,37 +132,40 @@ def dd_fp_par_2d(img, angles, n_dets, d_det=1.0, d_pix=1.0):
     # Detector bin boundaries (detector coordinate u)
     u_det_bnd = d_det * (np.arange(n_dets + 1) - n_dets / 2.0)
 
-    for i_ang, theta in enumerate(angles):
-        cos_t, sin_t = np.cos(theta), np.sin(theta)
+    # Precompute trig functions for all angles
+    cos_angles = np.cos(angles)
+    sin_angles = np.sin(angles)
+
+    for i_ang, (ang_cos,ang_sin) in enumerate(zip(cos_angles,sin_angles)):
 
         # Choose driving axis so projected boundaries are well-conditioned
-        if abs(sin_t) >= abs(cos_t):
+        if abs(ang_sin) >= abs(ang_cos):
             # X-driven
             n_pix_drive, n_pix_orth = n_x, n_y
-            proj_scale = max(abs(sin_t), 1e-12)
+            proj_scale = max(abs(ang_sin), 1e-12)
 
             # Project pixel boundaries onto detector axis
             #u_pix_bnd_drive = cos_t * x_bnd
-            u_pix_bnd_drive = -sin_t * x_bnd
+            u_pix_bnd_drive = -ang_sin * x_bnd
            
             # Orthogonal pixel-center offset added to base detector projection
             #u_pix_offset_orth = -sin_t * y_cnt
-            u_pix_offset_orth = cos_t * y_cnt
+            u_pix_offset_orth = ang_cos * y_cnt
             img_rot = img #No rotation needed
 
 
         else:
             # Y-driven
             n_pix_drive, n_pix_orth = n_y, n_x
-            proj_scale = max(abs(cos_t), 1e-12)
+            proj_scale = max(abs(ang_cos), 1e-12)
 
             # Project pixel boundaries onto detector axis
             #u_pix_bnd_drive = -sin_t * y_bnd
-            u_pix_bnd_drive = cos_t * y_bnd
+            u_pix_bnd_drive = ang_cos * y_bnd
 
             # Orthogonal pixel-center offset added to base detector projection
             #u_pix_offset_orth = cos_t * x_cnt
-            u_pix_offset_orth = -sin_t * x_cnt
+            u_pix_offset_orth = -ang_sin * x_cnt
 
             # Transposes image so axis 0 correspondsto the driving (sweep) axis
             img_rot = img.T 
