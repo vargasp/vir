@@ -242,11 +242,9 @@ def _dd_fp_fan_2d_sweep(sino, img, u_pix_bnd_drive, u_pix_offset_orth,
             right = min(u_pix_bnd[i_pix+1],   det_bnd[i_det+1])
             
             if right > left:
-                # Magnification of this pixel due to fan geometry
-                # pixel length in detector space = Δu * (DSO - y) / DSD
-                
                 # Accumulate line integral, correcting for fan-beam magnification
                 sino[i_ang, i_det] += pix_line[i_pix] * (right - left) / proj_scale
+
 
             # Advance to next pixel or detector bin
             if u_pix_bnd[i_pix+1] < det_bnd[i_det+1]:
@@ -300,13 +298,20 @@ def dd_fp_fan_2d(img, Angs, n_dets, DSO, DSD, d_det=1.0, d_pix=1.0):
     nX, nY = img.shape
     sino = np.zeros((len(Angs), n_dets), dtype=np.float32)
 
-    # Pixel boundaries and centers
+    
+    # --------------------------------------------------
+    # Define pixel boundaries and centers in image space
+    # --------------------------------------------------
+    # X_bnd, Y_bnd: positions of pixel edges along X and Y
+    # X_cnt, Y_cnt: positions of pixel centers (used for orthogonal offsets)
+    # Centered at origin (0,0)
     X_bnd = d_pix * (np.arange(nX+1) - nX/2)
     Y_bnd = d_pix * (np.arange(nY+1) - nY/2)
     X_cnt = 0.5 * (X_bnd[:-1] + X_bnd[1:])
     Y_cnt = 0.5 * (Y_bnd[:-1] + Y_bnd[1:])
 
-    # Detector bin boundaries
+    # Detector bin boundaries along the fan-beam arc
+    # Centered at u = 0
     u_det_bnd = d_det * (np.arange(n_dets + 1) - n_dets / 2.0)
 
     for i_ang, theta in enumerate(Angs):
@@ -318,33 +323,50 @@ def dd_fp_fan_2d(img, Angs, n_dets, DSO, DSD, d_det=1.0, d_pix=1.0):
             n_pix_drive, n_pix_orth = nX, nY
             
             
+            # ray_scale corrects for oblique rays
+            # It converts projected pixel overlap along X into approximate
+            # true ray length (distance-driven first-order correction)
+            ray_scale = abs(sin_t)
+            
+            # Project pixel boundaries along driving axis onto detector
+            # Each X pixel boundary is projected along the ray direction
             u_pix_bnd_drive = -sin_t * X_bnd
+            
+            # Orthogonal pixel offsets along the detector plane (Y contribution)
             u_pix_offset_orth = cos_t * Y_cnt
 
-
-            #u_pix_offset_orth = -sin_t * Y_cnt   # orthogonal offsets
-            #u_pix_bnd_drive = cos_t * X_bnd      # base projected boundaries
             
             imgP = img
         else:
             # Y-driven
             n_pix_drive, n_pix_orth = nY, nX
+            ray_scale = abs(cos_t)
             
             u_pix_bnd_drive = cos_t * Y_bnd
-            u_pix_offset_orth = -sin_t * X_cnt
-
-            #u_pix_bnd_drive = -sin_t * Y_bnd
-            #u_pix_offset_orth = cos_t * X_cnt
+            u_pix_offset_orth = -sin_t * X_cnt          
             
-            
+            # Transpose image so driving axis is along rows
             imgP = img.T
 
-        # If projected pixels are decreasing along detector, reverse them
+        # ---------------------------------------------------
+        # If projected pixel boundaries are decreasing along
+        # the detector axis, flip them to ensure monotonically
+        # increasing order. This keeps the DD sweep consistent.
+        # ---------------------------------------------------
         if u_pix_bnd_drive[-1] < u_pix_bnd_drive[0]:
             u_pix_bnd_drive = u_pix_bnd_drive[::-1]
             imgP = imgP[::-1, :]
 
-        proj_scale = DSD / (DSO - u_pix_offset_orth)
+        # ---------------------------------------------------
+        # Fan-beam magnification correction:
+        # Each pixel's overlap is divided by proj_scale
+        # to approximate true line integral along the ray.
+        # Multiply by ray_scale to convert driving-axis projection
+        # to ray length (first-order diagonal correction)
+        # ---------------------------------------------------
+        magnification = DSD / (DSO - u_pix_offset_orth)
+        proj_scale = magnification * ray_scale
+
         # Sweep along driving axis
         _dd_fp_fan_2d_sweep(sino, imgP, u_pix_bnd_drive, u_pix_offset_orth,
                             u_det_bnd, n_pix_drive, n_pix_orth, proj_scale, i_ang)
@@ -781,6 +803,4 @@ def dd_fp_cone_3d(
         )
 
     return sino
-
-
 

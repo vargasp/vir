@@ -1,328 +1,183 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Sun Dec 28 22:13:19 2025
+Created on Wed Jan 14 13:13:31 2026
 
-@author: varga
+@author: vargasp
 """
+
+
 import numpy as np
 
-
-def precompute_joseph(srcs, trgs, img_shape, origin, spacing, mode='ragged'):
+def joseph_fp_2d(img, Angs, n_dets, d_det=1.0, d_pix=1.0):
     """
-    Precompute Joseph ray geometry.
+    Joseph's ray-interpolation forward projector for 2D parallel-beam CT.
+
+    Parameters:
+        img     : ndarray, shape (nX, nY)
+        angles  : ndarray of projection angles [radians]
+        nDets   : number of detector bins
+        d_pix    : pixel size (width)
+        d_det    : detector bin width
+
+    Returns:
+        sino    : ndarray (len(angles), nDets)
+    """
+    img = np.ascontiguousarray(img, dtype=np.float32)
+    Angs = np.asarray(Angs)
+    nX, nY = img.shape
+    sino = np.zeros((Angs.size, n_dets), dtype=np.float32)
+
+    # Grid: centered at zero, units in physical space
+    x0 = -d_pix * nX/2 + d_pix/2 # First pixel center (x)
+    y0 = -d_pix * nY/2 + d_pix/2 # First pixel center (y)
+
+    Dets_cnt = d_det*(np.arange(n_dets) - n_dets / 2.0 + 0.5)
+
+    # Project image grid boundaries onto the ray
+    # Ray length: covers diagonal of image for safety
+    L = d_pix * max(nX, nY) * 2
+
+    # Find t range so that we cover the whole image
+    t0 = -L / 2
+    t1 = L / 2
+
+    for iAng, angle in enumerate(Angs):
+        ang_cos, ang_sin = np.cos(angle), np.sin(angle)
+
+        # Ray direction is [cos_a, sin_a], detector axis is [-sin_a, cos_a]
+        for iDet, det_cnt in enumerate(Dets_cnt):
+            # Ray passes through (x_s, y_s)
+
+            x_s = -ang_sin * det_cnt
+            y_s = ang_cos * det_cnt
+
+            # Step size along ray (Joseph typically steps in 1-pixel increments)
+            step = d_pix / max(abs(ang_cos), abs(ang_sin))
+
+            t = t0
+            while t <= t1:
+                # Current position along ray
+                x = x_s + ang_cos * t
+                y = y_s + ang_sin * t
+
+                # Convert to pixel index
+                ix = (x - x0) / d_pix
+                iy = (y - y0) / d_pix
+
+                if 0 <= ix < nX-1 and 0 <= iy < nY-1:
+                    # Bilinear interpolation
+                    ix0 = int(np.floor(ix))
+                    iy0 = int(np.floor(iy))
+                    dx = ix - ix0
+                    dy = iy - iy0
+
+                    v00 = img[ix0, iy0]
+                    v01 = img[ix0, iy0+1]
+                    v10 = img[ix0+1, iy0]
+                    v11 = img[ix0+1, iy0+1]
+
+                    val = (v00 * (1-dx)*(1-dy) +
+                           v10 * dx * (1-dy) +
+                           v01 * (1-dx) * dy +
+                           v11 * dx * dy)
+                    sino[iAng, iDet] += val * step
+                t += step
+    return sino
+
+
+def joseph_fp_fan_2d(img, Angs, n_dets, DSO, DSD, d_det=1.0, d_pix=1.0):
+    """
+    Joseph's method forward projector for 2D fan-beam CT.
 
     Parameters
     ----------
-    srcs : ndarray, shape [nBins, nAngles, 3]
-    trgs : ndarray, shape [nBins, nAngles, 3]
-    img_shape : tuple (nx,ny,nz)
-    origin : tuple (x0,y0,z0)
-    spacing : tuple (dx,dy,dz)
-    mode : str, 'ragged' or 'flat'
+    img : ndarray, shape (nX, nY)
+        2D image to project.
+    Angs : ndarray, shape (n_angles,)
+        Projection angles in radians.
+    n_dets : int
+        Number of detector bins.
+    DSO : float
+        Source-to-origin distance.
+    DSD : float
+        Source-to-detector distance.
+    d_det : float
+        Detector bin width.
+    d_pix : float
+        Pixel width.
 
     Returns
     -------
-    If mode='ragged':
-        rays : ndarray [nBins, nAngles], dtype=object
-            Each element is dict {'base': (N,3), 'w': (N,8)}
-    If mode='flat':
-        base_flat : (total_samples,3)
-        w_flat    : (total_samples,8)
-        offsets   : (nRays+1,) start index per ray
-        counts    : (nRays,) number of samples per ray
+    sino : ndarray, shape (len(Angs), n_dets)
+        Fan-beam sinogram.
     """
-    
-    #Converts and assigns paramters to approprate data types
-    trgs = np.array(trgs, dtype=np.float32)
-    if trgs.ndim == 1:
-        trgs = trgs[np.newaxis,:]
+    img = np.ascontiguousarray(img, dtype=np.float32)
+    nX, nY = img.shape
+    sino = np.zeros((len(Angs), n_dets), dtype=np.float32)
 
-    srcs = np.array(srcs, dtype=np.float32)
-    if srcs.ndim == 1:
-        srcs = src[np.newaxis,:]
-    
-    
-    nx, ny, nz = img_shape
-    dx, dy, dz = spacing
-    dt = min(dx, dy, dz)
+    # Image grid: pixel centers
+    x0 = -d_pix * nX / 2 + d_pix/2
+    y0 = -d_pix * nY / 2 + d_pix/2
 
-    #Calculates deltas between target and source and Euclidean distance 
-    dST  = trgs - srcs #(nRays, 3)
-    distance = np.linalg.norm(dST, axis=-1) #(nRays)
-    max_steps = np.ceil(distance/dt).astype(int)
-    max_steps_max = np.ceil(distance.max()/dt).astype(int)
+    # Detector positions along the arc (centered at 0)
+    det_cnt = d_det * (np.arange(n_dets) - n_dets / 2 + 0.5)
 
-    nBins, nAngles, _ = srcs.shape
-    nRays = nBins * nAngles
+    # Maximum ray length to ensure full coverage of image
+    L = d_pix * np.sqrt(nX**2 + nY**2) * 2
 
-    if mode == 'ragged':
-        Rays = np.empty(np.shape(trgs)[:-1], dtype=object)
-    elif mode == 'flat':
-        # estimate max_steps
-        base_flat = np.empty((nRays*max_steps_max, 3), dtype=np.int32)
-        w_flat    = np.empty((nRays*max_steps_max, 8), dtype=np.float32)
-        offsets   = np.zeros(nRays+1, dtype=np.int32)
-        counts    = np.zeros(nRays, dtype=np.int32)
-        ptr = 0
-        ray_idx = 0
-    else:
-        raise ValueError("mode must be 'ragged' or 'flat'")
+    for iAng, theta in enumerate(Angs):
+        cos_t, sin_t = np.cos(theta), np.sin(theta)
 
-    for i in range(nBins):
-        for j in range(nAngles):
-            direction = dST[i,j] / distance[i,j]
+        # Source position in lab coordinates
+        src_x = -DSO * sin_t
+        src_y =  DSO * cos_t
 
-            if mode == 'ragged':
-                base_list = []
-                w_list = []
-            elif mode == 'flat':
-                idx = ptr
+        for iDet, u in enumerate(det_cnt):
+            # Detector position in lab coordinates
+            det_x = src_x + DSD * np.sin(u / DSD)
+            det_y = src_y - DSD * np.cos(u / DSD) + DSD
 
-            for n in range(max_steps[i,j]):
-                p = srcs[i,j] + n*dt*direction
-                ix = (p[0]-origin[0])/dx
-                iy = (p[1]-origin[1])/dy
-                iz = (p[2]-origin[2])/dz
+            # Ray direction vector
+            dx = det_x - src_x
+            dy = det_y - src_y
+            norm = np.hypot(dx, dy)
+            dx /= norm
+            dy /= norm
 
-                if (0 <= ix < nx-1 and 0 <= iy < ny-1 and 0 <= iz < nz-1):                    
-                    i0, j0, k0 = int(ix), int(iy), int(iz)
-                    wx,wy,wz = ix-i0, iy-j0, iz-k0
-    
-                    weights = dt*np.array([(1-wx)*(1-wy)*(1-wz),
-                                           wx*(1-wy)*(1-wz),
-                                           (1-wx)*wy*(1-wz),
-                                           (1-wx)*(1-wy)*wz,
-                                           wx*wy*(1-wz),
-                                           wx*(1-wy)*wz,
-                                           (1-wx)*wy*wz,
-                                           wx*wy*wz], dtype=np.float32)
-    
-                    if mode == 'ragged':
-                        base_list.append((i0,j0,k0))
-                        w_list.append(weights)
-                    elif mode == 'flat':
-                        base_flat[ptr,:] = (i0,j0,k0)
-                        w_flat[ptr,:] = weights
-                        ptr += 1
+            # Step size along ray (Joseph criterion)
+            step = d_pix / max(abs(dx), abs(dy))
 
-            if mode == 'ragged':
-                Rays[i,j] = {
-                    'base': np.array(base_list, dtype=np.int32),
-                    'w': np.array(w_list, dtype=np.float32)
-                }
-            elif mode == 'flat':
-                offsets[ray_idx] = idx
-                counts[ray_idx] = ptr - idx
-                ray_idx += 1
+            # t parameter along ray
+            t = -L/2
+            while t <= L/2:
+                # Current ray position
+                x = src_x + dx * t
+                y = src_y + dy * t
 
-    if mode == 'flat':
-        offsets[ray_idx] = ptr
-        base_flat = base_flat[:ptr]
-        w_flat = w_flat[:ptr]
-        
-        return base_flat, w_flat, offsets, counts
-    else:
-        return Rays
+                # Convert to pixel indices
+                ix = (x - x0) / d_pix
+                iy = (y - y0) / d_pix
 
+                if 0 <= ix < nX-1 and 0 <= iy < nY-1:
+                    ix0 = int(np.floor(ix))
+                    iy0 = int(np.floor(iy))
+                    dx_frac = ix - ix0
+                    dy_frac = iy - iy0
 
-def joseph_forward(img, geometry, mode='ragged'):
-    if mode == 'ragged':
-        nBins, nAngles = geometry.shape
-        proj = np.zeros((nBins, nAngles), dtype=np.float32)
-        for i in range(nBins):
-            for j in range(nAngles):
-                ray = geometry[i,j]
-                base = ray['base']
-                w = ray['w']
-                acc = 0.0
-                for n in range(base.shape[0]):
-                    i0,j0,k0 = base[n]
-                    wn = w[n]
-                    acc += (
-                        img[i0, j0, k0]*wn[0] +
-                        img[i0+1, j0, k0]*wn[1] +
-                        img[i0, j0+1, k0]*wn[2] +
-                        img[i0, j0, k0+1]*wn[3] +
-                        img[i0+1,j0+1,k0]*wn[4] +
-                        img[i0+1,j0,k0+1]*wn[5] +
-                        img[i0,j0+1,k0+1]*wn[6] +
-                        img[i0+1,j0+1,k0+1]*wn[7]
-                    )
-                proj[i,j] = acc
-        return proj
-    elif mode == 'flat':
-        base_flat, w_flat, offsets, counts = geometry
-        nRays = counts.shape[0]
-        proj = np.zeros(nRays, dtype=np.float32)
-        for r in range(nRays):
-            acc = 0.0
-            for n in range(counts[r]):
-                idx = offsets[r]+n
-                i0,j0,k0 = base_flat[idx]
-                wn = w_flat[idx]
-                acc += (
-                    img[i0,j0,k0]*wn[0] +
-                    img[i0+1,j0,k0]*wn[1] +
-                    img[i0,j0+1,k0]*wn[2] +
-                    img[i0,j0,k0+1]*wn[3] +
-                    img[i0+1,j0+1,k0]*wn[4] +
-                    img[i0+1,j0,k0+1]*wn[5] +
-                    img[i0,j0+1,k0+1]*wn[6] +
-                    img[i0+1,j0+1,k0+1]*wn[7]
-                )
-            proj[r] = acc
-        return proj
-    else:
-        raise ValueError("mode must be 'ragged' or 'flat'")
-        
-        
-def joseph_backproj(proj, geometry, img_shape, mode='ragged'):
-    
-    img = np.zeros(img_shape, dtype=np.float32)
-    
-    if mode == 'ragged':
-        nBins, nAngles = geometry.shape
-        for i in range(nBins):
-            for j in range(nAngles):
-                ray = geometry[i,j]
-                base = ray['base']
-                w = ray['w']
-                pr = proj[i,j]
-                for n in range(base.shape[0]):
-                    i0,j0,k0 = base[n]
-                    wn = w[n]
-                    img[i0, j0, k0] += pr*wn[0]
-                    img[i0+1, j0, k0] += pr*wn[1]
-                    img[i0, j0+1, k0] += pr*wn[2]
-                    img[i0, j0, k0+1] += pr*wn[3]
-                    img[i0+1,j0+1,k0] += pr*wn[4]
-                    img[i0+1,j0,k0+1] += pr*wn[5]
-                    img[i0,j0+1,k0+1] += pr*wn[6]
-                    img[i0+1,j0+1,k0+1] += pr*wn[7]
-    elif mode == 'flat':
-        base_flat, w_flat, offsets, counts = geometry
-        nRays = offsets.shape[0] -1
-        for r in range(nRays):
-            pr = proj[r]
-            for n in range(counts[r]):
-                idx = offsets[r]+n
-                i0,j0,k0 = base_flat[idx]
-                wn = w_flat[idx]
-                img[i0,j0,k0] += pr*wn[0]
-                img[i0+1,j0,k0] += pr*wn[1]
-                img[i0,j0+1,k0] += pr*wn[2]
-                img[i0,j0,k0+1] += pr*wn[3]
-                img[i0+1,j0+1,k0] += pr*wn[4]
-                img[i0+1,j0,k0+1] += pr*wn[5]
-                img[i0,j0+1,k0+1] += pr*wn[6]
-                img[i0+1,j0+1,k0+1] += pr*wn[7]
-    else:
-        raise ValueError("mode must be 'ragged' or 'flat'")
+                    # Bilinear interpolation
+                    v00 = img[ix0, iy0]
+                    v01 = img[ix0, iy0+1]
+                    v10 = img[ix0+1, iy0]
+                    v11 = img[ix0+1, iy0+1]
 
-    return img
-        
-import matplotlib.pyplot as plt
+                    val = (v00 * (1-dx_frac)*(1-dy_frac) +
+                           v10 * dx_frac * (1-dy_frac) +
+                           v01 * (1-dx_frac) * dy_frac +
+                           v11 * dx_frac * dy_frac)
 
-# --- Assume the precompute and Joseph forward/back functions are already defined ---
-# precompute_joseph, joseph_forward, joseph_backproj
+                    # Accumulate contribution along ray
+                    sino[iAng, iDet] += val * step
+                t += step
 
-# --- 1. Create a simple 3D phantom ---
-nx, ny, nz = 32, 32, 32
-img = np.zeros((nx, ny, nz), dtype=np.float32)
-
-# put a small cube in the center
-img[12:20, 12:20, 12:20] = 1.0
-
-# voxel spacing and origin
-spacing = (1.0, 1.0, 1.0)
-origin = (0.0, 0.0, 0.0)
-
-# --- 2. Define parallel-beam circular geometry ---
-nAngles = 30
-nBins = 32  # number of detectors along x
-
-radius = 40.0
-
-
-angles = np.linspace(0, 2*np.pi, nAngles, endpoint=False)
-
-sources = np.zeros((nBins, nAngles, 3), dtype=np.float32)
-detectors = np.zeros_like(sources)
-
-detector_spacing = 1.0
-detector_offset = (-(nBins-1)/2) * detector_spacing
-
-for j, theta in enumerate(angles):
-    # unit vectors along the rotation plane
-    sin_t, cos_t = np.sin(theta), np.cos(theta)
-
-    # source position (rotating around center)
-    src = np.array([radius*cos_t, radius*sin_t, 16.0])  # z=16 center
-    # detector positions along x
-    for i in range(nBins):
-        det_x = detector_offset + i*detector_spacing
-        det = np.array([-radius*cos_t + det_x*sin_t, -radius*sin_t - det_x*cos_t, 16.0])
-        sources[i,j] = src
-        detectors[i,j] = det
-
-
-
-import vir.proj_geom as pg
-import vir
-
-#Parallel Beam Circular Trajectory
-nPix = 32
-nPixels = (nPix,nPix,1)
-dPix = 1.0
-nDets = nPix*4
-dDet = .24
-nTheta = 64
-det_lets = 1
-src_lets = 1
-
-d = vir.Detector1d(nDets=nDets,dDet=dDet, det_lets=det_lets)
-Thetas = np.linspace(0,np.pi,nTheta,endpoint=False) + np.pi/4
-
-
-srcs, trgs = pg.geom_circular(d.Dets, Thetas,geom="par", src_iso=np.ceil(np.sqrt(2*(nPix*dPix/2.)**2)), det_iso=np.ceil(np.sqrt(2*(nPix*dPix/2.)**2)))
-srcs[:,:,0] = srcs[:,:,0] + 16+.25
-trgs[:,:,0] = trgs[:,:,0] + 16+.25
-srcs[:,:,1] = srcs[:,:,1] + 16+.25
-trgs[:,:,1] = trgs[:,:,1] + 16+.25
-srcs[:,:,2] = 16.25
-trgs[:,:,2] = 16.25
-
-
-
-# --- 3. Precompute geometry ---
-mode = 'flat'  # or 'flat'
-geometry = precompute_joseph(srcs, trgs, (nx,ny,nz), origin, spacing, mode=mode)
-
-# --- 4. Forward projection ---
-proj = joseph_forward(img, geometry, mode=mode)
-
-# --- 5. Backprojection ---
-recon = joseph_backproj(proj, geometry, (nx,ny,nz), mode=mode)
-
-# --- 6. Visualize central slice ---
-fig, axs = plt.subplots(1,3, figsize=(12,4))
-#axs[0].imshow(img[:,:,16], cmap='gray')
-#axs[0].set_title('Original Phantom')
-axs[0].plot(recon[:,16,16])
-axs[0].plot(recon[:,15,16])
-
-
-
-if mode=='ragged':
-    proj_2d = proj
-else:
-    # reshape flat projections to [nBins, nAngles]
-    proj_2d = proj.reshape(srcs.shape[:-1])
-
-axs[1].imshow(proj_2d, cmap='gray', aspect='auto')
-axs[1].set_title('Forward Projection')
-
-axs[2].imshow(recon[:,:,16], cmap='gray')
-axs[2].set_title('Backprojection')
-
-plt.show()
+    return sino
