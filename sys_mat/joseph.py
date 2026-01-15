@@ -24,19 +24,19 @@ def joseph_fp_2d(img, angles, n_dets, d_det=1.0, d_pix=1.0):
         sino    : ndarray (len(angles), nDets)
     """
 
-    n_x, n_y = img.shape
+    nx, ny = img.shape
     sino = np.zeros((angles.size, n_dets), dtype=np.float32)
 
     # Grid: centered at zero, units in physical space
-    x0 = -d_pix * n_x/2 + d_pix/2 # First pixel center (x)
-    y0 = -d_pix * n_y/2 + d_pix/2 # First pixel center (y)
+    x0 = -d_pix * nx/2 + d_pix/2 # First pixel center (x)
+    y0 = -d_pix * ny/2 + d_pix/2 # First pixel center (y)
 
     # Detector bin centers (detector coordinate u)
     u_cnt = d_det*(np.arange(n_dets) - n_dets / 2.0 + 0.5)
 
     # Project image grid boundaries onto the ray
     # Ray length: covers diagonal of image for safety
-    L = d_pix * max(n_x, n_y) * 2
+    L = d_pix * max(nx, ny) * 2
 
     # Find t range so that we cover the whole image
     t0 = -L / 2
@@ -68,7 +68,7 @@ def joseph_fp_2d(img, angles, n_dets, d_det=1.0, d_pix=1.0):
                 ix = (x - x0) / d_pix
                 iy = (y - y0) / d_pix
 
-                if 0 <= ix < n_x-1 and 0 <= iy < n_y-1:
+                if 0 <= ix < nx-1 and 0 <= iy < ny-1:
                     # Bilinear interpolation
                     ix0 = int(np.floor(ix))
                     iy0 = int(np.floor(iy))
@@ -115,75 +115,102 @@ def joseph_fp_fan_2d(img, Angs, n_dets, DSO, DSD, d_det=1.0, d_pix=1.0):
     sino : ndarray, shape (len(Angs), n_dets)
         Fan-beam sinogram.
     """
+    
+    
+
     img = np.ascontiguousarray(img, dtype=np.float32)
-    nX, nY = img.shape
+    nx, ny = img.shape
     sino = np.zeros((len(Angs), n_dets), dtype=np.float32)
 
-    # Image grid: pixel centers
-    x0 = -d_pix * nX / 2 + d_pix/2
-    y0 = -d_pix * nY / 2 + d_pix/2
+    # Image bounds (physical coordinates)
+    x0 = -d_pix * nx / 2
+    y0 = -d_pix * ny / 2
+    x1 =  d_pix * nx / 2
+    y1 =  d_pix * ny / 2
 
-    # Detector positions along the arc (centered at 0)
+    # Detector coordinates (flat panel)
     det_cnt = d_det * (np.arange(n_dets) - n_dets / 2 + 0.5)
 
-    # Maximum ray length to ensure full coverage of image
-    L = d_pix * np.sqrt(nX**2 + nY**2) * 2
+    cos_angles = np.cos(Angs)
+    sin_angles = np.sin(Angs)
 
-    for iAng, theta in enumerate(Angs):
-        cos_t, sin_t = np.cos(theta), np.sin(theta)
+    for ia, (cos_t,sin_t) in enumerate(zip(cos_angles,sin_angles)):
 
-        # Source position in lab coordinates
+        # Source position
         src_x = -DSO * sin_t
         src_y =  DSO * cos_t
 
-        for iDet, u in enumerate(det_cnt):
-            # Detector position in lab coordinates
-            det_x = src_x + DSD * np.sin(u / DSD)
-            det_y = src_y - DSD * np.cos(u / DSD) + DSD
+        # Detector center position (opposite side of origin)
+        det_ctr_x =  (DSD - DSO) * sin_t
+        det_ctr_y = -(DSD - DSO) * cos_t
 
-            # Ray direction vector
+        for iDet, u in enumerate(det_cnt):
+
+            # Flat detector pixel position
+            det_x = det_ctr_x + u * cos_t
+            det_y = det_ctr_y + u * sin_t
+
+            # Ray direction
             dx = det_x - src_x
             dy = det_y - src_y
             norm = np.hypot(dx, dy)
             dx /= norm
             dy /= norm
 
-            # Step size along ray (Joseph criterion)
+            # --- Ray–box intersection ---
+            if abs(dx) < 1e-12:
+                tx_min, tx_max = -np.inf, np.inf
+            else:
+                tx1 = (x0 - src_x) / dx
+                tx2 = (x1 - src_x) / dx
+                tx_min, tx_max = min(tx1, tx2), max(tx1, tx2)
+
+            if abs(dy) < 1e-12:
+                ty_min, ty_max = -np.inf, np.inf
+            else:
+                ty1 = (y0 - src_y) / dy
+                ty2 = (y1 - src_y) / dy
+                ty_min, ty_max = min(ty1, ty2), max(ty1, ty2)
+
+            t_min = max(tx_min, ty_min)
+            t_max = min(tx_max, ty_max)
+
+            if t_max <= t_min:
+                continue  # Ray misses image entirely
+
+            # Joseph step size
             step = d_pix / max(abs(dx), abs(dy))
 
-            # t parameter along ray
-            t = -L/2
-            
-            print(t)
-
-            while t <= L/2:
-                # Current ray position
+            # March only inside image
+            t = t_min
+            while t <= t_max:
                 x = src_x + dx * t
                 y = src_y + dy * t
 
-                # Convert to pixel indices
                 ix = (x - x0) / d_pix
                 iy = (y - y0) / d_pix
 
-                if 0 <= ix < nX-1 and 0 <= iy < nY-1:
-                    ix0 = int(np.floor(ix))
-                    iy0 = int(np.floor(iy))
-                    dx_frac = ix - ix0
-                    dy_frac = iy - iy0
+                if 0 <= ix < nx-1 and 0 <= iy < ny-1:
+                    ix0 = int(ix)
+                    iy0 = int(iy)
 
-                    # Bilinear interpolation
-                    v00 = img[ix0, iy0]
-                    v01 = img[ix0, iy0+1]
-                    v10 = img[ix0+1, iy0]
-                    v11 = img[ix0+1, iy0+1]
+                    fx = ix - ix0
+                    fy = iy - iy0
 
-                    val = (v00 * (1-dx_frac)*(1-dy_frac) +
-                           v10 * dx_frac * (1-dy_frac) +
-                           v01 * (1-dx_frac) * dy_frac +
-                           v11 * dx_frac * dy_frac)
+                    v00 = img[ix0,     iy0]
+                    v10 = img[ix0 + 1, iy0]
+                    v01 = img[ix0,     iy0 + 1]
+                    v11 = img[ix0 + 1, iy0 + 1]
 
-                    # Accumulate contribution along ray
-                    sino[iAng, iDet] += val * step
+                    val = (
+                        v00 * (1 - fx) * (1 - fy) +
+                        v10 * fx       * (1 - fy) +
+                        v01 * (1 - fx) * fy +
+                        v11 * fx       * fy
+                    )
+
+                    sino[ia, iDet] += val * step
+
                 t += step
 
     return sino

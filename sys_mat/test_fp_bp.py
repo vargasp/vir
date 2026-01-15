@@ -21,14 +21,12 @@ import vir.sys_mat.fp_2d_par as proj_2d
 DSO = 1e8
 DSD = 1e8+32
 
-#DSO = 16
-#DSD = 32
 
 
 #Image params - Pixels
 nX = 32
 nY = 32
-d_pix = .5
+d_pix = 1
 
 #Sino params 
 nAngs = 32
@@ -42,6 +40,7 @@ Dets = d_det*(np.arange(n_dets) - n_dets / 2.0 + 0.5)
 img = np.zeros((nX, nY))
 #img[14:18, 14:18] = 1.0  # center impulse
 img[4:8, 4:8] = 1.0  # center impulse
+#img[:] = 1.0  # center impulse
 
 """
 plt.figure(figsize=(3,3))

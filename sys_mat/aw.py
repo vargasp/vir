@@ -137,16 +137,16 @@ def aw_fp_2d(img, angles, n_dets, d_det=1.0, d_pix=1.0):
         Sinogram (line integrals).
     """
 
-    n_x, n_y = img.shape          # number of pixels in x and y
+    nx, ny = img.shape          # number of pixels in x and y
 
     # Output sinogram: one value per (angle, detector)
     sino = np.zeros((angles.size, n_dets), dtype=np.float32)
 
     # Define image bounding box in world coordinates
-    Xmin = -0.5 * n_x * d_pix
-    Xmax =  0.5 * n_x * d_pix
-    Ymin = -0.5 * n_y * d_pix
-    Ymax =  0.5 * n_y * d_pix
+    Xmin = -0.5 * nx * d_pix
+    Xmax =  0.5 * nx * d_pix
+    Ymin = -0.5 * ny * d_pix
+    Ymax =  0.5 * ny * d_pix
 
     # Precompute ray direction for all angles
     cos_angles = np.cos(angles)
@@ -199,7 +199,7 @@ def aw_fp_2d(img, angles, n_dets, d_det=1.0, d_pix=1.0):
             
             # Traverse the grid voxel-by-voxel
             _fp_2d_traverse_grid(img,sino,i_ang,idt,t0,t1,tMaxX,tMaxY,tDeltaX,tDeltaY,
-                                     step_x,step_y,ix,iy,n_x,n_y,d_pix)
+                                     step_x,step_y,ix,iy,nx,ny,d_pix)
 
     #Returns the sino
     return sino
@@ -353,27 +353,23 @@ def aw_fp_2d_fan_flat(img, Angs, n_dets, DSO, DSD, d_det=1.0, d_pix=1.0):
         Fan-beam sinogram.
     """
 
-    nX, nY = img.shape
+    nx, ny = img.shape
     nAng = Angs.size
     sino = np.zeros((nAng, n_dets), dtype=np.float32)
 
     # Image bounding box
-    Xmin = -0.5 * nX * d_pix
-    Xmax =  0.5 * nX * d_pix
-    Ymin = -0.5 * nY * d_pix
-    Ymax =  0.5 * nY * d_pix
-
-    cosA = np.cos(Angs)
-    sinA = np.sin(Angs)
+    x0 = -d_pix * nx / 2
+    y0 = -d_pix * ny / 2
+    x1 =  d_pix * nx / 2
+    y1 =  d_pix * ny / 2
 
     # Detector coordinates (flat panel)
     det_u = d_det * (np.arange(n_dets) - n_dets/2 + 0.5)
 
-    for ia in range(nAng):
+    cos_angles = np.cos(Angs)
+    sin_angles = np.sin(Angs)
 
-        c = cosA[ia]
-        s = sinA[ia]
-
+    for ia, (c,s) in enumerate(zip(cos_angles,sin_angles)):
         # Source position
         xs = DSO * c
         ys = DSO * s
@@ -404,8 +400,8 @@ def aw_fp_2d_fan_flat(img, Angs, n_dets, DSO, DSD, d_det=1.0, d_pix=1.0):
             ady = abs(dy)
 
             # --- Bounding box intersection ---
-            txmin, txmax = _fp_2d_intersect_bounding(xs, dx, adx, Xmin, Xmax)
-            tymin, tymax = _fp_2d_intersect_bounding(ys, dy, ady, Ymin, Ymax)
+            txmin, txmax = _fp_2d_intersect_bounding(xs, dx, adx, x0, x1)
+            tymin, tymax = _fp_2d_intersect_bounding(ys, dy, ady, y0, y1)
 
             t0 = max(txmin, tymin)
             t1 = min(txmax, tymax)
@@ -417,18 +413,18 @@ def aw_fp_2d_fan_flat(img, Angs, n_dets, DSO, DSD, d_det=1.0, d_pix=1.0):
             x = xs + t0 * dx
             y = ys + t0 * dy
 
-            x = min(max(x, Xmin + eps), Xmax - eps)
-            y = min(max(y, Ymin + eps), Ymax - eps)
+            x = min(max(x, x0 + eps), x1 - eps)
+            y = min(max(y, y0 + eps), y1 - eps)
 
-            ix = int(np.floor((x - Xmin) / d_pix))
-            iy = int(np.floor((y - Ymin) / d_pix))
+            ix = int(np.floor((x - x0) / d_pix))
+            iy = int(np.floor((y - y0) / d_pix))
 
             # Amanatides–Woo stepping initialization
-            step_x, tDeltaX, tMaxX = _fp_2d_step_init(xs, ix, dx, adx, Xmin, d_pix)
-            step_y, tDeltaY, tMaxY = _fp_2d_step_init(ys, iy, dy, ady, Ymin, d_pix)
+            step_x, tDeltaX, tMaxX = _fp_2d_step_init(xs, ix, dx, adx, x0, d_pix)
+            step_y, tDeltaY, tMaxY = _fp_2d_step_init(ys, iy, dy, ady, y0, d_pix)
             
             _fp_2d_traverse_grid(img,sino,ia,idt,t0,t1,tMaxX,tMaxY,tDeltaX,tDeltaY,
-                         step_x,step_y,ix,iy,nX,nY,d_pix)
+                         step_x,step_y,ix,iy,nx,ny,d_pix)
 
     return sino
 
