@@ -153,6 +153,9 @@ def joseph_fp_fan_2d(img, Angs, n_dets, DSO, DSD, d_det=1.0, d_pix=1.0):
 
             # t parameter along ray
             t = -L/2
+            
+            print(t)
+
             while t <= L/2:
                 # Current ray position
                 x = src_x + dx * t

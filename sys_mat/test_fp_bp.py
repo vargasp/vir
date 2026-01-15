@@ -50,7 +50,7 @@ plt.imshow(img.T, cmap='gray', aspect='auto', origin='lower')
 plt.title("Image Phantom")
 plt.xlabel("X Pixels")
 plt.ylabel("Y Pixels")
-"""
+
 
 
 #Test Sino
@@ -99,7 +99,7 @@ plt.ylabel("Angle")
 plt.tight_layout()
 plt.show()
 
-"""
+
 plt.subplot(1,1,1)
 plt.plot(sino1[0,:], label='Siddon Parallel')
 plt.plot(sino2[0,:], label='Joseph Parallel')
@@ -111,7 +111,7 @@ plt.ylabel("Intensity")
 plt.legend()
 plt.show()
 
-"""
+
 print("Siddons/AW Diff:", (sino1-sino4).max())
 print("Siddons/Joe Diff:", (sino1-sino2).max())
 print("Siddons/DD Diff:", (sino1-sino3).max())
@@ -122,33 +122,50 @@ sino1p = dd.dd_fp_par_2d(          img, angles, n_dets, d_det=d_det, d_pix=d_pix
 sino1f = dd.dd_fp_fan_2d(          img, angles, n_dets, DSO, DSD, d_det=d_det, d_pix=d_pix)
 sino2p = aw.aw_fp_2d         (img, angles, n_dets, d_det=d_det, d_pix=d_pix)
 sino2f = aw.aw_fp_2d_fan_flat(img, angles, n_dets, DSO, DSD, d_det=d_det, d_pix=d_pix)
+sino3p = jp.joseph_fp_2d     (img, angles, n_dets, d_det=d_det, d_pix=d_pix)
+sino3f = jp.joseph_fp_fan_2d (img, angles, n_dets, DSO, DSD, d_det=d_det, d_pix=d_pix)
 
 
-plt.figure(figsize=(6,6))
-plt.subplot(2,2,1)
+plt.figure(figsize=(6,4))
+plt.subplot(2,3,1)
 plt.imshow(sino1p, cmap='gray', aspect='auto', origin='lower')
 plt.title("DD Parallel")
 plt.xlabel("Detector bin")
 plt.ylabel("Angle")
 
-plt.subplot(2,2,2)
+plt.subplot(2,3,2)
 plt.imshow(sino1f, cmap='gray', aspect='auto', origin='lower')
 plt.title("DD Fanbean")
 plt.xlabel("Detector bin")
 plt.ylabel("Angle")
 
-plt.subplot(2,2,3)
+plt.subplot(2,3,3)
 plt.imshow(sino2p, cmap='gray', aspect='auto', origin='lower')
 plt.title("AW Parallel")
 plt.xlabel("Detector bin")
 plt.ylabel("Angle")
 
-plt.subplot(2,2,4)
+plt.subplot(2,3,4)
 plt.imshow(sino2f, cmap='gray', aspect='auto', origin='lower')
 plt.title("AW Fanbean")
 plt.xlabel("Detector bin")
 plt.ylabel("Angle")
 plt.tight_layout()
+
+
+plt.subplot(2,3,5)
+plt.imshow(sino3p, cmap='gray', aspect='auto', origin='lower')
+plt.title("Joseph Parallel")
+plt.xlabel("Detector bin")
+plt.ylabel("Angle")
+
+plt.subplot(2,3,6)
+plt.imshow(sino3f, cmap='gray', aspect='auto', origin='lower')
+plt.title("Jospeh Fanbean")
+plt.xlabel("Detector bin")
+plt.ylabel("Angle")
+plt.tight_layout()
+
 plt.show()
 
 plt.subplot(1,1,1)
@@ -176,7 +193,7 @@ plt.ylabel("Intensity")
 plt.show()
 
 
-
+"""
 
 print(sino2f[0,32:])
 
