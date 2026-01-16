@@ -104,6 +104,97 @@ def _dd_proj_geom(img_c, img_f, x_pixs_bnd, y_pixs_bnd, x_pixs_cnt, y_pixs_cnt,
         ray_scale          : float or ndarray, scaling factor for sweep
     """
     
+    
+    """
+    Prepare distance-driven projection geometry for a single projection angle.
+
+    This function selects a numerically well-conditioned driving axis (x or y),
+    projects pixel boundaries onto the detector coordinate, and returns a
+    pre-arranged image view such that axis 0 corresponds to the driving
+    (sweep) axis required by the distance-driven kernel.
+
+    Two image layouts are accepted:
+        - `img_c`: image stored in canonical (x-driven) layout
+        - `img_f`: pre-transposed image (y-driven layout)
+
+    This avoids performing a transpose inside the projection loop and ensures
+    cache-friendly, stride-1 access in the hot sweep kernel.
+
+    The function supports both parallel-beam and fan-beam geometries and
+    guarantees monotonic projected pixel boundaries on return.
+
+    Geometry conventions
+    --------------------
+    - The detector coordinate `u` is linear and centered at zero.
+    - Projection angle is defined by (cos(theta), sin(theta)) = (c_ang, s_ang).
+    - Pixel grids are centered at the image origin.
+    - Pixel boundary projections along the driving axis are monotonic after
+      an optional flip, which is required by the sweep kernel.
+
+    Driving axis selection
+    ----------------------
+    The driving (sweep) axis is chosen to maximize numerical conditioning:
+        - X-driven if |sin(theta)| >= |cos(theta)|
+        - Y-driven otherwise
+
+    Fan-beam handling
+    -----------------
+    When `is_fan=True`, a per-orthogonal-pixel magnification correction is
+    applied to approximate true ray path lengths. The correction is inverted
+    here so that the sweep kernel uses multiplication instead of division in
+    its hot loop.
+
+    Parallel-beam geometry is recovered in the limit DSO → ∞.
+
+    Parameters
+    ----------
+    img_c : ndarray
+        Input image in canonical orientation, used when the projection is
+        X-driven (axis 0 corresponds to X).
+    img_f : ndarray
+        Pre-transposed view of the input image, used when the projection is
+        Y-driven (axis 0 corresponds to Y).
+    x_pixs_bnd, y_pixs_bnd : ndarray
+        Pixel boundary coordinates along X and Y, respectively.
+        Shape is (n + 1,) for n pixels.
+    x_pixs_cnt, y_pixs_cnt : ndarray
+        Pixel center coordinates along X and Y, respectively.
+        Shape is (n,).
+    c_ang, s_ang : float
+        Cosine and sine of the projection angle.
+    is_fan : bool, optional
+        If True, apply fan-beam magnification correction. Default is False.
+    DSO : float, optional
+        Source-to-origin distance (fan-beam only).
+    DSD : float, optional
+        Source-to-detector distance (fan-beam only).
+
+    Returns
+    -------
+    img_trm : ndarray
+        Image view selected from `img_c` or `img_f`, possibly flipped so that
+        axis 0 corresponds to the driving axis and pixel boundaries are
+        monotonic in detector space.
+    u_pixs_drive_bnd : ndarray
+        Projected pixel boundary coordinates along the driving axis in
+        detector space. Shape is (n_pix_drive + 1,).
+    u_pixs_orthg_off : ndarray
+        Orthogonal pixel-center offsets projected onto the detector
+        coordinate. Shape is (n_pix_orthg,).
+    rays_scale : ndarray
+        Per-orthogonal-pixel scaling factors applied in the sweep kernel.
+        For parallel-beam geometry this is constant; for fan-beam geometry
+        it includes magnification correction.
+
+    Notes
+    -----
+    - This function performs no allocations in the hot sweep loop.
+    - Returned arrays are views whenever possible.
+    - Monotonicity of `u_pixs_drive_bnd` is guaranteed on return.
+    - No angular fan-beam weighting is applied here; only geometric scaling
+      along the detector coordinate is handled.
+    """
+    
     # Determine driving axis
     if abs(s_ang) >= abs(c_ang):
         # X-driven
