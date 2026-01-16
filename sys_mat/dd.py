@@ -89,7 +89,7 @@ def _dd_fp_sweep(sino,img_trm,u_pixs_drive_bnd,u_pixs_orthg_off,
             else:
                 i_det += 1
 
-def _dd_proj_geom(img, x_pixs_bnd, y_pixs_bnd, x_pixs_cnt, y_pixs_cnt,
+def _dd_proj_geom(img_c, img_f, x_pixs_bnd, y_pixs_bnd, x_pixs_cnt, y_pixs_cnt,
                   c_ang, s_ang, is_fan=False, DSO=1.0, DSD=1.0):
     """
     Compute the driving geometry for a single projection angle, modular
@@ -119,7 +119,7 @@ def _dd_proj_geom(img, x_pixs_bnd, y_pixs_bnd, x_pixs_cnt, y_pixs_cnt,
         u_pixs_orthg_off = c_ang * y_pixs_cnt
 
         #No transformation need  
-        img_trm = img  
+        img_trm = img_c  
 
     else:
         # Y-driven
@@ -134,7 +134,7 @@ def _dd_proj_geom(img, x_pixs_bnd, y_pixs_bnd, x_pixs_cnt, y_pixs_cnt,
         u_pixs_orthg_off = -s_ang * x_pixs_cnt
 
         # Transposes image so axis 0 correspondsto the driving (sweep) axis
-        img_trm = img.T  
+        img_trm = img_f  
 
     # Ensure monotonic increasing for sweep
     if u_pixs_drive_bnd[1] < u_pixs_drive_bnd[0]:
@@ -201,6 +201,10 @@ def dd_fp_par_2d(img, angles, n_dets, d_det=1.0, d_pix=1.0):
     nx_pix, ny_pix = img.shape
     sino = np.zeros((angles.size, n_dets), dtype=np.float32)
 
+    #Creates two images where the driving axis is contigious
+    img_c = np.ascontiguousarray(img)
+    img_f = np.ascontiguousarray(img.T)
+
     # Define pixel boundaries and centers in image space
     # Centered at origin (0,0)
     # x_pixs_bnd, y_pixs_bnd: positions of pixel edges along X and Y
@@ -224,16 +228,8 @@ def dd_fp_par_2d(img, angles, n_dets, d_det=1.0, d_pix=1.0):
     for i_ang, (c_ang,s_ang) in enumerate(zip(c_angs,s_angs)):
        
         img_trm, u_pixs_drive_bnd, u_pixs_orthg_off, rays_scale = \
-            _dd_proj_geom(img, x_pixs_bnd, y_pixs_bnd, x_pixs_cnt, y_pixs_cnt,
+            _dd_proj_geom(img_c, img_f, x_pixs_bnd, y_pixs_bnd, x_pixs_cnt, y_pixs_cnt,
                           c_ang, s_ang, is_fan=False)
-    
-    
-    
-        print(img_trm.dtype)
-        print(u_pixs_drive_bnd.dtype)
-        print(u_pixs_orthg_off.dtype)
-        print(rays_scale.dtype)
-
     
         _dd_fp_sweep(sino, img_trm, u_pixs_drive_bnd, u_pixs_orthg_off,
                          u_det_bnd, rays_scale, i_ang)
@@ -287,6 +283,11 @@ def dd_fp_fan_2d(img, Angs, n_dets, DSO, DSD, d_det=1.0, d_pix=1.0):
     nx_pix, ny_pix = img.shape
     sino = np.zeros((len(Angs), n_dets), dtype=np.float32)
 
+    #Creates two images where the driving axis is contigious
+    img_c = np.ascontiguousarray(img)
+    img_f = np.ascontiguousarray(img.T)
+
+
     # Define pixel boundaries and centers in image space
     # Centered at origin (0,0)
     # x_pixs_bnd, y_pixs_bnd: positions of pixel edges along X and Y
@@ -309,7 +310,7 @@ def dd_fp_fan_2d(img, Angs, n_dets, DSO, DSD, d_det=1.0, d_pix=1.0):
     for i_ang, (c_ang,s_ang) in enumerate(zip(c_angs,s_angs)):
 
         img_trm, u_pixs_drive_bnd, u_pixs_orthg_off, rays_scale = \
-           _dd_proj_geom(img, x_pixs_bnd, y_pixs_bnd, x_pixs_cnt, y_pixs_cnt,
+           _dd_proj_geom(img_c, img_f, x_pixs_bnd, y_pixs_bnd, x_pixs_cnt, y_pixs_cnt,
                          c_ang, s_ang, is_fan=True, DSO=DSO, DSD=DSD)
 
         # Sweep along driving axis
