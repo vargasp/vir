@@ -9,9 +9,9 @@ Created on Mon Jan  5 06:34:23 2026
 import numpy as np
 
 def _dd_fp_sweep(sino,img_trm,u_pixs_drive_bnd,u_pixs_orthg_off,
-                          u_det_bnd,n_pix_drive,n_pix_orthg,rays_scl,i_ang):
+                 u_det_bnd,rays_scl,i_ang):
     """
-    Distance-driven sweep kernel for 2D parallel-beam forward projection.
+    Distance-driven sweep kernel for 2D parallel or fanbeam forward projection.
 
     This function performs the core distance-driven accumulation for a single
     projection angle. It assumes that pixel boundaries projected onto the
@@ -19,7 +19,7 @@ def _dd_fp_sweep(sino,img_trm,u_pixs_drive_bnd,u_pixs_orthg_off,
     linear-time sweep over pixels and detector bins.
 
     Geometry:
-        - Parallel-beam
+        - Parallel-beam or fanbeam
         - Detector coordinate u is linear and orthogonal to ray direction
 
     Parameters
@@ -36,13 +36,11 @@ def _dd_fp_sweep(sino,img_trm,u_pixs_drive_bnd,u_pixs_orthg_off,
         Orthogonal pixel-center offsets projected onto the detector coordinate.
     u_det_bnd : ndarray, shape (n_det + 1,)
         Detector bin boundary coordinates in detector space.
-    n_pix_drive : int
-        Number of pixels along the driving axis.
-    n_pix_orthg : int
-        Number of pixels along the orthogonal axis.
-    rays_scl : ndarray, shape (n_det)
-        Projection scaling factor (typically |cos(theta)| or |sin(theta)|)
-        accounting for pixel width along the ray direction.
+    rays_scl : ndarray, shape (n_pix_orthg)
+        Projection scaling factor (typically 1/|cos(theta)| or 1/|sin(theta)|)
+        to  account for pixel width along the ray direction. Fanbean will also
+        include a magificaiton factor. The value is inverted to reduce division
+        in the hot loop of the sweep function. 
     i_ang : int
         Index of the current projection angle in the sinogram.
 
@@ -52,9 +50,9 @@ def _dd_fp_sweep(sino,img_trm,u_pixs_drive_bnd,u_pixs_orthg_off,
     - Contributions outside the detector range are implicitly discarded.
     - This function does not allocate memory and updates `sino` in-place.
     """
-
+    
+    n_pix_drive, n_pix_orthg = img_trm.shape
     n_det = u_det_bnd.size - 1
-
 
     # Loop over orthogonal pixel lines
     for i_orth in range(n_pix_orthg):
@@ -91,11 +89,8 @@ def _dd_fp_sweep(sino,img_trm,u_pixs_drive_bnd,u_pixs_orthg_off,
             else:
                 i_det += 1
 
-def compute_projection_geometry(img, nx_pix, ny_pix,
-                                x_pixs_bnd, y_pixs_bnd,
-                                x_pixs_cnt, y_pixs_cnt,
-                                c_ang, s_ang, is_fan=False,
-                                DSO=1.0, DSD=1.0):
+def _dd_proj_geom(img, x_pixs_bnd, y_pixs_bnd, x_pixs_cnt, y_pixs_cnt,
+                  c_ang, s_ang, is_fan=False, DSO=1.0, DSD=1.0):
     """
     Compute the driving geometry for a single projection angle, modular
     for both parallel-beam and fan-beam distance-driven forward projection.
@@ -112,7 +107,6 @@ def compute_projection_geometry(img, nx_pix, ny_pix,
     # Determine driving axis
     if abs(s_ang) >= abs(c_ang):
         # X-driven
-        n_pix_drive, n_pix_orthg = nx_pix, ny_pix
         
         # Scales projected pixel overlap along X for oblique rays
         ray_scale = abs(s_ang)
@@ -129,7 +123,6 @@ def compute_projection_geometry(img, nx_pix, ny_pix,
 
     else:
         # Y-driven
-        n_pix_drive, n_pix_orthg = ny_pix, nx_pix
         
         # Scales projected pixel overlap along Y for oblique rays
         ray_scale = abs(c_ang)
@@ -160,10 +153,10 @@ def compute_projection_geometry(img, nx_pix, ny_pix,
         rays_scale = 1/(magnification * ray_scale)
     else:
         #Mirroring fanbeam structure
-        rays_scale = np.full(n_pix_orthg, 1.0/ray_scale, dtype=np.float32)
+        rays_scale = np.full(u_pixs_orthg_off.size, 1.0/ray_scale, dtype=np.float32)
 
 
-    return n_pix_drive, n_pix_orthg, img_trm, u_pixs_drive_bnd, u_pixs_orthg_off, rays_scale
+    return img_trm, u_pixs_drive_bnd, u_pixs_orthg_off, rays_scale
 
 
 def dd_fp_par_2d(img, angles, n_dets, d_det=1.0, d_pix=1.0):
@@ -211,8 +204,8 @@ def dd_fp_par_2d(img, angles, n_dets, d_det=1.0, d_pix=1.0):
     # Define pixel boundaries and centers in image space
     # Centered at origin (0,0)
     # x_pixs_bnd, y_pixs_bnd: positions of pixel edges along X and Y
-    x_pixs_bnd = d_pix*(np.arange(nx_pix+1) - nx_pix/2)
-    y_pixs_bnd = d_pix*(np.arange(ny_pix+1) - ny_pix/2)
+    x_pixs_bnd = d_pix*(np.arange(nx_pix+1, dtype=np.float32) - nx_pix/2)
+    y_pixs_bnd = d_pix*(np.arange(ny_pix+1, dtype=np.float32) - ny_pix/2)
  
     # x_pixs_cnt, y_pixs_cnt: positions of pixel centers
     x_pixs_cnt = (x_pixs_bnd[:-1] + x_pixs_bnd[1:])/2
@@ -220,24 +213,30 @@ def dd_fp_par_2d(img, angles, n_dets, d_det=1.0, d_pix=1.0):
 
     # Detector bin boundaries along the fan-beam arc
     # Centered at u = 0
-    u_det_bnd = d_det * (np.arange(n_dets + 1) - n_dets / 2.0)
+    u_det_bnd = d_det * (np.arange(n_dets + 1, dtype=np.float32) - n_dets / 2.0)
 
     # Precompute trig functions for all angles
     c_angs = np.cos(angles)
     s_angs = np.sin(angles)
 
+
     #Loop through projection angles
     for i_ang, (c_ang,s_ang) in enumerate(zip(c_angs,s_angs)):
        
-        n_pix_drive, n_pix_orthg, img_trm, u_pixs_drive_bnd, u_pixs_orthg_off, rays_scale = \
-            compute_projection_geometry(img, nx_pix, ny_pix,
-                                x_pixs_bnd, y_pixs_bnd,
-                                x_pixs_cnt, y_pixs_cnt,
-                                c_ang, s_ang,
-                                is_fan=False)
+        img_trm, u_pixs_drive_bnd, u_pixs_orthg_off, rays_scale = \
+            _dd_proj_geom(img, x_pixs_bnd, y_pixs_bnd, x_pixs_cnt, y_pixs_cnt,
+                          c_ang, s_ang, is_fan=False)
+    
+    
+    
+        print(img_trm.dtype)
+        print(u_pixs_drive_bnd.dtype)
+        print(u_pixs_orthg_off.dtype)
+        print(rays_scale.dtype)
+
     
         _dd_fp_sweep(sino, img_trm, u_pixs_drive_bnd, u_pixs_orthg_off,
-                         u_det_bnd, n_pix_drive, n_pix_orthg, rays_scale, i_ang)
+                         u_det_bnd, rays_scale, i_ang)
 
     #Return sino normalized with pixel and detector size
     return sino*d_pix/d_det
@@ -291,8 +290,8 @@ def dd_fp_fan_2d(img, Angs, n_dets, DSO, DSD, d_det=1.0, d_pix=1.0):
     # Define pixel boundaries and centers in image space
     # Centered at origin (0,0)
     # x_pixs_bnd, y_pixs_bnd: positions of pixel edges along X and Y
-    x_pixs_bnd = d_pix*(np.arange(nx_pix+1) - nx_pix/2)
-    y_pixs_bnd = d_pix*(np.arange(ny_pix+1) - ny_pix/2)
+    x_pixs_bnd = d_pix*(np.arange(nx_pix+1, dtype=np.float32) - nx_pix/2)
+    y_pixs_bnd = d_pix*(np.arange(ny_pix+1, dtype=np.float32) - ny_pix/2)
  
     # x_pixs_cnt, y_pixs_cnt: positions of pixel centers
     x_pixs_cnt = (x_pixs_bnd[:-1] + x_pixs_bnd[1:])/2
@@ -300,7 +299,7 @@ def dd_fp_fan_2d(img, Angs, n_dets, DSO, DSD, d_det=1.0, d_pix=1.0):
 
     # Detector bin boundaries along the fan-beam arc
     # Centered at u = 0
-    u_det_bnd = d_det * (np.arange(n_dets + 1) - n_dets / 2.0)
+    u_det_bnd = d_det * (np.arange(n_dets + 1, dtype=np.float32) - n_dets / 2.0)
 
     # Precompute trig functions for all angles
     c_angs = np.cos(Angs)
@@ -309,16 +308,13 @@ def dd_fp_fan_2d(img, Angs, n_dets, DSO, DSD, d_det=1.0, d_pix=1.0):
     #Loop through projection angles
     for i_ang, (c_ang,s_ang) in enumerate(zip(c_angs,s_angs)):
 
-        n_pix_drive, n_pix_orthg, img_trm, u_pixs_drive_bnd, u_pixs_orthg_off, rays_scale = \
-           compute_projection_geometry(img, nx_pix, ny_pix,
-                               x_pixs_bnd, y_pixs_bnd,
-                               x_pixs_cnt, y_pixs_cnt,
-                               c_ang, s_ang,
-                                is_fan=True, DSO=DSO, DSD=DSD)
+        img_trm, u_pixs_drive_bnd, u_pixs_orthg_off, rays_scale = \
+           _dd_proj_geom(img, x_pixs_bnd, y_pixs_bnd, x_pixs_cnt, y_pixs_cnt,
+                         c_ang, s_ang, is_fan=True, DSO=DSO, DSD=DSD)
 
         # Sweep along driving axis
         _dd_fp_sweep(sino, img_trm, u_pixs_drive_bnd, u_pixs_orthg_off,
-                            u_det_bnd, n_pix_drive, n_pix_orthg, rays_scale, i_ang)
+                            u_det_bnd, rays_scale, i_ang)
 
     #Return sino normalized with pixel and detector size
     return sino*d_pix/d_det

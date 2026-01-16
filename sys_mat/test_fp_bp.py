@@ -33,11 +33,11 @@ nAngs = 32
 n_dets = 32
 d_det = 1
 
-angles = np.linspace(0, np.pi*2, nAngs, endpoint=False)
+angles = np.linspace(0, np.pi*2, nAngs, endpoint=False, dtype=np.float32)
 Dets = d_det*(np.arange(n_dets) - n_dets / 2.0 + 0.5)
 
 #Test image
-img = np.zeros((nX, nY))
+img = np.zeros((nX, nY), dtype=np.float32)
 #img[14:18, 14:18] = 1.0  # center impulse
 img[4:8, 4:8] = 1.0  # center impulse
 #img[:] = 1.0  # center impulse
