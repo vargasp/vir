@@ -97,7 +97,7 @@ def _fp_2d_traverse_grid(img,sino,ia,idt,t0,t1,tMaxX,tMaxY,tDeltaX,tDeltaY,
     sino[ia, idt] = acc
 
 
-def aw_fp_2d(img, angles, n_dets, d_det=1.0, d_pix=1.0):
+def aw_fp_2d(img, angs, n_dets, d_det=1.0, d_pix=1.0):
     """
     2D parallel-beam forward projection using Amanatides–Woo ray traversal.
 
@@ -137,69 +137,72 @@ def aw_fp_2d(img, angles, n_dets, d_det=1.0, d_pix=1.0):
         Sinogram (line integrals).
     """
 
-    nx, ny = img.shape          # number of pixels in x and y
+    nx_pix, ny_pix = img.shape          # number of pixels in x and y
 
     # Output sinogram: one value per (angle, detector)
-    sino = np.zeros((angles.size, n_dets), dtype=np.float32)
+    sino = np.zeros((angs.size, n_dets), dtype=np.float32)
 
     # Define image bounding box in world coordinates
-    Xmin = -0.5 * nx * d_pix
-    Xmax =  0.5 * nx * d_pix
-    Ymin = -0.5 * ny * d_pix
-    Ymax =  0.5 * ny * d_pix
+    x0 = -0.5 * nx_pix * d_pix
+    xn =  0.5 * nx_pix * d_pix
+    y0 = -0.5 * ny_pix * d_pix
+    yn =  0.5 * ny_pix * d_pix
 
     # Precompute ray direction for all angles
-    cos_angles = np.cos(angles)
-    sin_angles = np.sin(angles)
+    cos_angs = np.cos(angs)
+    sin_angs = np.sin(angs)
 
     # Detector bin centers (detector coordinate u)
-    u_cnt = d_det * (np.arange(n_dets) - n_dets/2 + 0.5)
+    cnt_dets = d_det * (np.arange(n_dets) - n_dets/2 + 0.5)
 
     # Main loops: angles → detectors → voxel traversal
-    for i_ang, (dx,dy) in enumerate(zip(cos_angles,sin_angles)):
-
+    for i_ang, (cos_ang,sin_ang) in enumerate(zip(cos_angs,sin_angs)):
+        
+        #Ray directions
+        dx = cos_ang
+        dy = sin_ang 
+        
         # Absolute values are used for step size calculations
-        adx = abs(dx)
-        ady = abs(dy)
+        abs_dx = abs(dx)
+        abs_dy = abs(dy)
 
-        for idt in range(n_dets):
+        for i_det, cnt_det in enumerate(cnt_dets):
             # Each ray is parameterized as:
-            #   r(t) = (x0, y0) + t * (dx, dy)
-            det = u_cnt[idt]
-            x0 = -dy * det
-            y0 =  dx * det
+            # r(t) = (x0_ray, y0_ray) + t * (dx, dy)
+            x0_ray = -dy * cnt_det
+            y0_ray =  dx * cnt_det
 
             # Intersect ray with image bounding box
-            txmin, txmax = _fp_2d_intersect_bounding(x0, dx, adx, Xmin, Xmax)
-            tymin, tymax = _fp_2d_intersect_bounding(y0, dy, ady, Ymin, Ymax)
+            tx_enter, tx_exit = _fp_2d_intersect_bounding(x0_ray, dx, abs_dx, x0, xn)
+            ty_enter, ty_exit = _fp_2d_intersect_bounding(y0_ray, dy, abs_dy, y0, yn)
 
             # Combined entry/exit interval
-            t0 = max(txmin, tymin)
-            t1 = min(txmax, tymax)
+            t_enter = max(tx_enter, ty_enter)
+            t_exit = min(tx_exit,  ty_exit)
 
-            if t1 <= t0:
+            if t_exit <= t_enter:
                 # Ray does not intersect the image
                 continue
 
             # Compute entry point into the image
-            x = x0 + t0 * dx
-            y = y0 + t0 * dy
+            x = x0_ray + t_enter * dx
+            y = y0_ray + t_enter * dy
 
             # Clamp slightly inside the image to avoid edge ambiguity
-            x = min(max(x, Xmin + eps), Xmax - eps)
-            y = min(max(y, Ymin + eps), Ymax - eps)
+            x = min(max(x, x0 + eps), xn - eps)
+            y = min(max(y, y0 + eps), yn - eps)
 
             # Convert entry point to voxel indices
-            ix = int(np.floor((x - Xmin) / d_pix))
-            iy = int(np.floor((y - Ymin) / d_pix))
+            ix = int(np.floor((x - x0) / d_pix))
+            iy = int(np.floor((y - y0) / d_pix))
 
             # Amanatides–Woo stepping initialization
-            step_x, tDeltaX, tMaxX = _fp_2d_step_init(x0, ix, dx, adx, Xmin, d_pix)
-            step_y, tDeltaY, tMaxY = _fp_2d_step_init(y0, iy, dy, ady, Ymin, d_pix)
+            step_x, tDeltaX, tMaxX = _fp_2d_step_init(x0_ray, ix, dx, abs_dx, x0, d_pix)
+            step_y, tDeltaY, tMaxY = _fp_2d_step_init(y0_ray, iy, dy, abs_dy, y0, d_pix)
             
             # Traverse the grid voxel-by-voxel
-            _fp_2d_traverse_grid(img,sino,i_ang,idt,t0,t1,tMaxX,tMaxY,tDeltaX,tDeltaY,
-                                     step_x,step_y,ix,iy,nx,ny,d_pix)
+            _fp_2d_traverse_grid(img,sino,i_ang,i_det,t_enter,t_exit,tMaxX,tMaxY,tDeltaX,tDeltaY,
+                                     step_x,step_y,ix,iy,nx_pix,ny_pix,d_pix)
 
     #Returns the sino
     return sino

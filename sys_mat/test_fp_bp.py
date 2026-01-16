@@ -166,7 +166,7 @@ plt.ylabel("Angle")
 plt.tight_layout()
 
 plt.show()
-
+"""
 plt.subplot(1,1,1)
 plt.plot(sino1p[0,:], label='DD Parallel')
 plt.plot(sino1f[0,:], label='DD Fanbeam')
@@ -192,7 +192,7 @@ plt.ylabel("Intensity")
 plt.show()
 
 
-"""
+
 
 print(sino2f[0,32:])
 
