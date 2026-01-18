@@ -11,93 +11,93 @@ import numpy as np
 # on a grid line or boundary.
 eps = 1e-6
 
-
 def _fp_2d_intersect_bounding(r0, dr, adr, r_min, r_max):
     # Intersect ray with image bounding box
     #
-    # We compute parametric entry/exit values t0, t1 such that:
-    #   r(t0) enters the image
-    #   r(t1) exits the image
+    # We compute parametric entry/exit values for a single component of r
+    #   r(tr_enter) enters the image
+    #   r(tr_exit) exits the image
     
     
     if adr > eps:
-        tr0 = (r_min - r0) / dr
-        tr1 = (r_max - r0) / dr
-        trmin = min(tr0, tr1)
-        trmax = max(tr0, tr1)
+        tr_enter = (r_min - r0) / dr
+        tr_exit = (r_max - r0) / dr
+        tr_min = min(tr_enter, tr_exit)
+        tr_max = max(tr_enter, tr_exit)
     else:
         # Ray is (almost) vertical → no x-bound intersection
-        trmin = -np.inf
-        trmax =  np.inf
+        tr_min = -np.inf
+        tr_max =  np.inf
 
-    return trmin, trmax
+    return tr_min, tr_max
 
 
 def _fp_2d_step_init(r0, ir, dr, adr, r_min, d_pix):
     # Amanatides–Woo stepping initialization
     #
     # For each axis:
-    #   - step_x / step_y indicates which direction we move
-    #   - tMaxX / tMaxY is the parametric distance to the next
+    #   - ix_dir / iy_dir indicates which direction we move
+    #   - ix_next / iy_next is the parametric distance to the next
     #     vertical/horizontal grid boundary
-    #   - tDeltaX / tDeltaY is the distance between crossings
+    #   - ix_step / iy_step is the distance between crossings
     if dr > 0:
-        step_r = 1
+        ir_dir = 1
         r_next = r_min + (ir + 1) * d_pix
     else:
-        step_r = -1
+        ir_dir = -1
         r_next = r_min + ir * d_pix
 
     if adr > eps:
-        tDeltaR = d_pix / adr
-        tMaxR = (r_next - r0) / dr
+        ir_step = d_pix / adr
+        ir_next = (r_next - r0) / dr
     else:
-        tDeltaR = np.inf
-        tMaxR = np.inf
+        ir_step = np.inf
+        ir_next = np.inf
         
-    return step_r, tDeltaR, tMaxR
+    return ir_dir, ir_step, ir_next
 
-def _fp_2d_traverse_grid(img,sino,ia,idt,t0,t1,tMaxX,tMaxY,tDeltaX,tDeltaY,
-                         step_x,step_y,ix,iy,nX,nY,d_pix):
+
+def _fp_2d_traverse_grid(img,sino,ia,iu,t_enter,t_exit,ix_next,iy_next,
+                         ix_step,iy_step,ix_dir,iy_dir,ix,iy,nx,ny,d_pix):
     
     # Ensure first crossing occurs after entry point
-    tMaxX = max(tMaxX, t0)
-    tMaxY = max(tMaxY, t0)
+    ix_next = max(ix_next, t_enter)
+    iy_next = max(iy_next, t_enter)
 
     # Traverse the grid voxel-by-voxel
     # At each step:
     #   - Choose the nearest boundary crossing
     #   - Accumulate voxel value × segment length
     #   - Advance to the next voxel
-    t = t0
+    t = t_enter
     acc = 0.0
 
-    while t < t1:
+    while t < t_exit:
 
         # Safety check (should rarely trigger)
-        if ix < 0 or ix >= nX or iy < 0 or iy >= nY:
+        if ix < 0 or ix >= nx or iy < 0 or iy >= ny:
             break
 
-        if tMaxX <= tMaxY:
+        if ix_next <= iy_next:
             # Cross a vertical boundary first
-            tNext = min(tMaxX, t1)
-            acc += img[ix, iy] * (tNext - t)
-            t = tNext
-            tMaxX += tDeltaX
-            ix += step_x
+            t_next = min(ix_next, t_exit)
+            acc += img[ix, iy] * (t_next - t)
+            t = t_next
+            ix_next += ix_step
+            ix += ix_dir
         else:
             # Cross a horizontal boundary first
-            tNext = min(tMaxY, t1)
-            acc += img[ix, iy] * (tNext - t) 
-            t = tNext
-            tMaxY += tDeltaY
-            iy += step_y
+            t_next = min(iy_next, t_exit)
+            acc += img[ix, iy] * (t_next - t) 
+            t = t_next
+            iy_next += iy_step
+            iy += iy_dir
 
     # Store final line integral
-    sino[ia, idt] = acc
+    sino[ia, iu] = acc
 
 
-def aw_fp_2d(img, angs, n_dets, d_det=1.0, d_pix=1.0):
+def aw_fp_par_2d(img, ang_arr, nu, du=1.0, d_pix=1.0):
     """
     2D parallel-beam forward projection using Amanatides–Woo ray traversal.
 
@@ -122,11 +122,11 @@ def aw_fp_2d(img, angs, n_dets, d_det=1.0, d_pix=1.0):
     ----------
     img : ndarray, shape (nX, nY)
         Input image (voxel values).
-    angles : ndarray, shape (nAng,)
+    ang_arr : ndarray, shape (nang,)
         Projection angles in radians.
-    n_dets : int
+    nu : int
         Number of detector bins.
-    d_det : float, optional
+    du : float, optional
         Detector spacing (default: 1.0).
     d_pix : float, optional
         Pixel size (default: 1.0).
@@ -137,74 +137,189 @@ def aw_fp_2d(img, angs, n_dets, d_det=1.0, d_pix=1.0):
         Sinogram (line integrals).
     """
 
-    nx_pix, ny_pix = img.shape          # number of pixels in x and y
+    # number of pixels in x and y
+    nx, ny = img.shape         
 
-    # Output sinogram: one value per (angle, detector)
-    sino = np.zeros((angs.size, n_dets), dtype=np.float32)
+    # Output sinogram: (angle, detector)
+    sino = np.zeros((ang_arr.size, nu), dtype=np.float32)
 
-    # Define image bounding box in world coordinates
-    x0 = -0.5 * nx_pix * d_pix
-    xn =  0.5 * nx_pix * d_pix
-    y0 = -0.5 * ny_pix * d_pix
-    yn =  0.5 * ny_pix * d_pix
-
-    # Precompute ray direction for all angles
-    cos_angs = np.cos(angs)
-    sin_angs = np.sin(angs)
+    # Define image bounds in world coordinates
+    x_min = -d_pix*nx/2
+    x_max =  d_pix*nx/2
+    y_min = -d_pix*ny/2
+    y_max =  d_pix*ny/2
 
     # Detector bin centers (detector coordinate u)
-    cnt_dets = d_det * (np.arange(n_dets) - n_dets/2 + 0.5)
+    u_arr = du*(np.arange(nu) - nu/2 + 0.5)
+
+    # Precompute ray direction for all angles
+    cos_ang_arr = np.cos(ang_arr)
+    sin_ang_arr = np.sin(ang_arr)
 
     # Main loops: angles → detectors → voxel traversal
-    for i_ang, (cos_ang,sin_ang) in enumerate(zip(cos_angs,sin_angs)):
+    for ia, (cos_ang,sin_ang) in enumerate(zip(cos_ang_arr,sin_ang_arr)):
         
         #Ray directions
-        dx = cos_ang
-        dy = sin_ang 
+        ray_rx_dir = cos_ang
+        ray_ry_dir = sin_ang 
         
         # Absolute values are used for step size calculations
-        abs_dx = abs(dx)
-        abs_dy = abs(dy)
+        ray_rx_dir_abs = abs(ray_rx_dir)
+        ray_ry_dir_abs = abs(ray_ry_dir)
 
-        for i_det, cnt_det in enumerate(cnt_dets):
+        for iu, u in enumerate(u_arr):
             # Each ray is parameterized as:
-            # r(t) = (x0_ray, y0_ray) + t * (dx, dy)
-            x0_ray = -dy * cnt_det
-            y0_ray =  dx * cnt_det
+            # r(t) = (ray_o_x_pos, ray_o_y_pos) + t * (ray_r_x_dir, ray_r_y_dir)
+            ray_orig_x_pos = -ray_ry_dir * u
+            ray_orig_y_pos =  ray_rx_dir * u
 
             # Intersect ray with image bounding box
-            tx_enter, tx_exit = _fp_2d_intersect_bounding(x0_ray, dx, abs_dx, x0, xn)
-            ty_enter, ty_exit = _fp_2d_intersect_bounding(y0_ray, dy, abs_dy, y0, yn)
+            tx_min, tx_max = _fp_2d_intersect_bounding(ray_orig_x_pos, ray_rx_dir, ray_rx_dir_abs, x_min, x_max)
+            ty_min, ty_max = _fp_2d_intersect_bounding(ray_orig_y_pos, ray_ry_dir, ray_ry_dir_abs, y_min, y_max)
 
             # Combined entry/exit interval
-            t_enter = max(tx_enter, ty_enter)
-            t_exit = min(tx_exit,  ty_exit)
+            t_enter = max(tx_min, ty_min)
+            t_exit = min(tx_max,  ty_max)
 
             if t_exit <= t_enter:
                 # Ray does not intersect the image
                 continue
 
             # Compute entry point into the image
-            x = x0_ray + t_enter * dx
-            y = y0_ray + t_enter * dy
+            x_pos = ray_orig_x_pos + t_enter * ray_rx_dir
+            y_pos = ray_orig_y_pos + t_enter * ray_ry_dir
 
             # Clamp slightly inside the image to avoid edge ambiguity
-            x = min(max(x, x0 + eps), xn - eps)
-            y = min(max(y, y0 + eps), yn - eps)
+            x_pos = min(max(x_pos, x_min + eps), x_max - eps)
+            y_pos = min(max(y_pos, y_min + eps), y_max - eps)
 
             # Convert entry point to voxel indices
-            ix = int(np.floor((x - x0) / d_pix))
-            iy = int(np.floor((y - y0) / d_pix))
+            ix = int(np.floor((x_pos - x_min) / d_pix))
+            iy = int(np.floor((y_pos - y_min) / d_pix))
 
             # Amanatides–Woo stepping initialization
-            step_x, tDeltaX, tMaxX = _fp_2d_step_init(x0_ray, ix, dx, abs_dx, x0, d_pix)
-            step_y, tDeltaY, tMaxY = _fp_2d_step_init(y0_ray, iy, dy, abs_dy, y0, d_pix)
+            ix_dir, ix_step, ix_next = _fp_2d_step_init(ray_orig_x_pos, ix, ray_rx_dir, ray_rx_dir_abs, x_min, d_pix)
+            iy_dir, iy_step, iy_next = _fp_2d_step_init(ray_orig_y_pos, iy, ray_ry_dir, ray_ry_dir_abs, y_min, d_pix)
             
             # Traverse the grid voxel-by-voxel
-            _fp_2d_traverse_grid(img,sino,i_ang,i_det,t_enter,t_exit,tMaxX,tMaxY,tDeltaX,tDeltaY,
-                                     step_x,step_y,ix,iy,nx_pix,ny_pix,d_pix)
+            _fp_2d_traverse_grid(img, sino, ia, iu, t_enter, t_exit,
+                                 ix_next, iy_next, ix_step, iy_step, ix_dir, iy_dir,
+                                 ix, iy, nx, ny, d_pix)
 
     #Returns the sino
+    return sino
+
+
+def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, d_pix=1.0):
+    """
+    2D flat-panel fan-beam forward projection using Amanatides–Woo traversal.
+
+    Parameters
+    ----------
+    img : ndarray (nX, nY)
+        Input image.
+    Angs : ndarray (nAng,)
+        Projection angles in radians.
+    n_dets : int
+        Number of detector elements.
+    DSO : float
+        Distance from source to isocenter.
+    DSD : float
+        Distance from source to detector.
+    du : float
+        Detector spacing.
+    d_pix : float
+        Pixel size.
+
+    Returns
+    -------
+    sino : ndarray (nAng, nDets)
+        Fan-beam sinogram.
+    """
+
+    # number of pixels in x and y
+    nx, ny = img.shape
+
+    # Output sinogram: (angle, detector)
+    sino = np.zeros((ang_arr.size, nu), dtype=np.float32)
+
+    # Define image bounds in world coordinates
+    x_min = -d_pix * nx / 2
+    x_max =  d_pix * nx / 2
+    y_min = -d_pix * ny / 2
+    y_max =  d_pix * ny / 2
+
+    # Detector bin centers
+    u_arr = du*(np.arange(nu) - nu/2 + 0.5)
+
+    # Precompute ray direction for all angles
+    cos_ang_arr = np.cos(ang_arr)
+    sin_ang_arr = np.sin(ang_arr)
+
+    # Main loops: angles → detectors → voxel traversal
+    for ia, (cos_ang,sin_ang) in enumerate(zip(cos_ang_arr,sin_ang_arr)):
+
+        # Source position
+        src_x_pos = DSO * cos_ang
+        src_y_pos = DSO * sin_ang
+
+        # Detector reference point
+        u_x_ref = -(DSD - DSO) * cos_ang
+        u_y_ref = -(DSD - DSO) * sin_ang
+
+        # Detector direction (tangent to rotation)
+        s_rx_dir = -sin_ang
+        s_ry_dir = cos_ang
+
+        for iu, u in enumerate(u_arr):
+            # Each ray is parameterized as:
+            # r(t) = (ray_o_x_pos, ray_o_y_pos) + t * (ray_rx_dir, ray_ry_dir)
+
+            # Detector point
+            u_x_pos = u_x_ref + u * s_rx_dir
+            u_y_pos = u_y_ref + u * s_ry_dir
+
+            # Ray direction
+            ray_rx_dir = u_x_pos - src_x_pos
+            ray_ry_dir = u_y_pos - src_y_pos
+
+            ray_len = np.sqrt(ray_rx_dir**2 + ray_ry_dir**2)
+            ray_rx_dir /= ray_len
+            ray_ry_dir /= ray_len
+
+            # Absolute values are used for step size calculations
+            ray_rx_dir_abs = abs(ray_rx_dir)
+            ray_ry_dir_abs = abs(ray_ry_dir)
+
+            # Intersection with image bounding box
+            t_x_min, t_x_max = _fp_2d_intersect_bounding(src_x_pos, ray_rx_dir, ray_rx_dir_abs, x_min, x_max)
+            t_y_min, t_y_max = _fp_2d_intersect_bounding(src_y_pos, ray_ry_dir, ray_ry_dir_abs, y_min, y_max)
+
+            t_enter = max(t_x_min, t_y_min)
+            t_exit = min(t_x_max, t_y_max)
+
+            if t_exit <= t_enter:
+                continue
+
+            # Entry point (clamped)
+            x_pos = src_x_pos + t_enter * ray_rx_dir
+            y_pos = src_y_pos + t_enter * ray_ry_dir
+            
+            x_pos = min(max(x_pos, x_min + eps), x_max - eps)
+            y_pos = min(max(y_pos, y_min + eps), y_max - eps)
+
+            # Convert to voxel indices
+            ix = int(np.floor((x_pos - x_min) / d_pix))
+            iy = int(np.floor((y_pos - y_min) / d_pix))
+
+            # Amanatides–Woo stepping initialization
+            ix_dir, ix_step, ix_next = _fp_2d_step_init(src_x_pos, ix, ray_rx_dir, ray_rx_dir_abs, x_min, d_pix)
+            iy_dir, iy_step, iy_next = _fp_2d_step_init(src_y_pos, iy, ray_ry_dir, ray_ry_dir_abs, y_min, d_pix)
+            
+            # Grid traversal
+            _fp_2d_traverse_grid(img,sino,ia,iu,t_enter,t_exit,ix_next,iy_next,ix_step,iy_step,
+                         ix_dir,iy_dir,ix,iy,nx,ny,d_pix)
+
     return sino
 
 
@@ -246,10 +361,10 @@ def aw_bp_2d(sino, Angs, img_shape, d_det=1.0, d_pix=1.0):
     img_bp = np.zeros((nX, nY), dtype=np.float32)
 
     # Image bounds
-    Xmin = -0.5 * nX * d_pix
-    Xmax =  0.5 * nX * d_pix
-    Ymin = -0.5 * nY * d_pix
-    Ymax =  0.5 * nY * d_pix
+    x_min = -0.5 * nX * d_pix
+    x_max =  0.5 * nX * d_pix
+    y_min = -0.5 * nY * d_pix
+    y_max =  0.5 * nY * d_pix
 
     eps = 1e-6
 
@@ -278,8 +393,8 @@ def aw_bp_2d(sino, Angs, img_shape, d_det=1.0, d_pix=1.0):
             y0 =  dx * det
 
             # Bounding box intersection (identical to FP)
-            txmin, txmax = _fp_2d_intersect_bounding(x0, dx, adx, Xmin, Xmax)
-            tymin, tymax = _fp_2d_intersect_bounding(y0, dy, ady, Ymin, Ymax)
+            txmin, txmax = _fp_2d_intersect_bounding(x0, dx, adx, x_min, x_max)
+            tymin, tymax = _fp_2d_intersect_bounding(y0, dy, ady, y_min, y_max)
 
             t0 = max(txmin, tymin)
             t1 = min(txmax, tymax)
@@ -291,16 +406,16 @@ def aw_bp_2d(sino, Angs, img_shape, d_det=1.0, d_pix=1.0):
             x = x0 + t0 * dx
             y = y0 + t0 * dy
 
-            x = min(max(x, Xmin + eps), Xmax - eps)
-            y = min(max(y, Ymin + eps), Ymax - eps)
+            x = min(max(x, x_min + eps), x_max - eps)
+            y = min(max(y, y_min + eps), y_max - eps)
 
-            ix = int(np.floor((x - Xmin) / d_pix))
-            iy = int(np.floor((y - Ymin) / d_pix))
+            ix = int(np.floor((x - x_min) / d_pix))
+            iy = int(np.floor((y - y_min) / d_pix))
 
             # Stepping setup (identical to FP)
             # Amanatides–Woo stepping initialization
-            step_x, tDeltaX, tMaxX = _fp_2d_step_init(x0, ix, dx, adx, Xmin, d_pix)
-            step_y, tDeltaY, tMaxY = _fp_2d_step_init(y0, iy, dy, ady, Ymin, d_pix)
+            step_x, tDeltaX, tMaxX = _fp_2d_step_init(x0, ix, dx, adx, x_min, d_pix)
+            step_y, tDeltaY, tMaxY = _fp_2d_step_init(y0, iy, dy, ady, y_min, d_pix)
             
 
             tMaxX = max(tMaxX, t0)
@@ -329,107 +444,7 @@ def aw_bp_2d(sino, Angs, img_shape, d_det=1.0, d_pix=1.0):
     return img_bp
 
 
-def aw_fp_2d_fan_flat(img, Angs, n_dets, DSO, DSD, d_det=1.0, d_pix=1.0):
-    """
-    2D flat-panel fan-beam forward projection using Amanatides–Woo traversal.
 
-    Parameters
-    ----------
-    img : ndarray (nX, nY)
-        Input image.
-    Angs : ndarray (nAng,)
-        Projection angles in radians.
-    n_dets : int
-        Number of detector elements.
-    DSO : float
-        Distance from source to isocenter.
-    DSD : float
-        Distance from source to detector.
-    d_det : float
-        Detector spacing.
-    d_pix : float
-        Pixel size.
-
-    Returns
-    -------
-    sino : ndarray (nAng, nDets)
-        Fan-beam sinogram.
-    """
-
-    nx, ny = img.shape
-    nAng = Angs.size
-    sino = np.zeros((nAng, n_dets), dtype=np.float32)
-
-    # Image bounding box
-    x0 = -d_pix * nx / 2
-    y0 = -d_pix * ny / 2
-    x1 =  d_pix * nx / 2
-    y1 =  d_pix * ny / 2
-
-    # Detector coordinates (flat panel)
-    det_u = d_det * (np.arange(n_dets) - n_dets/2 + 0.5)
-
-    cos_angles = np.cos(Angs)
-    sin_angles = np.sin(Angs)
-
-    for ia, (c,s) in enumerate(zip(cos_angles,sin_angles)):
-        # Source position
-        xs = DSO * c
-        ys = DSO * s
-
-        # Detector center
-        xd0 = -(DSD - DSO) * c
-        yd0 = -(DSD - DSO) * s
-
-        # Detector direction (tangent to rotation)
-        dux = -s
-        duy = c
-
-        for idt in range(n_dets):
-
-            # Detector point
-            xd = xd0 + det_u[idt] * dux
-            yd = yd0 + det_u[idt] * duy
-
-            # Ray direction
-            dx = xd - xs
-            dy = yd - ys
-
-            L = np.sqrt(dx*dx + dy*dy)
-            dx /= L
-            dy /= L
-
-            adx = abs(dx)
-            ady = abs(dy)
-
-            # --- Bounding box intersection ---
-            txmin, txmax = _fp_2d_intersect_bounding(xs, dx, adx, x0, x1)
-            tymin, tymax = _fp_2d_intersect_bounding(ys, dy, ady, y0, y1)
-
-            t0 = max(txmin, tymin)
-            t1 = min(txmax, tymax)
-
-            if t1 <= t0:
-                continue
-
-            # Entry point
-            x = xs + t0 * dx
-            y = ys + t0 * dy
-
-            x = min(max(x, x0 + eps), x1 - eps)
-            y = min(max(y, y0 + eps), y1 - eps)
-
-            ix = int(np.floor((x - x0) / d_pix))
-            iy = int(np.floor((y - y0) / d_pix))
-
-            # Amanatides–Woo stepping initialization
-            step_x, tDeltaX, tMaxX = _fp_2d_step_init(xs, ix, dx, adx, x0, d_pix)
-            step_y, tDeltaY, tMaxY = _fp_2d_step_init(ys, iy, dy, ady, y0, d_pix)
-            
-            _fp_2d_traverse_grid(img,sino,ia,idt,t0,t1,tMaxX,tMaxY,tDeltaX,tDeltaY,
-                         step_x,step_y,ix,iy,nx,ny,d_pix)
-
-    return sino
 
 
 def aw_bp_2d_fan_flat(sino, Angs, img_shape, DSO, DSD, dPix=1.0, d_det=1.0):
