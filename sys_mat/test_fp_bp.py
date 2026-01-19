@@ -30,8 +30,10 @@ d_pix = 1
 
 #Sino params 
 nAngs = 32
-n_dets = 32
-d_det = 1
+n_dets = 64
+d_det = .5
+su = 0.0
+
 
 angles = np.linspace(0, np.pi*2, nAngs, endpoint=False)#, dtype=np.float32)
 Dets = d_det*(np.arange(n_dets) - n_dets / 2.0 + 0.5)
@@ -117,10 +119,10 @@ print("Siddons/DD Diff:", (sino1-sino3).max())
 
 """
 
-sino1p = dd.dd_fp_par_2d(img, angles, n_dets, du=d_det, d_pix=d_pix)
-sino1f = dd.dd_fp_fan_2d(img, angles, n_dets, DSO, DSD, du=d_det, d_pix=d_pix)
-sino2p = aw.aw_fp_par_2d(img, angles, n_dets, du=d_det, d_pix=d_pix)
-sino2f = aw.aw_fp_fan_2d(img, angles, n_dets, DSO, DSD, du=d_det, d_pix=d_pix)
+sino1p = dd.dd_fp_par_2d(img, angles, n_dets, du=d_det, su=su, d_pix=d_pix)
+sino1f = dd.dd_fp_fan_2d(img, angles, n_dets, DSO, DSD, du=d_det, su=su, d_pix=d_pix)
+sino2p = aw.aw_fp_par_2d(img, angles, n_dets, du=d_det, su=su, d_pix=d_pix)
+sino2f = aw.aw_fp_fan_2d(img, angles, n_dets, DSO, DSD, du=d_det, su=su, d_pix=d_pix)
 sino3p = jp.joseph_fp_2d     (img, angles, n_dets, d_det=d_det, d_pix=d_pix)
 sino3f = jp.joseph_fp_fan_2d (img, angles, n_dets, DSO, DSD, d_det=d_det, d_pix=d_pix)
 
@@ -132,19 +134,19 @@ plt.title("DD Parallel")
 plt.xlabel("Detector bin")
 plt.ylabel("Angle")
 
-plt.subplot(2,3,2)
+plt.subplot(2,3,4)
 plt.imshow(sino1f, cmap='gray', aspect='auto', origin='lower')
 plt.title("DD Fanbean")
 plt.xlabel("Detector bin")
 plt.ylabel("Angle")
 
-plt.subplot(2,3,3)
+plt.subplot(2,3,2)
 plt.imshow(sino2p, cmap='gray', aspect='auto', origin='lower')
 plt.title("AW Parallel")
 plt.xlabel("Detector bin")
 plt.ylabel("Angle")
 
-plt.subplot(2,3,4)
+plt.subplot(2,3,5)
 plt.imshow(sino2f, cmap='gray', aspect='auto', origin='lower')
 plt.title("AW Fanbean")
 plt.xlabel("Detector bin")
@@ -152,7 +154,7 @@ plt.ylabel("Angle")
 plt.tight_layout()
 
 
-plt.subplot(2,3,5)
+plt.subplot(2,3,3)
 plt.imshow(sino3p, cmap='gray', aspect='auto', origin='lower')
 plt.title("Joseph Parallel")
 plt.xlabel("Detector bin")
@@ -168,9 +170,8 @@ plt.tight_layout()
 plt.show()
 
 
-
-
 """
+
 plt.subplot(1,1,1)
 plt.plot(sino1p[0,:], label='DD Parallel')
 plt.plot(sino1f[0,:], label='DD Fanbeam')

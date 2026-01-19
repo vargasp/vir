@@ -39,30 +39,34 @@ def joseph_fp_2d(img, angles, n_dets, d_det=1.0, d_pix=1.0):
     L = d_pix * max(nx, ny) * 2
 
     # Find t range so that we cover the whole image
-    t0 = -L / 2
-    t1 = L / 2
+    t_enter = -L / 2
+    t_exit = L / 2
 
     # Precompute trig functions for all angles
     cos_angles = np.cos(angles)
     sin_angles = np.sin(angles)
 
-    for i_ang, (ang_cos,ang_sin) in enumerate(zip(cos_angles,sin_angles)):
+    for i_ang, (cos_ang,sin_ang) in enumerate(zip(cos_angles,sin_angles)):
+
+        #Ray directions
+        ray_rx_dir = cos_ang
+        ray_ry_dir = sin_ang         
 
         # Ray direction is [cos_a, sin_a], detector axis is [-sin_a, cos_a]
-        for iDet, det_cnt in enumerate(u_cnt):
+        for iDet, u in enumerate(u_cnt):
             
             # Ray passes through (x_s, y_s)
-            x_s = -ang_sin * det_cnt
-            y_s = ang_cos * det_cnt
+            x_s = -ray_ry_dir * u
+            y_s = ray_rx_dir * u
 
             # Step size along ray (Joseph typically steps in 1-pixel increments)
-            step = d_pix / max(abs(ang_cos), abs(ang_sin))
+            step = d_pix / max(abs(cos_ang), abs(sin_ang))
 
-            t = t0
-            while t <= t1:
+            t = t_enter
+            while t <= t_exit:
                 # Current position along ray
-                x = x_s + ang_cos * t
-                y = y_s + ang_sin * t
+                x = x_s + ray_rx_dir * t
+                y = y_s + ray_ry_dir * t
 
                 # Convert to pixel index
                 ix = (x - x0) / d_pix

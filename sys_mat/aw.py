@@ -11,6 +11,46 @@ import numpy as np
 # on a grid line or boundary.
 eps = 1e-6
 
+
+"""
+def jospeh(det_cnt,ang_sin,ang_cos,d_pix,t0,t1 ):
+    # Ray passes through (x_s, y_s)
+    x_s = -ang_sin * det_cnt
+    y_s = ang_cos * det_cnt
+
+    # Step size along ray (Joseph typically steps in 1-pixel increments)
+    step = d_pix / max(abs(ang_cos), abs(ang_sin))
+
+    t = t0
+    while t <= t1:
+        # Current position along ray
+        x = x_s + ang_cos * t
+        y = y_s + ang_sin * t
+
+        # Convert to pixel index
+        ix = (x - x0) / d_pix
+        iy = (y - y0) / d_pix
+                
+        if 0 <= ix < nx-1 and 0 <= iy < ny-1:
+            # Bilinear interpolation
+            ix0 = int(np.floor(ix))
+            iy0 = int(np.floor(iy))
+            dx = ix - ix0
+            dy = iy - iy0
+
+            v00 = img[ix0, iy0]
+            v01 = img[ix0, iy0+1]
+            v10 = img[ix0+1, iy0]
+            v11 = img[ix0+1, iy0+1]
+
+            val = (v00 * (1-dx)*(1-dy) +
+                   v10 * dx * (1-dy) +
+                   v01 * (1-dx) * dy +
+                   v11 * dx * dy)
+            sino[i_ang, iDet] += val * step
+        t += step
+"""
+
 def _fp_2d_intersect_bounding(r0, dr, adr, r_min, r_max):
     # Intersect ray with image bounding box
     #
@@ -95,9 +135,9 @@ def _fp_2d_traverse_grid(img,sino,ia,iu,t_enter,t_exit,ix_next,iy_next,
 
     # Store final line integral
     sino[ia, iu] = acc
+    
 
-
-def aw_fp_par_2d(img, ang_arr, nu, du=1.0, d_pix=1.0):
+def aw_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0):
     """
     2D parallel-beam forward projection using Amanatides–Woo ray traversal.
 
@@ -150,7 +190,7 @@ def aw_fp_par_2d(img, ang_arr, nu, du=1.0, d_pix=1.0):
     y_max =  d_pix*ny/2
 
     # Detector bin centers (detector coordinate u)
-    u_arr = du*(np.arange(nu) - nu/2 + 0.5)
+    u_arr = du*(np.arange(nu) - nu/2 + 0.5 + su)
 
     # Precompute ray direction for all angles
     cos_ang_arr = np.cos(ang_arr)
@@ -210,7 +250,7 @@ def aw_fp_par_2d(img, ang_arr, nu, du=1.0, d_pix=1.0):
     return sino
 
 
-def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, d_pix=1.0):
+def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
     """
     2D flat-panel fan-beam forward projection using Amanatides–Woo traversal.
 
@@ -250,7 +290,7 @@ def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, d_pix=1.0):
     y_max =  d_pix * ny / 2
 
     # Detector bin centers
-    u_arr = du*(np.arange(nu) - nu/2 + 0.5)
+    u_arr = du*(np.arange(nu) - nu/2 + 0.5 + su)
 
     # Precompute ray direction for all angles
     cos_ang_arr = np.cos(ang_arr)
@@ -323,7 +363,7 @@ def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, d_pix=1.0):
     return sino
 
 
-def aw_bp_2d(sino, Angs, img_shape, d_det=1.0, d_pix=1.0):
+def aw_bp_2d(sino, Angs, img_shape, d_det=1.0, su=0.0, d_pix=1.0):
     """
     2D parallel-beam backprojection using Amanatides–Woo ray traversal.
 

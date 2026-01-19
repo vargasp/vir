@@ -238,7 +238,7 @@ def _dd_proj_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
     return img_trm, p_bnd_arr, o_arr, rays_scale
 
 
-def dd_fp_par_2d(img, ang_arr, nu, du=1.0, d_pix=1.0):
+def dd_fp_par_2d(img, ang_arr, nu, du=1.0, su=0, d_pix=1.0):
     """
     Distance-driven forward projection for 2D parallel-beam CT.
 
@@ -260,7 +260,7 @@ def dd_fp_par_2d(img, ang_arr, nu, du=1.0, d_pix=1.0):
         Projection angles in radians.
     nu : int
         Number of detector bins.
-    d_det : float, optional
+    du : float, optional
         Detector bin width (default is 1.0).
     d_pix : float, optional
         Pixel width (default is 1.0).
@@ -296,7 +296,7 @@ def dd_fp_par_2d(img, ang_arr, nu, du=1.0, d_pix=1.0):
 
     # Detector bin boundaries along the fan-beam arc
     # Centered at u = 0
-    u_bnd_arr = du * (np.arange(nu + 1, dtype=np.float32) - nu / 2.0)
+    u_bnd_arr = du*(np.arange(nu + 1, dtype=np.float32) - nu/2.0 + su)
 
     # Precompute trig functions for all angles
     cos_ang_arr = np.cos(ang_arr)
@@ -316,7 +316,7 @@ def dd_fp_par_2d(img, ang_arr, nu, du=1.0, d_pix=1.0):
     return sino*d_pix/du
 
 
-def dd_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, d_pix=1.0):
+def dd_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
     """
     Distance-driven fan-beam forward projection for 2D CT.
 
@@ -378,7 +378,7 @@ def dd_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, d_pix=1.0):
 
     # Detector bin boundaries along the fan-beam arc
     # Centered at u = 0
-    u_bnd_arr = du * (np.arange(nu + 1, dtype=np.float32) - nu / 2.0)
+    u_bnd_arr = du*(np.arange(nu + 1, dtype=np.float32) - nu/2.0 + su)
 
     # Precompute trig functions for all angles
     cos_ang_arr = np.cos(ang_arr)
