@@ -12,44 +12,61 @@ import numpy as np
 eps = 1e-6
 
 
-"""
-def jospeh(det_cnt,ang_sin,ang_cos,d_pix,t0,t1 ):
-    # Ray passes through (x_s, y_s)
-    x_s = -ang_sin * det_cnt
-    y_s = ang_cos * det_cnt
+def _jospeh(img,d_pix,sino,ia,iu,cos_ang,sin_ang,x_s,y_s,
+           x0,y0,t_enter,t_exit,step):
 
-    # Step size along ray (Joseph typically steps in 1-pixel increments)
-    step = d_pix / max(abs(ang_cos), abs(ang_sin))
+    nx, ny = img.shape
 
-    t = t0
-    while t <= t1:
+    #Ray directions
+    ray_rx_dir = cos_ang
+    ray_ry_dir = sin_ang 
+
+    """
+    x_min = -d_pix*nx/2
+    x_max =  d_pix*nx/2
+    y_min = -d_pix*ny/2
+    y_max =  d_pix*ny/2
+    """
+
+    t = t_enter
+    while t <= t_exit:
         # Current position along ray
-        x = x_s + ang_cos * t
-        y = y_s + ang_sin * t
+        x = x_s + ray_rx_dir * t
+        y = y_s + ray_ry_dir * t
 
+        """
+        # Clamp slightly inside the image to avoid edge ambiguity
+        x = min(max(x, x_min + eps), x_max - eps)
+        y = min(max(y, y_min + eps), y_max - eps)
+        """
+        
         # Convert to pixel index
         ix = (x - x0) / d_pix
         iy = (y - y0) / d_pix
-                
-        if 0 <= ix < nx-1 and 0 <= iy < ny-1:
-            # Bilinear interpolation
-            ix0 = int(np.floor(ix))
-            iy0 = int(np.floor(iy))
-            dx = ix - ix0
-            dy = iy - iy0
 
-            v00 = img[ix0, iy0]
-            v01 = img[ix0, iy0+1]
-            v10 = img[ix0+1, iy0]
-            v11 = img[ix0+1, iy0+1]
+        # Bilinear interpolation
+        ix = min(max(ix, 0.0), nx - 2.0)
+        iy = min(max(iy, 0.0), ny - 2.0)
 
-            val = (v00 * (1-dx)*(1-dy) +
-                   v10 * dx * (1-dy) +
-                   v01 * (1-dx) * dy +
-                   v11 * dx * dy)
-            sino[i_ang, iDet] += val * step
+        ix0 = int(ix)
+        iy0 = int(iy)
+
+        dx = ix - ix0
+        dy = iy - iy0
+
+
+        v00 = img[ix0, iy0]
+        v01 = img[ix0, iy0+1]
+        v10 = img[ix0+1, iy0]
+        v11 = img[ix0+1, iy0+1]
+
+        val = (v00 * (1-dx)*(1-dy) +
+               v10 * dx * (1-dy) +
+               v01 * (1-dx) * dy +
+               v11 * dx * dy)
+        sino[ia, iu] += val * step
         t += step
-"""
+
 
 def _fp_2d_intersect_bounding(r0, dr, adr, r_min, r_max):
     # Intersect ray with image bounding box
@@ -137,7 +154,7 @@ def _fp_2d_traverse_grid(img,sino,ia,iu,t_enter,t_exit,ix_next,iy_next,
     sino[ia, iu] = acc
     
 
-def aw_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0):
+def aw_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0,joseph=False):
     """
     2D parallel-beam forward projection using Amanatides–Woo ray traversal.
 
@@ -189,6 +206,13 @@ def aw_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0):
     y_min = -d_pix*ny/2
     y_max =  d_pix*ny/2
 
+    #Joseph parameters
+    # Grid: centered at zero, units in physical space
+    x0 = -d_pix*(nx/2 - 0.5) # First pixel center (x)
+    y0 = -d_pix*(ny/2 - 0.5) # First pixel center (y)
+    step=.5          
+
+
     # Detector bin centers (detector coordinate u)
     u_arr = du*(np.arange(nu) - nu/2 + 0.5 + su)
 
@@ -199,23 +223,25 @@ def aw_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0):
     # Main loops: angles → detectors → voxel traversal
     for ia, (cos_ang,sin_ang) in enumerate(zip(cos_ang_arr,sin_ang_arr)):
         
-        #Ray directions
-        ray_rx_dir = cos_ang
-        ray_ry_dir = sin_ang 
+        #Ray directions in unit vector components
+        rx = cos_ang
+        ry = sin_ang 
         
         # Absolute values are used for step size calculations
-        ray_rx_dir_abs = abs(ray_rx_dir)
-        ray_ry_dir_abs = abs(ray_ry_dir)
+        rx_abs = abs(rx)
+        ry_abs = abs(ry)
 
         for iu, u in enumerate(u_arr):
             # Each ray is parameterized as:
-            # r(t) = (ray_o_x_pos, ray_o_y_pos) + t * (ray_r_x_dir, ray_r_y_dir)
-            ray_orig_x_pos = -ray_ry_dir * u
-            ray_orig_y_pos =  ray_rx_dir * u
+            # r(t) = (rx_u, ry_u) + t * (rx, ry)
+            
+            # Ray origination at the detector
+            rx_u = -ry * u
+            ry_u =  rx * u
 
             # Intersect ray with image bounding box
-            tx_min, tx_max = _fp_2d_intersect_bounding(ray_orig_x_pos, ray_rx_dir, ray_rx_dir_abs, x_min, x_max)
-            ty_min, ty_max = _fp_2d_intersect_bounding(ray_orig_y_pos, ray_ry_dir, ray_ry_dir_abs, y_min, y_max)
+            tx_min, tx_max = _fp_2d_intersect_bounding(rx_u, rx, rx_abs, x_min, x_max)
+            ty_min, ty_max = _fp_2d_intersect_bounding(ry_u, ry, ry_abs, y_min, y_max)
 
             # Combined entry/exit interval
             t_enter = max(tx_min, ty_min)
@@ -225,32 +251,38 @@ def aw_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0):
                 # Ray does not intersect the image
                 continue
 
-            # Compute entry point into the image
-            x_pos = ray_orig_x_pos + t_enter * ray_rx_dir
-            y_pos = ray_orig_y_pos + t_enter * ray_ry_dir
-
-            # Clamp slightly inside the image to avoid edge ambiguity
-            x_pos = min(max(x_pos, x_min + eps), x_max - eps)
-            y_pos = min(max(y_pos, y_min + eps), y_max - eps)
-
-            # Convert entry point to voxel indices
-            ix = int(np.floor((x_pos - x_min) / d_pix))
-            iy = int(np.floor((y_pos - y_min) / d_pix))
-
-            # Amanatides–Woo stepping initialization
-            ix_dir, ix_step, ix_next = _fp_2d_step_init(ray_orig_x_pos, ix, ray_rx_dir, ray_rx_dir_abs, x_min, d_pix)
-            iy_dir, iy_step, iy_next = _fp_2d_step_init(ray_orig_y_pos, iy, ray_ry_dir, ray_ry_dir_abs, y_min, d_pix)
+            if joseph:
             
-            # Traverse the grid voxel-by-voxel
-            _fp_2d_traverse_grid(img, sino, ia, iu, t_enter, t_exit,
-                                 ix_next, iy_next, ix_step, iy_step, ix_dir, iy_dir,
-                                 ix, iy, nx, ny, d_pix)
+                _jospeh(img,d_pix,sino,ia,iu,cos_ang,sin_ang,
+                       rx_u,ry_u,x0,y0,t_enter,t_exit,step)
+            else:
+                
+                # Compute entry point into the image
+                rx_x_min = rx_u + t_enter * rx
+                ry_y_min = ry_u + t_enter * ry
+    
+                # Clamp slightly inside the image to avoid edge ambiguity
+                rx_x_min = min(max(rx_x_min, x_min + eps), x_max - eps)
+                ry_y_min = min(max(ry_y_min, y_min + eps), y_max - eps)              
+                
+                # Convert entry point to voxel indices
+                ix = int(np.floor((rx_x_min - x_min) / d_pix))
+                iy = int(np.floor((ry_y_min - y_min) / d_pix))
+    
+                # Amanatides–Woo stepping initialization
+                ix_dir, ix_step, ix_next = _fp_2d_step_init(rx_u, ix, rx, rx_abs, x_min, d_pix)
+                iy_dir, iy_step, iy_next = _fp_2d_step_init(ry_u, iy, ry, ry_abs, y_min, d_pix)
+                
+                # Traverse the grid voxel-by-voxel
+                _fp_2d_traverse_grid(img, sino, ia, iu, t_enter, t_exit,
+                                     ix_next, iy_next, ix_step, iy_step, ix_dir, iy_dir,
+                                     ix, iy, nx, ny, d_pix)
 
     #Returns the sino
     return sino
 
 
-def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
+def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0,joseph=False):
     """
     2D flat-panel fan-beam forward projection using Amanatides–Woo traversal.
 
@@ -289,6 +321,14 @@ def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
     y_min = -d_pix * ny / 2
     y_max =  d_pix * ny / 2
 
+    #Joseph parameters
+    # Grid: centered at zero, units in physical space
+    x0 = -d_pix*(nx/2 - 0.5) # First pixel center (x)
+    y0 = -d_pix*(ny/2 - 0.5) # First pixel center (y)
+    step=.5          
+
+
+
     # Detector bin centers
     u_arr = du*(np.arange(nu) - nu/2 + 0.5 + su)
 
@@ -299,41 +339,42 @@ def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
     # Main loops: angles → detectors → voxel traversal
     for ia, (cos_ang,sin_ang) in enumerate(zip(cos_ang_arr,sin_ang_arr)):
 
-        # Source position
-        src_x_pos = DSO * cos_ang
-        src_y_pos = DSO * sin_ang
+        # Ray origination at the source
+        rx_s = DSO * cos_ang
+        ry_s = DSO * sin_ang
 
         # Detector reference point
-        u_x_ref = -(DSD - DSO) * cos_ang
-        u_y_ref = -(DSD - DSO) * sin_ang
+        rx_u0 = -(DSD - DSO) * cos_ang
+        ry_u0 = -(DSD - DSO) * sin_ang
 
-        # Detector direction (tangent to rotation)
-        s_rx_dir = -sin_ang
-        s_ry_dir = cos_ang
+        # Ray direction (parallel abd orthoganal to detector)
+        rp = -sin_ang
+        ro = cos_ang
 
         for iu, u in enumerate(u_arr):
             # Each ray is parameterized as:
-            # r(t) = (ray_o_x_pos, ray_o_y_pos) + t * (ray_rx_dir, ray_ry_dir)
+            # r(t) = (ray_o_x_pos, ray_o_y_pos) + t * (rx, ry)
 
             # Detector point
-            u_x_pos = u_x_ref + u * s_rx_dir
-            u_y_pos = u_y_ref + u * s_ry_dir
+            rx_u = rx_u0 + u*rp
+            ry_u = ry_u0 + u*ro
 
-            # Ray direction
-            ray_rx_dir = u_x_pos - src_x_pos
-            ray_ry_dir = u_y_pos - src_y_pos
+            # Ray from source to detector
+            rx = rx_u - rx_s
+            ry = ry_u - ry_s
 
-            ray_len = np.sqrt(ray_rx_dir**2 + ray_ry_dir**2)
-            ray_rx_dir /= ray_len
-            ray_ry_dir /= ray_len
+            #Ray directions in unit vector components
+            ray_len = np.sqrt(rx**2 + ry**2)
+            rx /= ray_len
+            ry /= ray_len
 
             # Absolute values are used for step size calculations
-            ray_rx_dir_abs = abs(ray_rx_dir)
-            ray_ry_dir_abs = abs(ray_ry_dir)
+            rx_abs = abs(rx)
+            ry_abs = abs(ry)
 
             # Intersection with image bounding box
-            t_x_min, t_x_max = _fp_2d_intersect_bounding(src_x_pos, ray_rx_dir, ray_rx_dir_abs, x_min, x_max)
-            t_y_min, t_y_max = _fp_2d_intersect_bounding(src_y_pos, ray_ry_dir, ray_ry_dir_abs, y_min, y_max)
+            t_x_min, t_x_max = _fp_2d_intersect_bounding(rx_s, rx, rx_abs, x_min, x_max)
+            t_y_min, t_y_max = _fp_2d_intersect_bounding(ry_s, ry, ry_abs, y_min, y_max)
 
             t_enter = max(t_x_min, t_y_min)
             t_exit = min(t_x_max, t_y_max)
@@ -341,24 +382,31 @@ def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
             if t_exit <= t_enter:
                 continue
 
-            # Entry point (clamped)
-            x_pos = src_x_pos + t_enter * ray_rx_dir
-            y_pos = src_y_pos + t_enter * ray_ry_dir
-            
-            x_pos = min(max(x_pos, x_min + eps), x_max - eps)
-            y_pos = min(max(y_pos, y_min + eps), y_max - eps)
 
-            # Convert to voxel indices
-            ix = int(np.floor((x_pos - x_min) / d_pix))
-            iy = int(np.floor((y_pos - y_min) / d_pix))
+            if joseph:
+    
+                _jospeh(img,d_pix,sino,ia,iu,rx,ry,
+                       rx_s,ry_s,x0,y0,t_enter,t_exit,step)
+            else:
 
-            # Amanatides–Woo stepping initialization
-            ix_dir, ix_step, ix_next = _fp_2d_step_init(src_x_pos, ix, ray_rx_dir, ray_rx_dir_abs, x_min, d_pix)
-            iy_dir, iy_step, iy_next = _fp_2d_step_init(src_y_pos, iy, ray_ry_dir, ray_ry_dir_abs, y_min, d_pix)
-            
-            # Grid traversal
-            _fp_2d_traverse_grid(img,sino,ia,iu,t_enter,t_exit,ix_next,iy_next,ix_step,iy_step,
-                         ix_dir,iy_dir,ix,iy,nx,ny,d_pix)
+                # Entry point (clamped)
+                rx_x_min = rx_s + t_enter * rx
+                ry_y_min = ry_s + t_enter * ry
+                
+                rx_x_min = min(max(rx_x_min, x_min + eps), x_max - eps)
+                ry_y_min = min(max(ry_y_min, y_min + eps), y_max - eps)
+    
+                # Convert to voxel indices
+                ix = int(np.floor((rx_x_min - x_min) / d_pix))
+                iy = int(np.floor((ry_y_min - y_min) / d_pix))
+    
+                # Amanatides–Woo stepping initialization
+                ix_dir, ix_step, ix_next = _fp_2d_step_init(rx_s, ix, rx, rx_abs, x_min, d_pix)
+                iy_dir, iy_step, iy_next = _fp_2d_step_init(ry_s, iy, ry, ry_abs, y_min, d_pix)
+                
+                # Grid traversal
+                _fp_2d_traverse_grid(img,sino,ia,iu,t_enter,t_exit,ix_next,iy_next,ix_step,iy_step,
+                             ix_dir,iy_dir,ix,iy,nx,ny,d_pix)
 
     return sino
 

@@ -11,9 +11,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import vir.sys_mat.dd as dd
-import vir.sys_mat.aw as aw
-import vir.sys_mat.joseph as jp
-import vir.sys_mat.fp_2d_par as proj_2d
+import vir.sys_mat.rd as rd
+import vir.sys_mat.pd as pd
 
 
 
@@ -29,13 +28,13 @@ nY = 32
 d_pix = 1
 
 #Sino params 
-nAngs = 32
+na = 32
 n_dets = 64
 d_det = .5
 su = 0.0
 
 
-angles = np.linspace(0, np.pi*2, nAngs, endpoint=False)#, dtype=np.float32)
+angles = np.linspace(0, np.pi*2, na, endpoint=False)#, dtype=np.float32)
 Dets = d_det*(np.arange(n_dets) - n_dets / 2.0 + 0.5)
 
 #Test image
@@ -121,62 +120,82 @@ print("Siddons/DD Diff:", (sino1-sino3).max())
 
 sino1p = dd.dd_fp_par_2d(img, angles, n_dets, du=d_det, su=su, d_pix=d_pix)
 sino1f = dd.dd_fp_fan_2d(img, angles, n_dets, DSO, DSD, du=d_det, su=su, d_pix=d_pix)
-sino2p = aw.aw_fp_par_2d(img, angles, n_dets, du=d_det, su=su, d_pix=d_pix)
-sino2f = aw.aw_fp_fan_2d(img, angles, n_dets, DSO, DSD, du=d_det, su=su, d_pix=d_pix)
-sino3p = jp.joseph_fp_2d     (img, angles, n_dets, d_det=d_det, d_pix=d_pix)
-sino3f = jp.joseph_fp_fan_2d (img, angles, n_dets, DSO, DSD, d_det=d_det, d_pix=d_pix)
+sino2p = rd.aw_fp_par_2d(img, angles, n_dets, du=d_det, su=su, d_pix=d_pix)
+sino2f = rd.aw_fp_fan_2d(img, angles, n_dets, DSO, DSD, du=d_det, su=su, d_pix=d_pix)
+sino3p = rd.aw_fp_par_2d(img, angles, n_dets, du=d_det, su=su, d_pix=d_pix,joseph=True)
+sino3f = rd.aw_fp_fan_2d(img, angles, n_dets, DSO, DSD, du=d_det, su=su, d_pix=d_pix,joseph=True)
+sino4p = pd.pd_fp_par_2d(img, angles, n_dets, du=d_det, su=su, d_pix=d_pix)
+sino4f = pd.pd_fp_par_2d(img, angles, n_dets, du=d_det, su=su, d_pix=d_pix)
 
 
-plt.figure(figsize=(6,4))
-plt.subplot(2,3,1)
+plt.figure(figsize=(8,4))
+plt.subplot(2,4,1)
 plt.imshow(sino1p, cmap='gray', aspect='auto', origin='lower')
 plt.title("DD Parallel")
 plt.xlabel("Detector bin")
 plt.ylabel("Angle")
 
-plt.subplot(2,3,4)
+plt.subplot(2,4,5)
 plt.imshow(sino1f, cmap='gray', aspect='auto', origin='lower')
 plt.title("DD Fanbean")
 plt.xlabel("Detector bin")
 plt.ylabel("Angle")
 
-plt.subplot(2,3,2)
+plt.subplot(2,4,2)
 plt.imshow(sino2p, cmap='gray', aspect='auto', origin='lower')
 plt.title("AW Parallel")
 plt.xlabel("Detector bin")
 plt.ylabel("Angle")
 
-plt.subplot(2,3,5)
+plt.subplot(2,4,6)
 plt.imshow(sino2f, cmap='gray', aspect='auto', origin='lower')
 plt.title("AW Fanbean")
 plt.xlabel("Detector bin")
 plt.ylabel("Angle")
 plt.tight_layout()
 
-
-plt.subplot(2,3,3)
+plt.subplot(2,4,3)
 plt.imshow(sino3p, cmap='gray', aspect='auto', origin='lower')
 plt.title("Joseph Parallel")
 plt.xlabel("Detector bin")
 plt.ylabel("Angle")
 
-plt.subplot(2,3,6)
+plt.subplot(2,4,7)
 plt.imshow(sino3f, cmap='gray', aspect='auto', origin='lower')
 plt.title("Jospeh Fanbean")
 plt.xlabel("Detector bin")
 plt.ylabel("Angle")
 plt.tight_layout()
 
+plt.subplot(2,4,4)
+plt.imshow(sino4p, cmap='gray', aspect='auto', origin='lower')
+plt.title("PD Parallel")
+plt.xlabel("Detector bin")
+plt.ylabel("Angle")
+
+plt.subplot(2,4,8)
+plt.imshow(sino4f, cmap='gray', aspect='auto', origin='lower')
+plt.title("PD Fanbean")
+plt.xlabel("Detector bin")
+plt.ylabel("Angle")
+plt.tight_layout()
+
+
+
+
 plt.show()
 
 
-"""
 
-plt.subplot(1,1,1)
+
+plt.subplot(1,4,1)
 plt.plot(sino1p[0,:], label='DD Parallel')
 plt.plot(sino1f[0,:], label='DD Fanbeam')
 plt.plot(sino2p[0,:], label='AW Parallel')
 plt.plot(sino2f[0,:], label='AW Fanbeam')
+plt.plot(sino3p[0,:], label='J Parallel')
+plt.plot(sino3f[0,:], label='J Fanbeam')
+plt.plot(sino4p[0,:], label='PD Parallel')
 plt.legend()
 plt.title("Angle 0 profile")
 plt.xlabel("Detector Bin")
@@ -190,14 +209,30 @@ plt.plot(sino1p[12,:], label='DD Parallel')
 plt.plot(sino1f[12,:], label='DD Fanbeam')
 plt.plot(sino2p[12,:], label='AW Parallel')
 plt.plot(sino2f[12,:], label='AW Fanbeam')
+plt.plot(sino3p[12,:], label='J Parallel')
+plt.plot(sino3f[12,:], label='J Fanbeam')
+plt.plot(sino4p[12,:], label='PD Parallel')
 plt.legend()
 plt.title("Angle 45 profile")
 plt.xlabel("Detector Bin")
 plt.ylabel("Intensity")
 plt.show()
 
+plt.subplot(1,1,1)
+plt.plot(sino1p[int(na/2),:], label='DD Parallel')
+plt.plot(sino1f[int(na/2),:], label='DD Fanbeam')
+plt.plot(sino2p[int(na/2),:], label='AW Parallel')
+plt.plot(sino2f[int(na/2),:], label='AW Fanbeam')
+plt.plot(sino3p[int(na/2),:], label='J Parallel')
+plt.plot(sino3f[int(na/2),:], label='J Fanbeam')
+plt.plot(sino4p[int(na/2),:], label='PD Parallel')
+plt.legend()
+plt.title("Angle 180 profile")
+plt.xlabel("Detector Bin")
+plt.ylabel("Intensity")
+plt.show()
 
-
+"""
 
 print(sino2f[0,32:])
 
