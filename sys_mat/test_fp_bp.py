@@ -8,6 +8,7 @@ Created on Wed Nov 19 12:57:48 2025
 
 
 import matplotlib.pyplot as plt
+plt.rcParams['figure.dpi'] = 600
 import numpy as np
 
 import vir.sys_mat.dd as dd

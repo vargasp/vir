@@ -88,6 +88,68 @@ def _dd_fp_sweep(sino,img_trm,p_bnd_arr,o_arr,u_bnd_arr,rays_scl_arr,ia):
             else:
                 iu += 1
 
+
+def _dd_bp_sweep(img_out, sino, p_bnd_arr, o_arr, u_bnd_arr, rays_scl_arr, ia):
+    """
+    Distance-driven sweep kernel for 2D parallel or fanbeam back-projection.
+
+    Distributes the sinogram data of a single angle back to the image using overlap intervals 
+    computed in detector space. Updates `img_out` in-place.
+
+    Parameters
+    ----------
+    img_out : ndarray, shape (np, no)
+        Image buffer to accumulate backprojected values.
+    sino : ndarray, shape (n_angles, nu)
+        Input sinogram array.
+    p_bnd_arr : ndarray, shape (np + 1,)
+        Projected pixel boundary coordinates along the driving axis in detector space.
+    o_arr : ndarray, shape (no,)
+        Orthogonal pixel-center offsets projected onto detector coordinate.
+    u_bnd_arr : ndarray, shape (nu + 1,)
+        Detector bin boundary coordinates in detector space.
+    rays_scl_arr : ndarray, shape (np)
+        Scaling factor for pixel overlap, as in forward sweep.
+    ia : int
+        Index of projection angle to read from sinogram.
+
+    Returns
+    -------
+    None (operates in-place)
+    """
+    np_, no = img_out.shape
+    nu = u_bnd_arr.size - 1
+
+    sino_vec = sino[ia]
+    # Loop over orthogonal pixel lines
+    for io in range(no):
+        o = o_arr[io]
+
+        img_vec = img_out[:, io]
+        ray_scl = rays_scl_arr[io]
+
+        ip = 0
+        iu = 0
+        while ip < np_ and iu < nu:
+            # Compute overlap as in FP
+            p_bnd_l = p_bnd_arr[ip] + o
+            u_bnd_l = u_bnd_arr[iu]
+            overlap_l = max(p_bnd_l, u_bnd_l)
+
+            p_bnd_r = p_bnd_arr[ip + 1] + o
+            u_bnd_r = u_bnd_arr[iu + 1]
+            overlap_r = min(p_bnd_r, u_bnd_r)
+
+            if overlap_r > overlap_l:
+                # Distribute detector bin value back to the image pixel
+                img_vec[ip] += (sino_vec[iu] * (overlap_r - overlap_l) * ray_scl)
+
+            if p_bnd_r < u_bnd_r:
+                ip += 1
+            else:
+                iu += 1
+
+
 def _dd_proj_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
                   cos_ang, sin_ang, is_fan=False, DSO=1.0, DSD=1.0):
     
@@ -400,432 +462,61 @@ def dd_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
 
 
 
-
-def _dd_bp_par_2d_sweep(img_rot,proj,u_pix_bnd_drive,u_pix_offset_orth,u_det_bnd,n_pix_drive,n_pix_orth,inv):
+def dd_bp_par_2d(sino, ang_arr, img_shape, du=1.0, su=0, d_pix=1.0):
     """
-    Distance-driven sweep for parallel-beam back-projection along one angle.
-
-    Accumulates projection contributions into image pixels along the driving axis.
-    This function computes the overlap between projected pixel boundaries and detector
-    bins, weighting contributions proportionally to the length of overlap.
+    Distance-driven parallel-beam back-projection for 2D CT.
 
     Parameters
     ----------
-    img_rot : ndarray, shape (n_pix_drive, n_pix_orth)
-        Subarray of the image corresponding to the current driving axis (may be a view).
-    proj : ndarray, shape (n_dets,)
-        Projection values for the current angle.
-    u_pix_bnd_drive : ndarray, shape (n_pix_drive + 1,)
-        Pixel boundaries along the driving axis, projected onto the detector coordinate.
-    u_pix_offset_orth : ndarray, shape (n_pix_orth,)
-        Offsets along the orthogonal axis for each pixel row/column.
-    u_det_bnd : ndarray, shape (n_dets + 1,)
-        Detector bin boundaries.
-    n_pix_drive : int
-        Number of pixels along the driving axis.
-    n_pix_orth : int
-        Number of pixels along the orthogonal axis.
-    inv : float
-        Scaling factor for projection contribution (typically d_det * |cos(theta)| or |sin(theta)|).
+    sino : ndarray, shape (n_angles, nu)
+        Input sinogram to back-project.
+    ang_arr : ndarray, shape (n_angles,)
+        Projection angles in radians.
+    img_shape : tuple
+        Shape of output image (nx, ny).
+    du : float, optional
+        Detector bin width (default 1.0).
+    su : float, optional
+        Detector offset (default 0).
+    d_pix : float, optional
+        Pixel size (default 1.0).
 
-    Notes
-    -----
-    - This implements the classic distance-driven back-projection for parallel beams.
-    - Pixels fully outside the detector range are skipped for efficiency.
+    Returns
+    -------
+    img : ndarray, shape (nx, ny)
+        Backprojected image.
     """
-    
-    n_dets = u_det_bnd.size - 1
+    nx, ny = img_shape
+    nu = sino.shape[1]
+    img = np.zeros((nx, ny), dtype=np.float32)
 
-    for i_orth in range(n_pix_orth):
-        P_bnd = u_pix_bnd_drive + u_pix_offset_orth[i_orth]
+    # Stride-1 versions for driving axes
+    img_x = np.ascontiguousarray(img)
+    img_y = np.ascontiguousarray(img.T)
 
-        # Early rejection if fully off detector
-        if P_bnd[-1] <= u_det_bnd[0] or P_bnd[0] >= u_det_bnd[-1]:
-            continue
+    x_bnd_arr = d_pix * (np.arange(nx+1, dtype=np.float32) - nx/2)
+    y_bnd_arr = d_pix * (np.arange(ny+1, dtype=np.float32) - ny/2)
 
-        i_pix = i_det = 0
-        while i_pix < n_pix_drive and i_det < n_dets:
-            left  = max(P_bnd[i_pix],     u_det_bnd[i_det])
-            right = min(P_bnd[i_pix + 1], u_det_bnd[i_det + 1])
+    x_arr = (x_bnd_arr[:-1] + x_bnd_arr[1:])/2
+    y_arr = (y_bnd_arr[:-1] + y_bnd_arr[1:])/2
 
-            if right > left:
-                img_rot[i_pix, i_orth] += proj[i_det] * (right - left) / inv
-            
-            # Advance to next pixel or detector
-            if P_bnd[i_pix + 1] < u_det_bnd[i_det + 1]:
-                i_pix += 1
-            else:
-                i_det += 1
+    u_bnd_arr = du * (np.arange(nu + 1, dtype=np.float32) - nu/2.0 + su)
+
+    cos_ang_arr = np.cos(ang_arr)
+    sin_ang_arr = np.sin(ang_arr)
+
+    for ia, (cos_ang, sin_ang) in enumerate(zip(cos_ang_arr, sin_ang_arr)):
+        img_xv = img_x
+        img_yv = img_y
+
+        img_trm, p_bnd_arr, o_arr, rays_scale = \
+            _dd_proj_geom(img_xv, img_yv, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
+                          cos_ang, sin_ang, is_fan=False)
+
+        _dd_bp_sweep(img_trm, sino, p_bnd_arr, o_arr, u_bnd_arr, rays_scale, ia)
+
+    # Normalize: undo FP normalziation (multiply by detector size, divide by pixel size)
+    # Sum all backprojected views into output image
+    return img * du / d_pix
+
                 
-
-def dd_bp_par_2d(sino, angs, n_x, n_y, d_pix=1.0, d_det=1.0):
-    """
-    2D parallel-beam distance-driven back-projection.
-
-    Reconstructs a 2D image from a parallel-beam sinogram using
-    distance-driven back-projection. The algorithm selects the
-    driving axis (X or Y) depending on the projection angle for
-    better sampling along the dominant direction.
-
-    Parameters
-    ----------
-    sino : ndarray, shape (n_angles, n_dets)
-        Parallel-beam sinogram.
-    angs : ndarray, shape (n_angles,)
-        Projection angles in radians.
-    n_x : int
-        Number of pixels along X axis.
-    n_y : int
-        Number of pixels along Y axis.
-    d_pix : float, optional
-        Pixel width. Default is 1.0.
-    d_det : float, optional
-        Detector bin width. Default is 1.0.
-
-    Returns
-    -------
-    img : ndarray, shape (n_x, n_y)
-        Reconstructed 2D image.
-
-    Notes
-    -----
-    - Selects X-driven or Y-driven back-projection depending on angle to reduce sampling artifacts.
-    - Uses pixel boundary overlaps for accurate distance-driven weighting.
-    """
-    
-    sino = np.asarray(sino, dtype=np.float32)
-    n_angs, n_dets = sino.shape
-    img = np.zeros((n_x, n_y), dtype=np.float32)
-
-    # Pixel boundaries
-    x_bnd = d_pix * (np.arange(n_x + 1) - n_x / 2.0)
-    y_bnd = d_pix * (np.arange(n_y + 1) - n_y / 2.0)
-
-    # Pixel centers
-    x_cnt = (x_bnd[:-1] + x_bnd[1:]) / 2
-    y_cnt = (y_bnd[:-1] + y_bnd[1:]) / 2
-
-    # Detector boundaries
-    u_det_bnd = d_det * (np.arange(n_dets + 1) - n_dets / 2.0)
-
-    for i_ang, theta in enumerate(angs):
-        cos_t, sin_t = np.cos(theta), np.sin(theta)
-        proj = sino[i_ang]
-
-        # X-driven
-        if abs(cos_t) >= abs(sin_t):
-            n_pix_drive, n_pix_orth = n_x, n_y
-            inv = max(abs(cos_t), 1e-12)
-            
-            u_pix_bnd_drive = cos_t * x_bnd
-            u_pix_offset_orth = -sin_t * y_cnt
-
-            img_rot = img
-            
-        # Y-driven
-        else:
-            n_pix_drive, n_pix_orth = n_y, n_x
-            inv = max(abs(sin_t), 1e-12)
-            
-            u_pix_bnd_drive = -sin_t * y_bnd
-            u_pix_offset_orth = cos_t * x_cnt
-
-            img_rot = img.T 
-            
-            
-        if u_pix_bnd_drive[1] < u_pix_bnd_drive[0]:
-            u_pix_bnd_drive = u_pix_bnd_drive[::-1]
-            img_rot = img_rot[::-1, :]
-            
-        _dd_bp_par_2d_sweep(img_rot,proj,u_pix_bnd_drive,u_pix_offset_orth,u_det_bnd,n_pix_drive,n_pix_orth,inv)
-            
-    return img/n_angs/d_pix
-
-
-def _dd_bp_fan_2d_sweep(img, proj, u_pix_bnd_drive, u_pix_offset_orth,
-                        det_bnd, n_pix_drive, n_pix_orth, backproj_scale):
-    """
-    Distance-driven sweep for fan-beam back-projection along one angle.
-
-    Accumulates fan-beam projection contributions into image pixels along the
-    driving axis. Each pixel contribution is weighted by the detector overlap
-    and corrected for fan-beam magnification.
-
-    Parameters
-    ----------
-    img : ndarray, shape (n_pix_drive, n_pix_orth)
-        Subarray of the image for the current driving axis (may be a view).
-    proj : ndarray, shape (n_dets,)
-        Fan-beam projection for the current angle.
-    u_pix_bnd_drive : ndarray, shape (n_pix_drive + 1,)
-        Pixel boundaries along the driving axis, projected onto the detector.
-    u_pix_offset_orth : ndarray, shape (n_pix_orth,)
-        Orthogonal pixel offsets for each row/column.
-    det_bnd : ndarray, shape (n_dets + 1,)
-        Detector bin boundaries.
-    n_pix_drive : int
-        Number of pixels along the driving axis.
-    n_pix_orth : int
-        Number of pixels along the orthogonal axis.
-    backproj_scale : ndarray, shape (n_pix_orth,)
-        Fan-beam magnification factor for each orthogonal pixel
-        (typically DSD / (DSO - u)).
-
-    Notes
-    -----
-    - Implements distance-driven back-projection for fan-beam CT.
-    - Early rejection is applied for pixels fully outside the detector.
-    - Magnification ensures approximate intensity conservation in fan-beam geometry.
-    """
-    
-    n_dets = det_bnd.size - 1
-    
-    # Loop over orthogonal pixels
-    for i_orth in range(n_pix_orth):
-        u_pix_bnd = u_pix_bnd_drive + u_pix_offset_orth[i_orth]
-        scale = backproj_scale[i_orth]
-
-        # Early rejection if fully off detector
-        if u_pix_bnd[-1] <= det_bnd[0] or u_pix_bnd[0] >= det_bnd[-1]:
-            continue
-
-        i_pix = i_det = 0
-        while i_pix < n_pix_drive and i_det < n_dets:
-            left  = max(u_pix_bnd[i_pix],     det_bnd[i_det])
-            right = min(u_pix_bnd[i_pix+1],   det_bnd[i_det+1])
-
-            if right > left:
-                # Accumulate backprojection, correcting for fan-beam magnification
-                img[i_pix, i_orth] += proj[i_det] * (right - left) / scale
-
-            # Advance to next pixel or detector
-            if u_pix_bnd[i_pix+1] < det_bnd[i_det+1]:
-                i_pix += 1
-            else:
-                i_det += 1
-
-
-def dd_bp_fan_2d(sino, Angs, n_x, n_y, DSO, DSD, d_pix=1.0, d_det=1.0):
-    """
-    2D fan-beam distance-driven back-projection.
-
-    Reconstructs a 2D image from a fan-beam sinogram using
-    distance-driven back-projection. Supports X-driven or Y-driven
-    selection depending on projection angle. Corrects for
-    fan-beam magnification to approximate intensity conservation.
-
-    Parameters
-    ----------
-    sino : ndarray, shape (n_angles, n_dets)
-        Fan-beam sinogram.
-    Angs : ndarray, shape (n_angles,)
-        Projection angles in radians.
-    n_x : int
-        Number of pixels along X axis.
-    n_y : int
-        Number of pixels along Y axis.
-    DSO : float
-        Source-to-origin distance.
-    DSD : float
-        Source-to-detector distance.
-    d_pix : float, optional
-        Pixel width. Default is 1.0.
-    d_det : float, optional
-        Detector bin width. Default is 1.0.
-
-    Returns
-    -------
-    img : ndarray, shape (n_x, n_y)
-        Reconstructed 2D image.
-
-    Notes
-    -----
-    - Uses distance-driven pixel-detector overlap weighting for fan-beam back-projection.
-    - Supports X-driven / Y-driven sweeping depending on projection angle.
-    - Magnification correction ensures approximate intensity conservation for finite DSO/DSD.
-    """
-    
-    sino = np.asarray(sino, dtype=np.float32)
-    n_angs, n_dets = sino.shape
-    img = np.zeros((n_x, n_y), dtype=np.float32)
-
-    # Pixel boundaries and centers
-    X_bnd = d_pix * (np.arange(n_x+1) - n_x/2)
-    Y_bnd = d_pix * (np.arange(n_y+1) - n_y/2)
-    X_cnt = 0.5 * (X_bnd[:-1] + X_bnd[1:])
-    Y_cnt = 0.5 * (Y_bnd[:-1] + Y_bnd[1:])
-
-    # Detector boundaries
-    det_bnd = d_det * (np.arange(n_dets + 1) - n_dets/2)
-
-    for i_ang, theta in enumerate(Angs):
-        cos_t, sin_t = np.cos(theta), np.sin(theta)
-        proj = sino[i_ang]
-
-        # Decide driving axis
-        if abs(cos_t) >= abs(sin_t):
-            n_pix_drive, n_pix_orth = n_x, n_y
-            u_pix_bnd_drive = cos_t * X_bnd
-            u_pix_offset_orth = -sin_t * Y_cnt
-            img_view = img
-        else:
-            n_pix_drive, n_pix_orth = n_y, n_x
-            u_pix_bnd_drive = -sin_t * Y_bnd
-            u_pix_offset_orth = cos_t * X_cnt
-            img_view = img.T
-
-        # Reverse if projected pixels are decreasing
-        if u_pix_bnd_drive[-1] < u_pix_bnd_drive[0]:
-            u_pix_bnd_drive = u_pix_bnd_drive[::-1]
-            img_view = img_view[::-1, :]
-
-        # Magnification factor (inverse of forward-projection scaling)
-        backproj_scale = DSD / (DSO - u_pix_offset_orth)
-
-        _dd_bp_fan_2d_sweep(img_view, proj, u_pix_bnd_drive, u_pix_offset_orth,
-                            det_bnd, n_pix_drive, n_pix_orth, backproj_scale)
-
-    return img/n_angs/d_pix
-
-
-
-def _dd_fp_cone_3d_sweep(
-    sino, vol,
-    u_pix_bnd_drive, u_pix_offset_y, v_pix_offset_z,
-    det_u_bnd, det_v_bnd,
-    n_pix_drive, n_pix_y, n_pix_z,
-    proj_scale_y, proj_scale_z,
-    i_ang
-):
-    """
-    Distance-driven cone-beam sweep for one projection angle.
-
-    Accumulates voxel contributions into (u, v) detector bins.
-    """
-
-    n_det_u = det_u_bnd.size - 1
-    n_det_v = det_v_bnd.size - 1
-
-    for iy in range(n_pix_y):
-        for iz in range(n_pix_z):
-
-            voxel_line = vol[:, iy, iz]
-
-            # Apply orthogonal offsets
-            u_pix_bnd = u_pix_bnd_drive + u_pix_offset_y[iy]
-            v_pix = v_pix_offset_z[iz]
-
-            # Magnification correction (cone-beam)
-            proj_scale = proj_scale_y[iy] * proj_scale_z[iz]
-
-            i_pix = i_det_u = 0
-            while i_pix < n_pix_drive and i_det_u < n_det_u:
-                left_u  = max(u_pix_bnd[i_pix],   det_u_bnd[i_det_u])
-                right_u = min(u_pix_bnd[i_pix+1], det_u_bnd[i_det_u+1])
-
-                if right_u > left_u:
-                    # v overlap (point-like along drive axis)
-                    for i_det_v in range(n_det_v):
-                        left_v  = max(v_pix, det_v_bnd[i_det_v])
-                        right_v = min(v_pix, det_v_bnd[i_det_v+1])
-
-                        if right_v > left_v:
-                            sino[i_ang, i_det_u, i_det_v] += (
-                                voxel_line[i_pix]
-                                * (right_u - left_u)
-                                * (right_v - left_v)
-                                / proj_scale
-                            )
-
-                if u_pix_bnd[i_pix+1] < det_u_bnd[i_det_u+1]:
-                    i_pix += 1
-                else:
-                    i_det_u += 1
-
-
-def dd_fp_cone_3d(
-    vol, Angs,
-    n_det_u, n_det_v,
-    DSO, DSD,
-    d_pix=1.0, d_det_u=1.0, d_det_v=1.0
-):
-    """
-    Distance-driven cone-beam forward projection (flat-panel).
-
-    Parameters
-    ----------
-    vol : ndarray, shape (nX, nY, nZ)
-        3D image volume.
-    Angs : ndarray
-        Projection angles (radians).
-    n_det_u, n_det_v : int
-        Detector dimensions.
-    DSO, DSD : float
-        Source-to-origin and source-to-detector distances.
-    """
-
-    nX, nY, nZ = vol.shape
-    sino = np.zeros((len(Angs), n_det_u, n_det_v), dtype=np.float32)
-
-    # Image voxel boundaries
-    X_bnd = d_pix * (np.arange(nX + 1) - nX / 2)
-    Y_bnd = d_pix * (np.arange(nY + 1) - nY / 2)
-    Z_bnd = d_pix * (np.arange(nZ + 1) - nZ / 2)
-
-    X_cnt = 0.5 * (X_bnd[:-1] + X_bnd[1:])
-    Y_cnt = 0.5 * (Y_bnd[:-1] + Y_bnd[1:])
-    Z_cnt = 0.5 * (Z_bnd[:-1] + Z_bnd[1:])
-
-    # Detector boundaries
-    det_u_bnd = d_det_u * (np.arange(n_det_u + 1) - n_det_u / 2)
-    det_v_bnd = d_det_v * (np.arange(n_det_v + 1) - n_det_v / 2)
-
-    for i_ang, theta in enumerate(Angs):
-        cos_t, sin_t = np.cos(theta), np.sin(theta)
-
-        # Driving axis decision (same as 2D)
-        if abs(cos_t) >= abs(sin_t):
-            # X-driven
-            n_pix_drive = nX
-            n_pix_y = nY
-            n_pix_z = nZ
-
-            u_pix_bnd_drive = cos_t * X_bnd
-            u_pix_offset_y = -sin_t * Y_cnt
-            v_pix_offset_z = Z_cnt
-
-            volP = vol
-        else:
-            # Y-driven
-            n_pix_drive = nY
-            n_pix_y = nX
-            n_pix_z = nZ
-
-            u_pix_bnd_drive = -sin_t * Y_bnd
-            u_pix_offset_y = cos_t * X_cnt
-            v_pix_offset_z = Z_cnt
-
-            volP = vol.transpose(1, 0, 2)
-
-        # Enforce monotonicity
-        if u_pix_bnd_drive[-1] < u_pix_bnd_drive[0]:
-            u_pix_bnd_drive = u_pix_bnd_drive[::-1]
-            volP = volP[::-1, :, :]
-
-        # Cone-beam magnification
-        proj_scale_y = DSD / (DSO - u_pix_offset_y)
-        proj_scale_z = DSD / DSO  # z magnification (flat panel assumption)
-
-        _dd_fp_cone_3d_sweep(
-            sino, volP,
-            u_pix_bnd_drive,
-            u_pix_offset_y,
-            v_pix_offset_z,
-            det_u_bnd, det_v_bnd,
-            n_pix_drive, n_pix_y, n_pix_z,
-            proj_scale_y, proj_scale_z,
-            i_ang
-        )
-
-    return sino
-
