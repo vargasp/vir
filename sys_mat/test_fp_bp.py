@@ -128,109 +128,42 @@ sino4p = pd.pd_fp_par_2d(img, angles, n_dets, du=d_det, su=su, d_pix=d_pix)
 sino4f = pd.pd_fp_par_2d(img, angles, n_dets, du=d_det, su=su, d_pix=d_pix)
 
 
-plt.figure(figsize=(8,4))
-plt.subplot(2,4,1)
-plt.imshow(sino1p, cmap='gray', aspect='auto', origin='lower')
-plt.title("DD Parallel")
-plt.xlabel("Detector bin")
-plt.ylabel("Angle")
 
-plt.subplot(2,4,5)
-plt.imshow(sino1f, cmap='gray', aspect='auto', origin='lower')
-plt.title("DD Fanbean")
-plt.xlabel("Detector bin")
-plt.ylabel("Angle")
-
-plt.subplot(2,4,2)
-plt.imshow(sino2p, cmap='gray', aspect='auto', origin='lower')
-plt.title("AW Parallel")
-plt.xlabel("Detector bin")
-plt.ylabel("Angle")
-
-plt.subplot(2,4,6)
-plt.imshow(sino2f, cmap='gray', aspect='auto', origin='lower')
-plt.title("AW Fanbean")
-plt.xlabel("Detector bin")
-plt.ylabel("Angle")
-plt.tight_layout()
-
-plt.subplot(2,4,3)
-plt.imshow(sino3p, cmap='gray', aspect='auto', origin='lower')
-plt.title("Joseph Parallel")
-plt.xlabel("Detector bin")
-plt.ylabel("Angle")
-
-plt.subplot(2,4,7)
-plt.imshow(sino3f, cmap='gray', aspect='auto', origin='lower')
-plt.title("Jospeh Fanbean")
-plt.xlabel("Detector bin")
-plt.ylabel("Angle")
-plt.tight_layout()
-
-plt.subplot(2,4,4)
-plt.imshow(sino4p, cmap='gray', aspect='auto', origin='lower')
-plt.title("PD Parallel")
-plt.xlabel("Detector bin")
-plt.ylabel("Angle")
-
-plt.subplot(2,4,8)
-plt.imshow(sino4f, cmap='gray', aspect='auto', origin='lower')
-plt.title("PD Fanbean")
-plt.xlabel("Detector bin")
-plt.ylabel("Angle")
-plt.tight_layout()
-
-
-
-
+sinos = [sino1p,sino1f,sino2p,sino2f,sino3p,sino3f,sino4p,sino4f]
+titles = ["DD Parallel","SD Parallel","JO Parallel","PD Parallel",
+          "DD Fanbeam","SD Fanbeam","JO Fanbeam","PD Fanbeam"]
+plt.figure(figsize=(16,8))
+for i, (sino,title) in enumerate(zip(sinos,titles)):
+    plt.subplot(2,4,i+1)
+    plt.imshow(sino, cmap='gray', aspect='auto', origin='lower')
+    plt.title(title)
+    if i % 4 ==0: 
+        plt.ylabel("Angle")
+    if i > 3:
+        plt.xlabel("Detector Bin")
+ 
 plt.show()
 
 
 
-
-plt.subplot(1,4,1)
-plt.plot(sino1p[0,:], label='DD Parallel')
-plt.plot(sino1f[0,:], label='DD Fanbeam')
-plt.plot(sino2p[0,:], label='AW Parallel')
-plt.plot(sino2f[0,:], label='AW Fanbeam')
-plt.plot(sino3p[0,:], label='J Parallel')
-plt.plot(sino3f[0,:], label='J Fanbeam')
-plt.plot(sino4p[0,:], label='PD Parallel')
-plt.legend()
-plt.title("Angle 0 profile")
-plt.xlabel("Detector Bin")
-plt.ylabel("Intensity")
+fractions = [0, 1/8, 1/4, 3/8,1/2]
+plt.figure(figsize=(20,4))
+for i, fraction in enumerate(fractions):
+    plt.subplot(1,len(fractions),i+1)
+    plt.plot(sino1p[int(fraction*na),:], label='DD Parallel')
+    plt.plot(sino1f[int(fraction*na),:], label='DD Fanbeam')
+    plt.plot(sino2p[int(fraction*na),:], label='AW Parallel')
+    plt.plot(sino2f[int(fraction*na),:], label='AW Fanbeam')
+    plt.plot(sino3p[int(fraction*na),:], label='JO Parallel')
+    plt.plot(sino3f[int(fraction*na),:], label='JO Fanbeam')
+    plt.plot(sino4p[int(fraction*na),:], label='PD Parallel')
+    #plt.legend()
+    plt.title("Angle "+ str(int(fraction*360))+" profile")
+    plt.xlabel("Detector Bin")
+    plt.ylabel("Intensity")
 plt.show()
 
 
-
-plt.subplot(1,1,1)
-plt.plot(sino1p[12,:], label='DD Parallel')
-plt.plot(sino1f[12,:], label='DD Fanbeam')
-plt.plot(sino2p[12,:], label='AW Parallel')
-plt.plot(sino2f[12,:], label='AW Fanbeam')
-plt.plot(sino3p[12,:], label='J Parallel')
-plt.plot(sino3f[12,:], label='J Fanbeam')
-plt.plot(sino4p[12,:], label='PD Parallel')
-plt.legend()
-plt.title("Angle 45 profile")
-plt.xlabel("Detector Bin")
-plt.ylabel("Intensity")
-plt.show()
-
-plt.subplot(1,1,1)
-plt.plot(sino1p[int(na/2),:], label='DD Parallel')
-plt.plot(sino1f[int(na/2),:], label='DD Fanbeam')
-plt.plot(sino2p[int(na/2),:], label='AW Parallel')
-plt.plot(sino2f[int(na/2),:], label='AW Fanbeam')
-plt.plot(sino3p[int(na/2),:], label='J Parallel')
-plt.plot(sino3f[int(na/2),:], label='J Fanbeam')
-plt.plot(sino4p[int(na/2),:], label='PD Parallel')
-plt.legend()
-plt.title("Angle 180 profile")
-plt.xlabel("Detector Bin")
-plt.ylabel("Intensity")
-plt.show()
 
 """
 
