@@ -69,20 +69,20 @@ for ia, ang in enumerate(ang_arr):
 
 
 
-"""
-
-sino1p = dd.dd_fp_par_2d(img, angles, n_dets, du=d_det, su=su, d_pix=d_pix)
-sino1f = dd.dd_fp_fan_2d(img, angles, n_dets, DSO, DSD, du=d_det, su=su, d_pix=d_pix)
-sino2p = rd.aw_fp_par_2d(img, angles, n_dets, du=d_det, su=su, d_pix=d_pix)
-sino2f = rd.aw_fp_fan_2d(img, angles, n_dets, DSO, DSD, du=d_det, su=su, d_pix=d_pix)
-sino3p = rd.aw_fp_par_2d(img, angles, n_dets, du=d_det, su=su, d_pix=d_pix,joseph=True)
-sino3f = rd.aw_fp_fan_2d(img, angles, n_dets, DSO, DSD, du=d_det, su=su, d_pix=d_pix,joseph=True)
-sino4p = pd.pd_fp_par_2d(img, angles, n_dets, du=d_det, su=su, d_pix=d_pix)
-sino4f = pd.pd_fp_par_2d(img, angles, n_dets, du=d_det, su=su, d_pix=d_pix)
 
 
+sino1p = dd.dd_fp_par_2d(img, ang_arr, nu, du=du, su=su, d_pix=d_pix)
+sino1f = dd.dd_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=du, su=su, d_pix=d_pix)
+sino2p = rd.aw_fp_par_2d(img, ang_arr, nu, du=du, su=su, d_pix=d_pix)
+sino2f = rd.aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=du, su=su, d_pix=d_pix)
+sino3p = rd.aw_fp_par_2d(img, ang_arr, nu, du=du, su=su, d_pix=d_pix,joseph=True)
+sino3f = rd.aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=du, su=su, d_pix=d_pix,joseph=True)
+sino4p = pd.pd_fp_par_2d(img, ang_arr, nu, du=du, su=su, d_pix=d_pix)
+sino4f = pd.pd_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=du, su=su, d_pix=d_pix)
 
-sinos = [sino1p,sino1f,sino2p,sino2f,sino3p,sino3f,sino4p,sino4f]
+
+
+sinos = [sino1p,sino2p,sino3p,sino4p,sino1f,sino2f,sino3f,sino4f]
 titles = ["DD Parallel","SD Parallel","JO Parallel","PD Parallel",
           "DD Fanbeam","SD Fanbeam","JO Fanbeam","PD Fanbeam"]
 plt.figure(figsize=(16,8))
@@ -110,6 +110,7 @@ for i, fraction in enumerate(fractions):
     plt.plot(sino3p[int(fraction*na),:], label='JO Parallel')
     plt.plot(sino3f[int(fraction*na),:], label='JO Fanbeam')
     plt.plot(sino4p[int(fraction*na),:], label='PD Parallel')
+    plt.plot(sino4f[int(fraction*na),:], label='PD Fanbeam')
     #plt.legend()
     plt.title("Angle "+ str(int(fraction*360))+" profile")
     plt.xlabel("Detector Bin")
@@ -212,3 +213,4 @@ plt.show()
 print("Par Max:", rec1p.max())
 print("Fan Max:", rec1f.max())
 
+"""
