@@ -85,8 +85,8 @@ def _joseph_bp(img, d_pix, sino, ia, iu, cos_ang, sin_ang, x_s, y_s, x0, y0, t_e
         ix = (x - x0) / d_pix
         iy = (y - y0) / d_pix
 
-        ix = min(max(ix, 0.0), nx - 2.0)
-        iy = min(max(iy, 0.0), ny - 2.0)
+        #ix = min(max(ix, 0.0), nx - 2.0)
+        #iy = min(max(iy, 0.0), ny - 2.0)
         ix0 = int(ix)
         iy0 = int(iy)
 
@@ -94,10 +94,17 @@ def _joseph_bp(img, d_pix, sino, ia, iu, cos_ang, sin_ang, x_s, y_s, x0, y0, t_e
         dy = iy - iy0
 
         # Bilinear splatting
-        img[ix0, iy0]       += s_val * (1-dx)*(1-dy) * step
-        img[ix0+1, iy0]     += s_val * dx*(1-dy)     * step
-        img[ix0, iy0+1]     += s_val * (1-dx)*dy     * step
-        img[ix0+1, iy0+1]   += s_val * dx*dy         * step
+        if ix0>=0 and iy0>=0:
+            img[ix0, iy0]       += s_val * (1-dx)*(1-dy) * step
+
+        if ix0+1<nx and iy0>=0:
+            img[ix0+1, iy0]     += s_val * dx*(1-dy)     * step
+
+        if ix0>=0 and iy0+1<ny:
+            img[ix0, iy0+1]     += s_val * (1-dx)*dy     * step
+
+        if ix0+1<nx and iy0+1<ny:
+            img[ix0+1, iy0+1]   += s_val * dx*dy         * step
 
         t += step
 
@@ -201,6 +208,8 @@ def _aw_bp_grid(img, sino, ia, iu, t_enter, t_exit,
     while t < t_exit:
         if ix < 0 or ix >= nx or iy < 0 or iy >= ny:
             break
+        
+        
         if ix_next <= iy_next:
             t_next = min(ix_next, t_exit)
             img[ix, iy] += s_val * (t_next - t)
@@ -413,6 +422,7 @@ def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0,joseph=Fa
         ro = cos_ang
 
         for iu, u in enumerate(u_arr):
+ 
             # Each ray is parameterized as:
             # r(t) = (ray_o_x_pos, ray_o_y_pos) + t * (rx, ry)
 
@@ -442,7 +452,6 @@ def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0,joseph=Fa
 
             if t_exit <= t_enter:
                 continue
-
 
             if joseph:
     
@@ -511,21 +520,27 @@ def aw_bp_par_2d(sino, ang_arr, img_shape, du=1.0, su=0.0, d_pix=1.0, joseph=Fal
             if t_exit <= t_enter:
                 continue
 
+
             if joseph:
                 _joseph_bp(img, d_pix, sino, ia, iu, cos_ang, sin_ang, rx_u, ry_u,
                            x0, y0, t_enter, t_exit, step)
             else:
                 rx_x_min = rx_u + t_enter * rx
                 ry_y_min = ry_u + t_enter * ry
-                rx_x_min = min(max(rx_x_min, x_min), x_max)
-                ry_y_min = min(max(ry_y_min, y_min), y_max)
+                
+                rx_x_min = min(max(rx_x_min, x_min + eps), x_max - eps)
+                ry_y_min = min(max(ry_y_min, y_min + eps), y_max - eps)
+                
                 ix = int(np.floor((rx_x_min - x_min) / d_pix))
                 iy = int(np.floor((ry_y_min - y_min) / d_pix))
+                
                 ix_dir, ix_step, ix_next = _fp_2d_step_init(rx_u, ix, rx, rx_abs, x_min, d_pix)
                 iy_dir, iy_step, iy_next = _fp_2d_step_init(ry_u, iy, ry, ry_abs, y_min, d_pix)
                 _aw_bp_grid(img, sino, ia, iu, t_enter, t_exit,
                             ix_next, iy_next, ix_step, iy_step, ix_dir, iy_dir,
                             ix, iy, nx, ny, d_pix)
+                
+                
     return img
 
 
@@ -584,8 +599,11 @@ def aw_bp_fan_2d(sino, ang_arr, img_shape, DSO, DSD, du=1.0, su=0.0, d_pix=1.0, 
             else:
                 rx_x_min = rx_s + t_enter * rx
                 ry_y_min = ry_s + t_enter * ry
-                rx_x_min = min(max(rx_x_min, x_min), x_max)
-                ry_y_min = min(max(ry_y_min, y_min), y_max)
+                rx_x_min = min(max(rx_x_min, x_min + eps), x_max - eps)
+                ry_y_min = min(max(ry_y_min, y_min + eps), y_max - eps)              
+
+                
+                
                 ix = int(np.floor((rx_x_min - x_min) / d_pix))
                 iy = int(np.floor((ry_y_min - y_min) / d_pix))
                 ix_dir, ix_step, ix_next = _fp_2d_step_init(rx_s, ix, rx, rx_abs, x_min, d_pix)
