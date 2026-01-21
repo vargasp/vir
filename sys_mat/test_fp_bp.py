@@ -64,7 +64,6 @@ for ia, ang in enumerate(ang_arr):
     s = u_arr - shift
     sino[ia,:] = 2 * np.sqrt((r**2 - s**2).clip(0))
 
-plt.imshow(sino, cmap='gray', aspect='auto', origin='lower')
 
 
 """
@@ -126,22 +125,28 @@ plt.show()
 
 
 
-#sino = sino[0:1,:]
-
-
+sino = sino[15:16,:]
+ang_arr = [ang_arr[15]]
 
 
 rec1p = dd.dd_bp_par_2d(sino, ang_arr, (nx,ny), d_pix=d_pix, du=du)
 rec1f = dd.dd_bp_fan_2d(sino, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du)
-rec2p = dd.dd_bp_par_2d(sino, ang_arr, (nx,ny), d_pix=d_pix, du=du)
-rec2f = dd.dd_bp_fan_2d(sino, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du)
-rec3p = dd.dd_bp_par_2d(sino, ang_arr, (nx,ny), d_pix=d_pix, du=du)
-rec3f = dd.dd_bp_fan_2d(sino, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du)
+rec2p = rd.aw_bp_par_2d(sino, ang_arr, (nx,ny), d_pix=d_pix, du=du)
+rec2f = rd.aw_bp_fan_2d(sino, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du)
+rec3p = rd.aw_bp_par_2d(sino, ang_arr, (nx,ny), d_pix=d_pix, du=du)
+rec3f = rd.aw_bp_fan_2d(sino, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du)
 rec4p = dd.dd_bp_par_2d(sino, ang_arr, (nx,ny), d_pix=d_pix, du=du)
 rec4f = dd.dd_bp_fan_2d(sino, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du)
 
+#rec2p[:,:] = 0 
+#rec2f[:,:] = 0 
+#rec3p[:,:] = 0 
+#rec3f[:,:] = 0 
+#rec4p[:,:] = 0 
+#rec4f[:,:] = 0 
 
-recs = [rec1p,rec1f,rec2p,rec2f,rec3p,rec3f,rec4p,rec4f]
+
+recs = [rec1p,rec2p,rec3p,rec4p,rec1f,rec2f,rec3f,rec4f]
 titles = ["DD Parallel","SD Parallel","JO Parallel","PD Parallel",
           "DD Fanbeam","SD Fanbeam","JO Fanbeam","PD Fanbeam"]
 plt.figure(figsize=(16,8))
@@ -157,37 +162,33 @@ for i, (rec,title) in enumerate(zip(recs,titles)):
 plt.show()
 
 
-
+"""
 plt.figure(figsize=(20,4))
-    plt.subplot(1,len(fractions),i+1)
+plt.subplot(1,4,1)
+plt.title("X Center")
+plt.plot(rec1p[:,15:17].mean(axis=1))
+plt.plot(rec1f[:,15:17].mean(axis=1))
 
-plt.plot(rec1p[15:17,:].mean(axis=0)
+plt.subplot(1,4,2)
+plt.title("Y Center")
+plt.plot(rec1p[15:17,:].mean(axis=0))
+plt.plot(rec1f[15:17,:].mean(axis=0))
 
+plt.subplot(1,4,3)
+plt.title("XY Center")
+plt.plot(rec1p[np.arange(32),np.arange(32)])
+plt.plot(rec1f[np.arange(32),np.arange(32)])
+
+plt.subplot(1,4,4)
+plt.title("YX Center")
+plt.plot(rec1p[np.arange(32), np.arange(32)[::-1]])
+plt.plot(rec1f[np.arange(32), np.arange(32)[::-1]])
          
 
-"""
-
-fractions = [0, 1/8, 1/4, 3/8,1/2]
-plt.figure(figsize=(20,4))
-for i, fraction in enumerate(fractions):
-    plt.subplot(1,len(fractions),i+1)
-    plt.plot(sino1p[int(fraction*na),:], label='DD Parallel')
-    plt.plot(sino1f[int(fraction*na),:], label='DD Fanbeam')
-    plt.plot(sino2p[int(fraction*na),:], label='AW Parallel')
-    plt.plot(sino2f[int(fraction*na),:], label='AW Fanbeam')
-    plt.plot(sino3p[int(fraction*na),:], label='JO Parallel')
-    plt.plot(sino3f[int(fraction*na),:], label='JO Fanbeam')
-    plt.plot(sino4p[int(fraction*na),:], label='PD Parallel')
-    #plt.legend()
-    plt.title("Angle "+ str(int(fraction*360))+" profile")
-    plt.xlabel("Detector Bin")
-    plt.ylabel("Intensity")
 plt.show()
-
-"""
-
 
 
 print("Par Max:", rec1p.max())
 print("Fan Max:", rec1f.max())
 
+"""
