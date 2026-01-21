@@ -506,17 +506,69 @@ def dd_bp_par_2d(sino, ang_arr, img_shape, du=1.0, su=0, d_pix=1.0):
     sin_ang_arr = np.sin(ang_arr)
 
     for ia, (cos_ang, sin_ang) in enumerate(zip(cos_ang_arr, sin_ang_arr)):
-        img_xv = img_x
-        img_yv = img_y
 
         img_trm, p_bnd_arr, o_arr, rays_scale = \
-            _dd_proj_geom(img_xv, img_yv, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
+            _dd_proj_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
                           cos_ang, sin_ang, is_fan=False)
 
         _dd_bp_sweep(img_trm, sino, p_bnd_arr, o_arr, u_bnd_arr, rays_scale, ia)
 
     # Normalize: undo FP normalziation (multiply by detector size, divide by pixel size)
     # Sum all backprojected views into output image
-    return img * du / d_pix
+    return (img_x+img_y.T) * du / d_pix
 
                 
+def dd_bp_fan_2d(sino, ang_arr, img_shape, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
+    """
+    Distance-driven fan-beam back-projection for 2D CT.
+
+    Parameters
+    ----------
+    sino : ndarray, shape (n_angles, nu)
+        Fan-beam sinogram.
+    ang_arr : ndarray, shape (n_angles,)
+        Projection angles in radians.
+    img_shape : tuple
+        Output image shape (nx, ny).
+    DSO : float
+        Source-to-origin distance.
+    DSD : float
+        Source-to-detector distance.
+    du : float, optional
+        Detector bin width (default 1.0).
+    su : float, optional
+        Detector offset (default 0).
+    d_pix : float, optional
+        Pixel width (default 1.0).
+
+    Returns
+    -------
+    img : ndarray, shape (nx, ny)
+        Backprojected image.
+    """
+    nx, ny = img_shape
+    nu = sino.shape[1]
+    img = np.zeros((nx, ny), dtype=np.float32)
+
+    img_x = np.ascontiguousarray(img)
+    img_y = np.ascontiguousarray(img.T)
+
+    x_bnd_arr = d_pix * (np.arange(nx+1, dtype=np.float32) - nx/2)
+    y_bnd_arr = d_pix * (np.arange(ny+1, dtype=np.float32) - ny/2)
+    x_arr = (x_bnd_arr[:-1] + x_bnd_arr[1:])/2
+    y_arr = (y_bnd_arr[:-1] + y_bnd_arr[1:])/2
+
+    u_bnd_arr = du * (np.arange(nu + 1, dtype=np.float32) - nu/2.0 + su)
+
+    cos_ang_arr = np.cos(ang_arr)
+    sin_ang_arr = np.sin(ang_arr)
+
+    for ia, (cos_ang, sin_ang) in enumerate(zip(cos_ang_arr, sin_ang_arr)):
+
+        img_trm, p_bnd_arr, o_arr, rays_scale = \
+           _dd_proj_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
+                         cos_ang, sin_ang, is_fan=True, DSO=DSO, DSD=DSD)
+
+        _dd_bp_sweep(img_trm, sino, p_bnd_arr, o_arr, u_bnd_arr, rays_scale, ia)
+
+    return (img_x+img_y.T) * du / d_pix
