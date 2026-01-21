@@ -27,12 +27,12 @@ def pd_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0):
     nx, ny = img.shape
     sino = np.zeros((ang_arr.size, nu), dtype=np.float32)
 
-    # Detector edges:
-    u_bnd_arr = du*(np.arange(nu + 1, dtype=np.float32) - nu/2.0 + su)
-
     # Image edges (centered)
     x_bnd_arr = d_pix*(np.arange(nx+1, dtype=np.float32) - nx/2)
     y_bnd_arr = d_pix*(np.arange(ny+1, dtype=np.float32) - ny/2)
+
+    # Detector edges:
+    u_bnd_arr = du*(np.arange(nu + 1, dtype=np.float32) - nu/2.0 + su)
 
     # Precompute trig functions for all angles
     cos_ang_arr = np.cos(ang_arr)
@@ -42,26 +42,22 @@ def pd_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0):
         
         x_bnd_l = x_bnd_arr[0]
         for ix, x_bnd_r in enumerate(x_bnd_arr[1:]):
+            p_bnd_l = -sin_ang*x_bnd_l
+            p_bnd_r = -sin_ang*x_bnd_r
             
-            y_bnd_l = y_bnd_arr[0]                 
+            y_bnd_l = y_bnd_arr[0]                
             for iy, y_bnd_r in enumerate(y_bnd_arr[1:]):
+                o_bnd_l = cos_ang*y_bnd_l
+                o_bnd_r = cos_ang*y_bnd_r
+                
 
                 if img[ix, iy] == 0:
                     y_bnd_l = y_bnd_r
                     continue
 
                 # Project pixel corners to detector axis
-                # These are the min/max of axis_u . (corner position)
-                #corners = [cos_ang*y_bnd_l - sin_ang*x_bnd_l, cos_ang*y_bnd_r - sin_ang*x_bnd_l,
-                #           cos_ang*y_bnd_l - sin_ang*x_bnd_r, cos_ang*y_bnd_r - sin_ang*x_bnd_r]
-
-
-                c00  = cos_ang*y_bnd_l - sin_ang*x_bnd_l
-                c01  = cos_ang*y_bnd_r - sin_ang*x_bnd_l
-                c10  = cos_ang*y_bnd_l - sin_ang*x_bnd_r
-                c11  = cos_ang*y_bnd_r - sin_ang*x_bnd_r
-                 
-                corners = [c00, c01, c10, c11]
+                corners = [o_bnd_l + p_bnd_l, o_bnd_r + p_bnd_l,
+                           o_bnd_l + p_bnd_r, o_bnd_r + p_bnd_r]
 
                 P_min = min(corners)
                 P_max = max(corners)
@@ -97,40 +93,49 @@ def pd_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
     sino = np.zeros((ang_arr.size, nu), dtype=np.float32)
 
     # Pixel boundaries (image centered at origin)
-    x_bnd = d_pix * (np.arange(nx + 1) - nx / 2)
-    y_bnd = d_pix * (np.arange(ny + 1) - ny / 2)
+    x_bnd_arr = d_pix * (np.arange(nx + 1) - nx / 2)
+    y_bnd_arr = d_pix * (np.arange(ny + 1) - ny / 2)
 
     # Detector bin boundaries (u)
     u_bnd = du * (np.arange(nu + 1) - nu / 2 + su)
-
 
     # Precompute trig functions for all angles
     cos_ang_arr = np.cos(ang_arr)
     sin_ang_arr = np.sin(ang_arr)
     
-
     for ia, (cos_ang,sin_ang) in enumerate(zip(cos_ang_arr,sin_ang_arr)):
-        for ix in range(nx):
-            x0, x1 = x_bnd[ix], x_bnd[ix + 1]
-
-            for iy in range(ny):
+    
+        x_bnd_l = x_bnd_arr[0]
+        for ix, x_bnd_r in enumerate(x_bnd_arr[1:]):
+    
+                
+            y_bnd_l = y_bnd_arr[0]                
+            for iy, y_bnd_r in enumerate(y_bnd_arr[1:]):
+    
                 val = img[ix, iy]
                 if val == 0:
+                    y_bnd_l = y_bnd_r
                     continue
 
-                y0, y1 = y_bnd[iy], y_bnd[iy + 1]
+                
+                denom = DSO - (x_bnd_l * cos_ang + y_bnd_l * sin_ang)
+                u1 = DSD * (-x_bnd_l * sin_ang + y_bnd_l * cos_ang) / denom
 
-                # Project the four pixel corners
-                umin = np.inf
-                umax = -np.inf
+                denom = DSO - (x_bnd_r * cos_ang + y_bnd_l * sin_ang)
+                u2 = DSD * (-x_bnd_r * sin_ang + y_bnd_l * cos_ang) / denom
 
-                for x in (x0, x1):
-                    for y in (y0, y1):
-                        denom = DSO - (x * cos_ang + y * sin_ang)
-                        u = DSD * (-x * sin_ang + y * cos_ang) / denom
-                        umin = min(umin, u)
-                        umax = max(umax, u)
+                denom = DSO - (x_bnd_l * cos_ang + y_bnd_r * sin_ang)
+                u3 = DSD * (-x_bnd_l * sin_ang + y_bnd_r * cos_ang) / denom
 
+                denom = DSO - (x_bnd_r * cos_ang + y_bnd_r * sin_ang)
+                u4 = DSD * (-x_bnd_r * sin_ang + y_bnd_r * cos_ang) / denom
+
+
+                umin = min([u1,u2,u3,u4])
+                umax = max([u1,u2,u3,u4])
+
+
+                
                 # Overlapping detector bins
                 iu0 = np.searchsorted(u_bnd, umin, side="right") - 1
                 iu1 = np.searchsorted(u_bnd, umax, side="left")
@@ -140,6 +145,9 @@ def pd_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
                     right = min(umax, u_bnd[iu + 1])
                     if right > left:
                         sino[ia, iu] += val * (right - left) / du
+
+                y_bnd_l = y_bnd_r
+            x_bnd_l = x_bnd_r
 
     return sino
 
