@@ -87,8 +87,8 @@ def _joseph_bp(img, d_pix, sino, ia, iu, cos_ang, sin_ang, x_s, y_s, x0, y0, t_e
 
         #ix = min(max(ix, 0.0), nx - 2.0)
         #iy = min(max(iy, 0.0), ny - 2.0)
-        ix0 = int(ix)
-        iy0 = int(iy)
+        ix0 = int(np.floor(ix))
+        iy0 = int(np.floor(iy))
 
         dx = ix - ix0
         dy = iy - iy0

@@ -29,8 +29,8 @@ ny = 32
 d_pix = 1
 
 #Sino params 
-na = 32
-nu = 64
+na = 64
+nu = 32
 du = 1
 su = 0.0
 
@@ -41,7 +41,7 @@ u_arr = du*(np.arange(nu) - nu/2.0 + 0.5 + su)
 #Test image
 img = np.zeros((nx, ny), dtype=np.float32)
 #img[14:18, 14:18] = 1.0  # center impulse
-img[4:8, 4:8] = 1.0  # center impulse
+img[3:6, 3:6] = 1.0  # center impulse
 #img[:] = 1.0  # center impulse
 
 """
@@ -55,7 +55,7 @@ plt.ylabel("Y Pixels")
 """
 
 #Test Sino
-r = 4
+r = 2
 x0 = 0
 y0 = 0
 sino = np.zeros((na, nu))
@@ -125,8 +125,8 @@ plt.show()
 
 
 
-sino = sino[15:16,:]
-ang_arr = [ang_arr[15]]
+#sino = sino[11:12,:]
+#ang_arr = [ang_arr[11]]
 
 
 rec1p = dd.dd_bp_par_2d(sino, ang_arr, (nx,ny), d_pix=d_pix, du=du)
@@ -162,33 +162,46 @@ for i, (rec,title) in enumerate(zip(recs,titles)):
 plt.show()
 
 
-"""
+
 plt.figure(figsize=(20,4))
 plt.subplot(1,4,1)
 plt.title("X Center")
 plt.plot(rec1p[:,15:17].mean(axis=1))
 plt.plot(rec1f[:,15:17].mean(axis=1))
+plt.plot(rec2p[:,15:17].mean(axis=1))
+plt.plot(rec2f[:,15:17].mean(axis=1))
+plt.plot(rec3p[:,15:17].mean(axis=1))
+plt.plot(rec3f[:,15:17].mean(axis=1))
 
 plt.subplot(1,4,2)
 plt.title("Y Center")
 plt.plot(rec1p[15:17,:].mean(axis=0))
 plt.plot(rec1f[15:17,:].mean(axis=0))
+plt.plot(rec2p[15:17,:].mean(axis=0))
+plt.plot(rec2f[15:17,:].mean(axis=0))
+plt.plot(rec3p[15:17,:].mean(axis=0))
+plt.plot(rec3f[15:17,:].mean(axis=0))
 
 plt.subplot(1,4,3)
 plt.title("XY Center")
 plt.plot(rec1p[np.arange(32),np.arange(32)])
 plt.plot(rec1f[np.arange(32),np.arange(32)])
+plt.plot(rec2p[np.arange(32),np.arange(32)])
+plt.plot(rec2f[np.arange(32),np.arange(32)])
+plt.plot(rec3p[np.arange(32),np.arange(32)])
+plt.plot(rec3f[np.arange(32),np.arange(32)])
 
 plt.subplot(1,4,4)
 plt.title("YX Center")
 plt.plot(rec1p[np.arange(32), np.arange(32)[::-1]])
 plt.plot(rec1f[np.arange(32), np.arange(32)[::-1]])
-         
-
+plt.plot(rec2p[np.arange(32), np.arange(32)[::-1]])
+plt.plot(rec2f[np.arange(32), np.arange(32)[::-1]])
+plt.plot(rec3p[np.arange(32), np.arange(32)[::-1]])
+plt.plot(rec3f[np.arange(32), np.arange(32)[::-1]])
 plt.show()
 
 
 print("Par Max:", rec1p.max())
 print("Fan Max:", rec1f.max())
 
-"""
