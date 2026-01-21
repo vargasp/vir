@@ -32,7 +32,7 @@ d_pix = 1
 na = 64
 nu = 32
 du = 1
-su = 0.0
+su = 0.25
 
 
 ang_arr = np.linspace(0, np.pi*2, na, endpoint=False)#, dtype=np.float32)
@@ -43,6 +43,9 @@ img = np.zeros((nx, ny), dtype=np.float32)
 #img[14:18, 14:18] = 1.0  # center impulse
 img[3:6, 3:6] = 1.0  # center impulse
 #img[:] = 1.0  # center impulse
+
+
+
 
 """
 plt.figure(figsize=(3,3))
@@ -55,7 +58,7 @@ plt.ylabel("Y Pixels")
 """
 
 #Test Sino
-r = 2
+r = 4
 x0 = 0
 y0 = 0
 sino = np.zeros((na, nu))
@@ -125,18 +128,21 @@ plt.show()
 
 
 
-#sino = sino[11:12,:]
-#ang_arr = [ang_arr[11]]
+#sino = sino[0:1,:]
+#ang_arr = [ang_arr[0]]
 
 
-rec1p = dd.dd_bp_par_2d(sino, ang_arr, (nx,ny), d_pix=d_pix, du=du)
-rec1f = dd.dd_bp_fan_2d(sino, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du)
-rec2p = rd.aw_bp_par_2d(sino, ang_arr, (nx,ny), d_pix=d_pix, du=du)
-rec2f = rd.aw_bp_fan_2d(sino, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du)
-rec3p = rd.aw_bp_par_2d(sino, ang_arr, (nx,ny), d_pix=d_pix, du=du,joseph=True)
-rec3f = rd.aw_bp_fan_2d(sino, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,joseph=True)
-rec4p = dd.dd_bp_par_2d(sino, ang_arr, (nx,ny), d_pix=d_pix, du=du)
-rec4f = dd.dd_bp_fan_2d(sino, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du)
+rec1p = dd.dd_bp_par_2d(sino, ang_arr, (nx,ny), d_pix=d_pix, du=du,su=su)
+rec1f = dd.dd_bp_fan_2d(sino, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su=su)
+rec2p = rd.aw_bp_par_2d(sino, ang_arr, (nx,ny), d_pix=d_pix, du=du,su=su)
+rec2f = rd.aw_bp_fan_2d(sino, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su=su)
+rec3p = rd.aw_bp_par_2d(sino, ang_arr, (nx,ny), d_pix=d_pix, du=du,su=su,joseph=True)
+rec3f = rd.aw_bp_fan_2d(sino, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su=su, joseph=True)
+rec4p = dd.dd_bp_par_2d(sino, ang_arr, (nx,ny), d_pix=d_pix, du=du,su=su)
+rec4f = dd.dd_bp_fan_2d(sino, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su=su)
+
+rec4p[:,:] = 0.0
+rec4f[:,:] = 0.0
 
 #rec2p[:,:] = 0 
 #rec2f[:,:] = 0 
@@ -166,39 +172,40 @@ plt.show()
 plt.figure(figsize=(20,4))
 plt.subplot(1,4,1)
 plt.title("X Center")
-plt.plot(rec1p[:,15:17].mean(axis=1))
-plt.plot(rec1f[:,15:17].mean(axis=1))
-plt.plot(rec2p[:,15:17].mean(axis=1))
-plt.plot(rec2f[:,15:17].mean(axis=1))
-plt.plot(rec3p[:,15:17].mean(axis=1))
-plt.plot(rec3f[:,15:17].mean(axis=1))
+plt.plot(rec1p[:,15:17].mean(axis=1), label='DD P')
+plt.plot(rec1f[:,15:17].mean(axis=1), label='DD F')
+plt.plot(rec2p[:,15:17].mean(axis=1), label='SD P')
+plt.plot(rec2f[:,15:17].mean(axis=1), label='SD F')
+plt.plot(rec3p[:,15:17].mean(axis=1), label='JO P')
+plt.plot(rec3f[:,15:17].mean(axis=1), label='JO F')
+plt.legend()
 
 plt.subplot(1,4,2)
 plt.title("Y Center")
-plt.plot(rec1p[15:17,:].mean(axis=0))
-plt.plot(rec1f[15:17,:].mean(axis=0))
-plt.plot(rec2p[15:17,:].mean(axis=0))
-plt.plot(rec2f[15:17,:].mean(axis=0))
-plt.plot(rec3p[15:17,:].mean(axis=0))
-plt.plot(rec3f[15:17,:].mean(axis=0))
+plt.plot(rec1p[15:17,:].mean(axis=0), label='DD P')
+plt.plot(rec1f[15:17,:].mean(axis=0), label='DD F')
+plt.plot(rec2p[15:17,:].mean(axis=0), label='SD P')
+plt.plot(rec2f[15:17,:].mean(axis=0), label='SD F')
+plt.plot(rec3p[15:17,:].mean(axis=0), label='JO P')
+plt.plot(rec3f[15:17,:].mean(axis=0), label='JO F')
 
 plt.subplot(1,4,3)
 plt.title("XY Center")
-plt.plot(rec1p[np.arange(32),np.arange(32)])
-plt.plot(rec1f[np.arange(32),np.arange(32)])
-plt.plot(rec2p[np.arange(32),np.arange(32)])
-plt.plot(rec2f[np.arange(32),np.arange(32)])
-plt.plot(rec3p[np.arange(32),np.arange(32)])
-plt.plot(rec3f[np.arange(32),np.arange(32)])
+plt.plot(rec1p[np.arange(32),np.arange(32)], label='DD P')
+plt.plot(rec1f[np.arange(32),np.arange(32)], label='DD F')
+plt.plot(rec2p[np.arange(32),np.arange(32)], label='SD P')
+plt.plot(rec2f[np.arange(32),np.arange(32)], label='SD F')
+plt.plot(rec3p[np.arange(32),np.arange(32)], label='JO P')
+plt.plot(rec3f[np.arange(32),np.arange(32)], label='JO F')
 
 plt.subplot(1,4,4)
 plt.title("YX Center")
-plt.plot(rec1p[np.arange(32), np.arange(32)[::-1]])
-plt.plot(rec1f[np.arange(32), np.arange(32)[::-1]])
-plt.plot(rec2p[np.arange(32), np.arange(32)[::-1]])
-plt.plot(rec2f[np.arange(32), np.arange(32)[::-1]])
-plt.plot(rec3p[np.arange(32), np.arange(32)[::-1]])
-plt.plot(rec3f[np.arange(32), np.arange(32)[::-1]])
+plt.plot(rec1p[np.arange(32), np.arange(32)[::-1]], label='DD P')
+plt.plot(rec1f[np.arange(32), np.arange(32)[::-1]], label='DD F')
+plt.plot(rec2p[np.arange(32), np.arange(32)[::-1]], label='SD P')
+plt.plot(rec2f[np.arange(32), np.arange(32)[::-1]], label='SD F')
+plt.plot(rec3p[np.arange(32), np.arange(32)[::-1]], label='JO P')
+plt.plot(rec3f[np.arange(32), np.arange(32)[::-1]], label='JO F')
 plt.show()
 
 

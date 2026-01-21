@@ -487,7 +487,8 @@ def dd_bp_par_2d(sino, ang_arr, img_shape, du=1.0, su=0, d_pix=1.0):
         Backprojected image.
     """
     nx, ny = img_shape
-    nu = sino.shape[1]
+    na, nu = sino.shape
+
     img = np.zeros((nx, ny), dtype=np.float32)
 
     # Stride-1 versions for driving axes
@@ -515,7 +516,7 @@ def dd_bp_par_2d(sino, ang_arr, img_shape, du=1.0, su=0, d_pix=1.0):
 
     # Normalize: undo FP normalziation (multiply by detector size, divide by pixel size)
     # Sum all backprojected views into output image
-    return (img_x+img_y.T) * du / d_pix
+    return (img_x+img_y.T) / na  / d_pix
 
                 
 def dd_bp_fan_2d(sino, ang_arr, img_shape, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
@@ -547,7 +548,7 @@ def dd_bp_fan_2d(sino, ang_arr, img_shape, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
         Backprojected image.
     """
     nx, ny = img_shape
-    nu = sino.shape[1]
+    na, nu = sino.shape
     img = np.zeros((nx, ny), dtype=np.float32)
 
     img_x = np.ascontiguousarray(img)
@@ -571,4 +572,4 @@ def dd_bp_fan_2d(sino, ang_arr, img_shape, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
 
         _dd_bp_sweep(img_trm, sino, p_bnd_arr, o_arr, u_bnd_arr, rays_scale, ia)
 
-    return (img_x+img_y.T) * du / d_pix
+    return (img_x+img_y.T) / na / d_pix 

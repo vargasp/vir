@@ -94,16 +94,16 @@ def _joseph_bp(img, d_pix, sino, ia, iu, cos_ang, sin_ang, x_s, y_s, x0, y0, t_e
         dy = iy - iy0
 
         # Bilinear splatting
-        if ix0>=0 and iy0>=0:
+        if ix0>=0 and iy0>=0 and ix0<nx and iy0<ny:
             img[ix0, iy0]       += s_val * (1-dx)*(1-dy) * step
 
-        if ix0+1<nx and iy0>=0:
+        if ix0+1>=0 and iy0>=0 and ix0+1<nx and iy0<ny:
             img[ix0+1, iy0]     += s_val * dx*(1-dy)     * step
 
-        if ix0>=0 and iy0+1<ny:
+        if ix0>=0 and iy0+1>=0 and ix0<nx and iy0+1<ny:
             img[ix0, iy0+1]     += s_val * (1-dx)*dy     * step
 
-        if ix0+1<nx and iy0+1<ny:
+        if ix0+1>=0 and iy0+1>=0 and ix0+1<nx and iy0+1<ny:
             img[ix0+1, iy0+1]   += s_val * dx*dy         * step
 
         t += step
@@ -487,7 +487,7 @@ def aw_bp_par_2d(sino, ang_arr, img_shape, du=1.0, su=0.0, d_pix=1.0, joseph=Fal
     Parameters identical to forward AW-projection, but swaps image and sinogram roles.
     """
     nx, ny = img_shape
-    nu = sino.shape[1]
+    na, nu = sino.shape
     img = np.zeros((nx, ny), dtype=np.float32)
 
     x_min = -d_pix * nx / 2
@@ -541,7 +541,7 @@ def aw_bp_par_2d(sino, ang_arr, img_shape, du=1.0, su=0.0, d_pix=1.0, joseph=Fal
                             ix, iy, nx, ny, d_pix)
                 
                 
-    return img
+    return img / na / d_pix / d_pix * du
 
 
 def aw_bp_fan_2d(sino, ang_arr, img_shape, DSO, DSD, du=1.0, su=0.0, d_pix=1.0, joseph=False):
@@ -549,7 +549,7 @@ def aw_bp_fan_2d(sino, ang_arr, img_shape, DSO, DSD, du=1.0, su=0.0, d_pix=1.0, 
     2D fan-beam ray-driven back-projection with flat panel geometry.
     """
     nx, ny = img_shape
-    nu = sino.shape[1]
+    na, nu = sino.shape
     img = np.zeros((nx, ny), dtype=np.float32)
 
     x_min = -d_pix * nx / 2
@@ -611,7 +611,7 @@ def aw_bp_fan_2d(sino, ang_arr, img_shape, DSO, DSD, du=1.0, su=0.0, d_pix=1.0, 
                 _aw_bp_grid(img, sino, ia, iu, t_enter, t_exit,
                             ix_next, iy_next, ix_step, iy_step, ix_dir, iy_dir,
                             ix, iy, nx, ny, d_pix)
-    return img
+    return img / na / d_pix / d_pix * du
 
 
 
