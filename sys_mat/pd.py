@@ -15,6 +15,19 @@ def proj_object2det_par(px, py):
     return px + py
 
 
+def accumuate(sino, val, ia, iu, p_min, p_max, u_bnd, du, nu):
+    # Overlapping detector bins
+    iu0 = np.searchsorted(u_bnd, p_min, side="right") - 1
+    iu1 = np.searchsorted(u_bnd, p_max, side="left")
+
+    for iu in range(max(0, iu0), min(nu, iu1)):
+        left = max(p_min, u_bnd[iu])
+        right = min(p_max, u_bnd[iu + 1])
+        if right > left:
+            sino[ia, iu] += val * (right - left) / du
+
+
+
 def pd_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0):
     """
     Separable footprints forward projector for 2D parallel-beam CT.
@@ -159,9 +172,7 @@ def pd_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
                 #Calulates the second two pixel corners projected on detector    
                 p2 = proj_img2det_fan(px_bnd_l, py_bnd_r, ox_bnd_l, oy_bnd_r, DSO, DSD)
                 p3 = proj_img2det_fan(px_bnd_r, py_bnd_r, ox_bnd_r, oy_bnd_r, DSO, DSD)
-    
-    
-    
+        
                 val = img[ix, iy]
                 if val == 0:
                     py_bnd_l = py_bnd_r
@@ -173,8 +184,6 @@ def pd_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
                 umin = min([p0,p1,p2,p3])
                 umax = max([p0,p1,p2,p3])
 
-
-                
                 # Overlapping detector bins
                 iu0 = np.searchsorted(u_bnd, umin, side="right") - 1
                 iu1 = np.searchsorted(u_bnd, umax, side="left")
