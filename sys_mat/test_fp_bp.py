@@ -16,23 +16,27 @@ import vir.sys_mat.rd as rd
 import vir.sys_mat.pd as pd
 
 
-
-#Fan Beam Geometry
-DSO = 1e8
-DSD = 1e8+32
-
-
-
 #Image params - Pixels
 nx = 32
 ny = 32
 d_pix = 1
 
+
+#Fan Beam Geometry - Parallel
+DSO = 1e8
+DSD = 1e8 + max(nx,ny)/2
+
+#Fan Beam Geometry - Parallel
+DSO = max(nx,ny)*np.sqrt(2)/2 
+DSD = DSO*2
+
+
+
 #Sino params 
 na = 64
 nu = 32
 du = 1
-su = 0.25
+su = 0.0
 
 
 ang_arr = np.linspace(0, np.pi*2, na, endpoint=False)#, dtype=np.float32)
@@ -40,8 +44,8 @@ u_arr = du*(np.arange(nu) - nu/2.0 + 0.5 + su)
 
 #Test image
 img = np.zeros((nx, ny), dtype=np.float32)
-#img[14:18, 14:18] = 1.0  # center impulse
-img[3:6, 3:6] = 1.0  # center impulse
+img[14:18, 14:18] = 1.0  # center impulse
+#img[3:6, 3:6] = 1.0  # center impulse
 #img[:] = 1.0  # center impulse
 
 
