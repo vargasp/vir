@@ -83,10 +83,14 @@ sino3p = rd.aw_fp_par_2d(img, ang_arr, nu, du=du, su=su, d_pix=d_pix,joseph=True
 sino3f = rd.aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=du, su=su, d_pix=d_pix,joseph=True)
 sino4p = pd.pd_fp_par_2d(img, ang_arr, nu, du=du, su=su, d_pix=d_pix)
 sino4f = pd.pd_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=du, su=su, d_pix=d_pix)
-
-
-
 sinos = [sino1p,sino2p,sino3p,sino4p,sino1f,sino2f,sino3f,sino4f]
+
+
+
+      
+    
+    
+    
 titles = ["DD Parallel","SD Parallel","JO Parallel","PD Parallel",
           "DD Fanbeam","SD Fanbeam","JO Fanbeam","PD Fanbeam"]
 plt.figure(figsize=(16,8))
