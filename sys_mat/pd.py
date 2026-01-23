@@ -59,7 +59,13 @@ def pd_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0):
     cos_ang_arr = np.cos(ang_arr)
     sin_ang_arr = np.sin(ang_arr)
 
+
     for ia, (cos_ang,sin_ang) in enumerate(zip(cos_ang_arr,sin_ang_arr)):
+
+        if abs(cos_ang) > abs(sin_ang):
+            ray_len = 1/abs(cos_ang)
+        else:
+            ray_len =  1/abs(sin_ang)
         
         #Rotates the x,y coordinate system to o,p (orthogonal and parallel to
         #the detector)
@@ -89,7 +95,7 @@ def pd_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0):
 
 
                 #If image pixel is 0 advance to next pixel
-                val = img[ix, iy]
+                val = img[ix, iy]*ray_len
                 if img[ix, iy] == 0:
                     py_bnd_l = py_bnd_r
                     p0 = p2

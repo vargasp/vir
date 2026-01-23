@@ -89,7 +89,10 @@ def _dd_fp_sweep(sino,img_trm,p_bnd_arr,o_arr,u_bnd_arr,rays_scl_arr,ia):
                 iu += 1
 
 
-def _dd_fp_fan_sweep(sino,img_trm,p_bnd_arr,o_arr,u_bnd_arr,rays_scl_arr,ia):
+def proj_img2det_fan(px, py, ox, oy, DSO, DSD):
+    return DSD * (px + py) / (DSO - (ox + oy))
+
+def _dd_fp_fan_sweep(sino,img_trm,p1_bnd_arr,p2_bnd_arr,o1_arr,o2_arr,u_bnd_arr,rays_scl_arr,ia,DSO,DSD):
     """
     Distance-driven sweep kernel for 2D parallel or fanbeam forward projection.
 
@@ -138,8 +141,8 @@ def _dd_fp_fan_sweep(sino,img_trm,p_bnd_arr,o_arr,u_bnd_arr,rays_scl_arr,ia):
     for io in range(no):
 
         #Hoisting pointers for explicit LICM
-        o = o_arr[io]
-
+        p2 = p2_bnd_arr[io]
+        o2 = o2_arr[io]
         img_vec = img_trm[:, io]
         ray_scl = rays_scl_arr[io]
 
@@ -149,13 +152,13 @@ def _dd_fp_fan_sweep(sino,img_trm,p_bnd_arr,o_arr,u_bnd_arr,rays_scl_arr,ia):
             
             # Left edge of overlap interval
             # Actual projected pixel boundaries for this pixel row/column
-            p_bnd_l = p_bnd_arr[ip] + o
+            p_bnd_l = proj_img2det_fan(p1_bnd_arr[ip], p2, o1_arr[ip],o2, DSO, DSD)
             u_bnd_l = u_bnd_arr[iu]
             overlap_l  = p_bnd_l if p_bnd_l > u_bnd_l else u_bnd_l
 
             # Right edge of overlap interval
             # Actual projected pixel boundaries for this pixel row/column
-            p_bnd_r = p_bnd_arr[ip + 1] + o
+            p_bnd_r =  proj_img2det_fan(p1_bnd_arr[ip+1], p2, o1_arr[ip+1],o2, DSO, DSD)
             u_bnd_r = u_bnd_arr[iu + 1]
             overlap_r  = p_bnd_r if p_bnd_r < u_bnd_r else u_bnd_r
         
@@ -384,7 +387,7 @@ def _dd_proj_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
 
 
 def _dd_proj_geom_fan(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
-                  cos_ang, sin_ang, DSO=1.0, DSD=1.0):
+                  cos_ang, sin_ang, DSO, DSD):
     
     """
     Prepare distance-driven projection geometry for a single projection angle.
@@ -493,7 +496,7 @@ def _dd_proj_geom_fan(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
         p1_bnd_arr = -sin_ang * x_bnd_arr
         p2_arr     =  cos_ang * y_arr
 
-        o1_arr =  cos_ang*x_arr
+        o1_bnd_arr =  cos_ang*x_bnd_arr
         o2_arr =  sin_ang*y_arr
 
         #No transformation need  
@@ -511,7 +514,8 @@ def _dd_proj_geom_fan(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
         p1_bnd_arr = cos_ang * y_bnd_arr
         p2_arr = -sin_ang * x_arr
 
-
+        o1_bnd_arr = cos_ang*y_bnd_arr
+        o2_arr = sin_ang*x_arr
 
         # Transposes image so axis 0 correspondsto the driving (sweep) axis
         img_trm = img_y 
@@ -521,22 +525,16 @@ def _dd_proj_geom_fan(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
         p1_bnd_arr = p1_bnd_arr[::-1]
         img_trm = img_trm[::-1, :]
 
-    # Fan-beam magnification correction.
-    # Values are inverted to allow multiplicaion in hot loop
-    if is_fan:
-        # Fan-beam magnification correction:
-        # Each pixel's overlap is divided by proj_scale
-        # to approximate true line integral along the ray.
-        # Multiply by ray_scale to convert driving-axis projection
-        # to ray length        
-        magnification = DSD / (DSO - p2_arr)
-        rays_scale = 1/(magnification * ray_scale)
-    else:
-        #Mirroring fanbeam structure
-        rays_scale = np.full(p2_arr.size, 1.0/ray_scale, dtype=np.float32)
 
+    # Fan-beam magnification correction:
+    # Each pixel's overlap is divided by proj_scale
+    # to approximate true line integral along the ray.
+    # Multiply by ray_scale to convert driving-axis projection
+    # to ray length        
+    magnification = DSD / (DSO - p2_arr)
+    rays_scale = 1/(magnification * ray_scale)
 
-    return img_trm, p1_bnd_arr, p2_arr, rays_scale
+    return img_trm, p1_bnd_arr, p2_arr, o1_bnd_arr, o2_arr, rays_scale
 
 def dd_fp_par_2d(img, ang_arr, nu, du=1.0, su=0, d_pix=1.0):
     """
@@ -604,13 +602,16 @@ def dd_fp_par_2d(img, ang_arr, nu, du=1.0, su=0, d_pix=1.0):
 
     #Loop through projection angles
     for ia, (cos_ang,sin_ang) in enumerate(zip(cos_ang_arr,sin_ang_arr)):
-       
-        img_trm, p_bnd_arr, o_arr, rays_scale = \
+        
+        img_trm, p1_bnd_arr, p2_arr, rays_scale = \
             _dd_proj_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
-                          cos_ang, sin_ang, is_fan=False)
+                          cos_ang, sin_ang)
     
-        _dd_fp_sweep(sino, img_trm, p_bnd_arr, o_arr,
-                         u_bnd_arr, rays_scale, ia)
+        _dd_fp_sweep(sino, img_trm, p1_bnd_arr, p2_arr,
+                            u_bnd_arr, rays_scale, ia)
+
+
+
 
     #Return sino normalized with pixel and detector size
     return sino*d_pix/du
@@ -687,13 +688,18 @@ def dd_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
     #Loop through projection angles
     for ia, (cos_ang,sin_ang) in enumerate(zip(cos_ang_arr,sin_ang_arr)):
 
-        img_trm, p_bnd_arr, o_arr, rays_scale = \
-           _dd_proj_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
-                         cos_ang, sin_ang, is_fan=True, DSO=DSO, DSD=DSD)
+        img_trm, p1_bnd_arr, p2_arr, o1_bnd_arr, o2_arr, rays_scale = \
+           _dd_proj_geom_fan(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
+                         cos_ang, sin_ang, DSO, DSD)
 
         # Sweep along driving axis
-        _dd_fp_sweep(sino, img_trm, p_bnd_arr, o_arr,
-                            u_bnd_arr, rays_scale, ia)
+
+
+        _dd_fp_fan_sweep(sino, img_trm, p1_bnd_arr,p2_arr,o1_bnd_arr,o2_arr,
+                         u_bnd_arr, rays_scale, ia,DSO,DSD)
+
+
+
 
     #Return sino normalized with pixel and detector size
     return sino*d_pix/du

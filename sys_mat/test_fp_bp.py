@@ -45,6 +45,7 @@ u_arr = du*(np.arange(nu) - nu/2.0 + 0.5 + su)
 #Test image
 img = np.zeros((nx, ny), dtype=np.float32)
 img[14:18, 14:18] = 1.0  # center impulse
+img[10:22, 10:22] = 1.0  # center impulse
 #img[3:6, 3:6] = 1.0  # center impulse
 #img[:] = 1.0  # center impulse
 
@@ -108,21 +109,38 @@ plt.show()
 
 
 fractions = [0, 1/8, 1/4, 3/8,1/2]
-plt.figure(figsize=(20,4))
+plt.figure(figsize=(20,8))
 for i, fraction in enumerate(fractions):
-    plt.subplot(1,len(fractions),i+1)
-    plt.plot(sino1p[int(fraction*na),:], label='DD Parallel')
-    plt.plot(sino1f[int(fraction*na),:], label='DD Fanbeam')
-    plt.plot(sino2p[int(fraction*na),:], label='AW Parallel')
-    plt.plot(sino2f[int(fraction*na),:], label='AW Fanbeam')
-    plt.plot(sino3p[int(fraction*na),:], label='JO Parallel')
-    plt.plot(sino3f[int(fraction*na),:], label='JO Fanbeam')
-    plt.plot(sino4p[int(fraction*na),:], label='PD Parallel')
-    plt.plot(sino4f[int(fraction*na),:], label='PD Fanbeam')
-    #plt.legend()
+    plt.subplot(2,len(fractions),i+1)
+    plt.plot(sino1p[int(fraction*na),:], label='DD')
+    plt.plot(sino2p[int(fraction*na),:], label='AW')
+    plt.plot(sino3p[int(fraction*na),:], label='JO')
+    plt.plot(sino4p[int(fraction*na),:], label='PD')
+    plt.legend()
     plt.title("Angle "+ str(int(fraction*360))+" profile")
+    
+    if i == 0: plt.ylabel("Intensity")
+    
+for i, fraction in enumerate(fractions):
+    plt.subplot(2,len(fractions),i+1+5)
+    plt.plot(sino1f[int(fraction*na),:], label='DD')
+    plt.plot(sino2f[int(fraction*na),:], label='AW')
+    plt.plot(sino3f[int(fraction*na),:], label='JO')
+    plt.plot(sino4f[int(fraction*na),:], label='PD')
     plt.xlabel("Detector Bin")
-    plt.ylabel("Intensity")
+    plt.legend()
+
+    if i == 0: plt.ylabel("Intensity")
+    
+plt.show()
+
+
+plt.figure(figsize=(4,4))
+plt.subplot(1,1,1)
+plt.plot(sino1p[:,16], label='DD')
+plt.plot(sino2p[:,16], label='AW')
+plt.plot(sino3p[:,16], label='JO')
+plt.plot(sino4p[:,16], label='PD')
 plt.show()
 
 
