@@ -15,7 +15,7 @@ def proj_object2det_par(px, py):
     return px + py
 
 
-def accumuate(sino, val, ia, iu, p_min, p_max, u_bnd, du, nu):
+def accumuate(sino, val, ia, p_min, p_max, u_bnd, du, nu):
     # Overlapping detector bins
     iu0 = np.searchsorted(u_bnd, p_min, side="right") - 1
     iu1 = np.searchsorted(u_bnd, p_max, side="left")
@@ -64,7 +64,7 @@ def pd_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0):
         #Rotates the x,y coordinate system to o,p (orthogonal and parallel to
         #the detector)
         #In parallel beam these coordinates will projection directly on the 
-        #detector with p(x,y = -sin_ang*x + cos_ang*y
+        #detector with p(x,y) = -sin_ang*x + cos_ang*y
 
         #Precomputes the components
         px_bnd_arr = -sin_ang*x_bnd_arr
@@ -87,7 +87,9 @@ def pd_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0):
                 p2 = py_bnd_r + px_bnd_l
                 p3 = py_bnd_r + px_bnd_r
 
+
                 #If image pixel is 0 advance to next pixel
+                val = img[ix, iy]
                 if img[ix, iy] == 0:
                     py_bnd_l = py_bnd_r
                     p0 = p2
@@ -95,22 +97,11 @@ def pd_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0):
                     continue
 
                 #min and 
-                P_min = min([p0, p1, p2, p3])
-                P_max = max([p0, p1, p2, p3])
+                p_min = min([p0, p1, p2, p3])
+                p_max = max([p0, p1, p2, p3])
 
-                # Footprint: find detector bins that overlap with rectangle projection
+                accumuate(sino, val, ia, p_min, p_max, u_bnd_arr, du, nu)
 
-                # Bin k: between det_edges[k], det_edges[k+1]
-                iu0 = np.searchsorted(u_bnd_arr, P_min, side='right') - 1
-                iuN = np.searchsorted(u_bnd_arr, P_max, side='left')
-
-                # For each overlapped bin, calculate geometric overlap
-                for iu in range(max(0, iu0), min(nu, iuN)):
-                    left = max(P_min, u_bnd_arr[iu])
-                    right = min(P_max, u_bnd_arr[iu+1])
-                    if right > left:
-                        # Normalize by bin width
-                        sino[ia, iu] += img[ix, iy] * (right - left) / du
 
                 py_bnd_l = py_bnd_r
                 p0 = p2
@@ -133,7 +124,7 @@ def pd_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
     y_bnd_arr = d_pix * (np.arange(ny + 1) - ny / 2)
 
     # Detector bin boundaries (u)
-    u_bnd = du * (np.arange(nu + 1) - nu/2 + su)
+    u_bnd_arr = du * (np.arange(nu + 1) - nu/2 + su)
 
     # Precompute trig functions for all angles
     cos_ang_arr = np.cos(ang_arr)
@@ -181,18 +172,10 @@ def pd_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
                     p1 = p3
                     continue
 
-                umin = min([p0,p1,p2,p3])
-                umax = max([p0,p1,p2,p3])
+                p_min = min([p0,p1,p2,p3])
+                p_max = max([p0,p1,p2,p3])
 
-                # Overlapping detector bins
-                iu0 = np.searchsorted(u_bnd, umin, side="right") - 1
-                iu1 = np.searchsorted(u_bnd, umax, side="left")
-
-                for iu in range(max(0, iu0), min(nu, iu1)):
-                    left = max(umin, u_bnd[iu])
-                    right = min(umax, u_bnd[iu + 1])
-                    if right > left:
-                        sino[ia, iu] += val * (right - left) / du
+                accumuate(sino, val, ia, p_min, p_max, u_bnd_arr, du, nu)
 
                 py_bnd_l = py_bnd_r
                 oy_bnd_l = oy_bnd_r

@@ -89,6 +89,86 @@ def _dd_fp_sweep(sino,img_trm,p_bnd_arr,o_arr,u_bnd_arr,rays_scl_arr,ia):
                 iu += 1
 
 
+def _dd_fp_fan_sweep(sino,img_trm,p_bnd_arr,o_arr,u_bnd_arr,rays_scl_arr,ia):
+    """
+    Distance-driven sweep kernel for 2D parallel or fanbeam forward projection.
+
+    This function performs the core distance-driven accumulation for a single
+    projection angle. It assumes that pixel boundaries projected onto the
+    detector coordinate are monotonic along the driving axis, enabling a
+    linear-time sweep over pixels and detector bins.
+
+    Geometry:
+        - Parallel-beam or fanbeam
+        - Detector coordinate u is linear and orthogonal to ray direction
+
+    Parameters
+    ----------
+    sino : ndarray, shape (n_angles, nu)
+        Output sinogram array to be accumulated in-place.
+    img_trm : ndarray, shape (np, no)
+        Image data after transpose and/or flip so that axis 0 corresponds
+        to the driving (sweep) axis.
+    p_bnd_arr : ndarray, shape (np + 1,)
+        Projected pixel boundary coordinates along the driving axis in
+        detector space, independent of orthogonal pixel index.
+    o_arr : ndarray, shape (no,)
+        Orthogonal pixel-center offsets projected onto the detector coordinate.
+    u_bnd_arr : ndarray, shape (nu + 1,)
+        Detector bin boundary coordinates in detector space.
+    rays_scl_arr : ndarray, shape (np)
+        Projection scaling factor (typically 1/|cos(theta)| or 1/|sin(theta)|)
+        to  account for pixel width along the ray direction. Fanbean will also
+        include a magificaiton factor. The value is inverted to reduce division
+        in the hot loop of the sweep function. 
+    ia : int
+        Index of the current projection angle in the sinogram.
+
+    Notes
+    -----
+    - The sweep assumes strictly monotonic projected pixel boundaries.
+    - Contributions outside the detector range are implicitly discarded.
+    - This function does not allocate memory and updates `sino` in-place.
+    """
+    
+    np, no = img_trm.shape
+    nu = u_bnd_arr.size - 1
+
+    # Loop over orthogonal pixel lines
+    for io in range(no):
+
+        #Hoisting pointers for explicit LICM
+        o = o_arr[io]
+
+        img_vec = img_trm[:, io]
+        ray_scl = rays_scl_arr[io]
+
+        ip = 0
+        iu = 0
+        while ip < np and iu < nu:
+            
+            # Left edge of overlap interval
+            # Actual projected pixel boundaries for this pixel row/column
+            p_bnd_l = p_bnd_arr[ip] + o
+            u_bnd_l = u_bnd_arr[iu]
+            overlap_l  = p_bnd_l if p_bnd_l > u_bnd_l else u_bnd_l
+
+            # Right edge of overlap interval
+            # Actual projected pixel boundaries for this pixel row/column
+            p_bnd_r = p_bnd_arr[ip + 1] + o
+            u_bnd_r = u_bnd_arr[iu + 1]
+            overlap_r  = p_bnd_r if p_bnd_r < u_bnd_r else u_bnd_r
+        
+            # Accumulate overlap contribution
+            if overlap_r > overlap_l:
+                sino[ia, iu] += (img_vec[ip]* (overlap_r - overlap_l)*ray_scl)
+
+            # Advance whichever interval ends first
+            if p_bnd_r < u_bnd_r:
+                ip += 1
+            else:
+                iu += 1
+
 def _dd_bp_sweep(img_out, sino, p_bnd_arr, o_arr, u_bnd_arr, rays_scl_arr, ia):
     """
     Distance-driven sweep kernel for 2D parallel or fanbeam back-projection.
@@ -249,15 +329,17 @@ def _dd_proj_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
         # Scales projected pixel overlap along X for oblique rays
         ray_scale = abs(sin_ang)
 
-        #Rotate x,y in o,p coordiante system where p is parallel to the detector
-        #and o is orthogonal
+        #Rotates the x,y coordinate system to o,p (orthogonal and parallel to
+        #the detector)
+        #In parallel beam these coordinates will projection directly on the 
+        #detector with p(x,y) = -sin_ang*x + cos_ang*y
 
         # Project pixel boundaries along driving axis onto detector
-        # Each X pixel boundary is projected along the ray direction
-        p_bnd_arr = -sin_ang * x_bnd_arr
+        # Each pixel x component at the boundary is projected along detetector space
+        p1_bnd_arr = -sin_ang * x_bnd_arr
 
-        # Orthogonal pixel-center offset added to base detector projection
-        o_arr = cos_ang * y_arr
+        # Each pixel's y component at the center is projected along detetector space
+        p2_arr = cos_ang * y_arr
 
         #No transformation need  
         img_trm = img_x
@@ -269,17 +351,18 @@ def _dd_proj_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
         ray_scale = abs(cos_ang)
 
         # Project pixel boundaries along driving axis onto detector
-        p_bnd_arr = cos_ang * y_bnd_arr
+        # Each pixel y component at the boundary is projected along detetector space
+        p1_bnd_arr = cos_ang * y_bnd_arr
 
-        # Orthogonal pixel-center offset added to base detector projection
-        o_arr = -sin_ang * x_arr
+        # Each pixel's x component at the center is projected along detetector space
+        p2_arr = -sin_ang * x_arr
 
         # Transposes image so axis 0 correspondsto the driving (sweep) axis
         img_trm = img_y 
 
     # Ensure monotonic increasing for sweep
-    if p_bnd_arr[1] < p_bnd_arr[0]:
-        p_bnd_arr = p_bnd_arr[::-1]
+    if p1_bnd_arr[1] < p1_bnd_arr[0]:
+        p1_bnd_arr = p1_bnd_arr[::-1]
         img_trm = img_trm[::-1, :]
 
     # Fan-beam magnification correction.
@@ -290,15 +373,170 @@ def _dd_proj_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
         # to approximate true line integral along the ray.
         # Multiply by ray_scale to convert driving-axis projection
         # to ray length        
-        magnification = DSD / (DSO - o_arr)
+        magnification = DSD / (DSO - p2_arr)
         rays_scale = 1/(magnification * ray_scale)
     else:
         #Mirroring fanbeam structure
-        rays_scale = np.full(o_arr.size, 1.0/ray_scale, dtype=np.float32)
+        rays_scale = np.full(p2_arr.size, 1.0/ray_scale, dtype=np.float32)
 
 
-    return img_trm, p_bnd_arr, o_arr, rays_scale
+    return img_trm, p1_bnd_arr, p2_arr, rays_scale
 
+
+def _dd_proj_geom_fan(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
+                  cos_ang, sin_ang, DSO=1.0, DSD=1.0):
+    
+    """
+    Prepare distance-driven projection geometry for a single projection angle.
+
+    This function selects a numerically well-conditioned driving axis (x or y),
+    projects pixel boundaries onto the detector coordinate, and returns a
+    pre-arranged image view such that axis 0 corresponds to the driving
+    (sweep) axis required by the distance-driven kernel.
+
+    Two image layouts are accepted:
+        - `img_x`: image stored in canonical (x-driven) layout
+        - `img_y`: pre-transposed image (y-driven layout)
+
+    This avoids performing a transpose inside the projection loop and ensures
+    cache-friendly, stride-1 access in the hot sweep kernel.
+
+    The function supports both parallel-beam and fan-beam geometries and
+    guarantees monotonic projected pixel boundaries on return.
+
+    Geometry conventions
+    --------------------
+    - The detector coordinate `u` is linear and centered at zero.
+    - Projection angle is defined by (cos(theta), sin(theta)) = (c_ang, s_ang).
+    - Pixel grids are centered at the image origin.
+    - Pixel boundary projections along the driving axis are monotonic after
+      an optional flip, which is required by the sweep kernel.
+
+    Driving axis selection
+    ----------------------
+    The driving (sweep) axis is chosen to maximize numerical conditioning:
+        - X-driven if |sin(theta)| >= |cos(theta)|
+        - Y-driven otherwise
+
+    Fan-beam handling
+    -----------------
+    When `is_fan=True`, a per-orthogonal-pixel magnification correction is
+    applied to approximate true ray path lengths. The correction is inverted
+    here so that the sweep kernel uses multiplication instead of division in
+    its hot loop.
+
+
+    Parameters
+    ----------
+    img_x : ndarray
+        Input image in canonical orientation, used when the projection is
+        X-driven (axis 0 corresponds to X).
+    img_y : ndarray
+        Pre-transposed view of the input image, used when the projection is
+        Y-driven (axis 0 corresponds to Y).
+    x_bnd_arr, y_bnd_arr : ndarray
+        Pixel boundary coordinates along X and Y, respectively.
+        Shape is (n + 1,) for n pixels.
+    x_arr, y_arr : ndarray
+        Pixel center coordinates along X and Y, respectively.
+        Shape is (n,).
+    cos_ang, sin_ang : float
+        Cosine and sine of the projection angle.
+    is_fan : bool, optional
+        If True, apply fan-beam magnification correction. Default is False.
+    DSO : float, optional
+        Source-to-origin distance (fan-beam only).
+    DSD : float, optional
+        Source-to-detector distance (fan-beam only).
+
+    Returns
+    -------
+    img_trm : ndarray
+        Image view selected from `img_c` or `img_f`, possibly flipped so that
+        axis 0 corresponds to the driving axis and pixel boundaries are
+        monotonic in detector space.
+    p_bnd_arr : ndarray
+        Projected pixel boundary coordinates along the driving axis in
+        detector space. Shape is (np + 1,).
+    o_arr : ndarray
+        Orthogonal pixel-center offsets projected onto the detector
+        coordinate. Shape is (no,).
+    rays_scale : ndarray
+        Per-orthogonal-pixel scaling factors applied in the sweep kernel.
+        For parallel-beam geometry this is constant; for fan-beam geometry
+        it includes magnification correction.
+
+    Notes
+    -----
+    - This function performs no allocations in the hot sweep loop.
+    - Returned arrays are views whenever possible.
+    - Monotonicity of `u_pixs_drive_bnd` is guaranteed on return.
+    - No angular fan-beam weighting is applied here; only geometric scaling
+      along the detector coordinate is handled.
+    """
+    
+    # Determine driving axis
+    if abs(sin_ang) >= abs(cos_ang):
+        # X-driven
+        
+        # Scales projected pixel overlap along X for oblique rays
+        ray_scale = abs(sin_ang)
+
+        #Rotates the x,y coordinate system to o,p (orthogonal and parallel to
+        #the detector)
+        #In parallel beam these coordinates will projection directly on the 
+        #detector with p(x,y) = -sin_ang*x + cos_ang*y
+
+        # Project pixel boundaries along driving axis onto detector
+        # Each pixel x component at the boundary and y component at the center
+        #is projected along detetector space
+        p1_bnd_arr = -sin_ang * x_bnd_arr
+        p2_arr     =  cos_ang * y_arr
+
+        o1_arr =  cos_ang*x_arr
+        o2_arr =  sin_ang*y_arr
+
+        #No transformation need  
+        img_trm = img_x
+
+    else:
+        # Y-driven
+        
+        # Scales projected pixel overlap along Y for oblique rays
+        ray_scale = abs(cos_ang)
+
+        # Project pixel boundaries along driving axis onto detector
+        # Each pixel y component at the boundary and x component at the center
+        #is projected along detetector space
+        p1_bnd_arr = cos_ang * y_bnd_arr
+        p2_arr = -sin_ang * x_arr
+
+
+
+        # Transposes image so axis 0 correspondsto the driving (sweep) axis
+        img_trm = img_y 
+
+    # Ensure monotonic increasing for sweep
+    if p1_bnd_arr[1] < p1_bnd_arr[0]:
+        p1_bnd_arr = p1_bnd_arr[::-1]
+        img_trm = img_trm[::-1, :]
+
+    # Fan-beam magnification correction.
+    # Values are inverted to allow multiplicaion in hot loop
+    if is_fan:
+        # Fan-beam magnification correction:
+        # Each pixel's overlap is divided by proj_scale
+        # to approximate true line integral along the ray.
+        # Multiply by ray_scale to convert driving-axis projection
+        # to ray length        
+        magnification = DSD / (DSO - p2_arr)
+        rays_scale = 1/(magnification * ray_scale)
+    else:
+        #Mirroring fanbeam structure
+        rays_scale = np.full(p2_arr.size, 1.0/ray_scale, dtype=np.float32)
+
+
+    return img_trm, p1_bnd_arr, p2_arr, rays_scale
 
 def dd_fp_par_2d(img, ang_arr, nu, du=1.0, su=0, d_pix=1.0):
     """
