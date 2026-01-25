@@ -7,6 +7,85 @@ Created on Fri Jan  2 19:44:02 2026
 
 import numpy as np
 
+
+
+def sf_fp_fan_2d(
+    img, angs, nu,
+    DSO, DSD,
+    du=1.0, d_pix=1.0
+):
+    """
+    Separable-footprint fan-beam forward projector (2D).
+
+    Parameters
+    ----------
+    img : (nx, ny) ndarray
+    angs : (na,) ndarray, radians
+    nu : int
+        Number of detector bins
+    DSO, DSD : float
+    du : float
+        Detector bin width
+    d_pix : float
+        Pixel width
+
+    Returns
+    -------
+    sino : (na, nu) ndarray
+    """
+
+    nx, ny = img.shape
+    na = len(angs)
+
+    sino = np.zeros((na, nu), dtype=np.float32)
+
+    # pixel centers
+    x = d_pix * (np.arange(nx) - nx / 2 + 0.5)
+    y = d_pix * (np.arange(ny) - ny / 2 + 0.5)
+
+    # detector centers
+    u = du * (np.arange(nu) - nu / 2 + 0.5)
+
+    for ia, theta in enumerate(angs):
+        c, s = np.cos(theta), np.sin(theta)
+
+        for ix in range(nx):
+            for iy in range(ny):
+                val = img[ix, iy]
+                if val == 0:
+                    continue
+
+                # rotate pixel center
+                xp =  c * x[ix] + s * y[iy]
+                yp = -s * x[ix] + c * y[iy]
+
+                # project to detector
+                u0 = DSD * xp / (DSO - yp)
+
+                # footprint width (Jacobian)
+                du_fp = DSD * d_pix / (DSO - yp)
+
+                # affected bins
+                umin = u0 - du_fp
+                umax = u0 + du_fp
+
+                iu0 = int(np.floor((umin / du) + nu / 2))
+                iu1 = int(np.ceil ((umax / du) + nu / 2))
+
+                for iu in range(iu0, iu1 + 1):
+                    if iu < 0 or iu >= nu:
+                        continue
+
+                    # normalized distance
+                    t = (u[iu] - u0) / du_fp
+
+                    # linear B-spline footprint
+                    w = max(0.0, 1.0 - abs(t))
+
+                    sino[ia, iu] += val * w
+
+    return sino * d_pix
+
 # —————————————————————————————————————————
 # Geometry & System Setup
 # —————————————————————————————————————————

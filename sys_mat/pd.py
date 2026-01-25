@@ -59,13 +59,10 @@ def pd_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0):
     cos_ang_arr = np.cos(ang_arr)
     sin_ang_arr = np.sin(ang_arr)
 
-
     for ia, (cos_ang,sin_ang) in enumerate(zip(cos_ang_arr,sin_ang_arr)):
 
-        if abs(cos_ang) > abs(sin_ang):
-            ray_len = 1/abs(cos_ang)
-        else:
-            ray_len =  1/abs(sin_ang)
+        #Normaliz by footprint stretch factor
+        pix_scale = 1/ (abs(sin_ang) + abs(cos_ang)) 
         
         #Rotates the x,y coordinate system to o,p (orthogonal and parallel to
         #the detector)
@@ -95,7 +92,7 @@ def pd_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0):
 
 
                 #If image pixel is 0 advance to next pixel
-                val = img[ix, iy]*ray_len
+                val = img[ix, iy]*pix_scale
                 if img[ix, iy] == 0:
                     py_bnd_l = py_bnd_r
                     p0 = p2
@@ -158,6 +155,11 @@ def pd_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
             # Initalize first boundary
             py_bnd_l = py_bnd_arr[0]
             oy_bnd_l = oy_bnd_arr[0]
+
+            # Calculated midpoint
+            px_c = (px_bnd_l + px_bnd_r)/2
+            ox_c = (ox_bnd_l + ox_bnd_r)/2
+
             
             #Calulates the first two pixel corners projected on detector
             p0 = proj_img2det_fan(px_bnd_l, py_bnd_l, ox_bnd_l, oy_bnd_l, DSO, DSD)
@@ -166,11 +168,24 @@ def pd_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
             #Loops through the precomputed y cooridnates              
             for iy, (py_bnd_r,oy_bnd_r) in enumerate(zip(py_bnd_arr[1:],oy_bnd_arr[1:])):
 
+
+                py_c = (py_bnd_l + py_bnd_r)/2
+                oy_c = (oy_bnd_l + oy_bnd_r)/2
+
+                u_c = DSD * (px_c + py_c) / (DSO - (ox_c + oy_c))
+
+                gamma = np.arctan(u_c / DSD)
+                
+                rx = np.cos(ang_arr[ia] + gamma)
+                ry = np.sin(ang_arr[ia] + gamma)
+                
+                ray_norm3 = 1.0 / (abs(rx) + abs(ry))
+
                 #Calulates the second two pixel corners projected on detector    
                 p2 = proj_img2det_fan(px_bnd_l, py_bnd_r, ox_bnd_l, oy_bnd_r, DSO, DSD)
                 p3 = proj_img2det_fan(px_bnd_r, py_bnd_r, ox_bnd_r, oy_bnd_r, DSO, DSD)
         
-                val = img[ix, iy]
+                val = img[ix, iy]*ray_norm3 # * ray_norm2
                 if val == 0:
                     py_bnd_l = py_bnd_r
                     oy_bnd_l = oy_bnd_r

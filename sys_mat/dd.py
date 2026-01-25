@@ -8,7 +8,29 @@ Created on Mon Jan  5 06:34:23 2026
 
 import numpy as np
 
-def _dd_fp_sweep(sino,img_trm,p_bnd_arr,o_arr,u_bnd_arr,rays_scl_arr,ia):
+def proj_img2det_fan(px, py, ox, oy, DSO, DSD):
+    return DSD * (px + py) / (DSO - (ox + oy))
+
+
+def accumulate(sino, img_val, ray_scl,p_bnd_l, p_bnd_r,u_bnd_l,u_bnd_r,
+               ia, iu, ip):
+    overlap_l  = p_bnd_l if p_bnd_l > u_bnd_l else u_bnd_l
+    overlap_r  = p_bnd_r if p_bnd_r < u_bnd_r else u_bnd_r
+
+    # Accumulate overlap contribution
+    if overlap_r > overlap_l:
+        sino[ia, iu] += (img_val* (overlap_r - overlap_l)*ray_scl)
+
+    # Advance whichever interval ends first
+    if p_bnd_r < u_bnd_r:
+        ip += 1
+    else:
+        iu += 1
+        
+    return ip, iu
+
+
+def _dd_fp_par_sweep(sino,img_trm,p_bnd_arr,o_arr,u_bnd_arr,ray_scl,ia):
     """
     Distance-driven sweep kernel for 2D parallel or fanbeam forward projection.
 
@@ -60,7 +82,6 @@ def _dd_fp_sweep(sino,img_trm,p_bnd_arr,o_arr,u_bnd_arr,rays_scl_arr,ia):
         o = o_arr[io]
 
         img_vec = img_trm[:, io]
-        ray_scl = rays_scl_arr[io]
 
         ip = 0
         iu = 0
@@ -69,30 +90,20 @@ def _dd_fp_sweep(sino,img_trm,p_bnd_arr,o_arr,u_bnd_arr,rays_scl_arr,ia):
             # Left edge of overlap interval
             # Actual projected pixel boundaries for this pixel row/column
             p_bnd_l = p_bnd_arr[ip] + o
-            u_bnd_l = u_bnd_arr[iu]
-            overlap_l  = p_bnd_l if p_bnd_l > u_bnd_l else u_bnd_l
-
+            p_bnd_r = p_bnd_arr[ip + 1] + o
+ 
             # Right edge of overlap interval
             # Actual projected pixel boundaries for this pixel row/column
-            p_bnd_r = p_bnd_arr[ip + 1] + o
+            u_bnd_l = u_bnd_arr[iu]
             u_bnd_r = u_bnd_arr[iu + 1]
-            overlap_r  = p_bnd_r if p_bnd_r < u_bnd_r else u_bnd_r
-        
+
             # Accumulate overlap contribution
-            if overlap_r > overlap_l:
-                sino[ia, iu] += (img_vec[ip]* (overlap_r - overlap_l)*ray_scl)
-
-            # Advance whichever interval ends first
-            if p_bnd_r < u_bnd_r:
-                ip += 1
-            else:
-                iu += 1
+            ip, iu = accumulate(sino, img_vec[ip],ray_scl,
+                                p_bnd_l, p_bnd_r,u_bnd_l,u_bnd_r,
+                                ia, iu, ip)
 
 
-def proj_img2det_fan(px, py, ox, oy, DSO, DSD):
-    return DSD * (px + py) / (DSO - (ox + oy))
-
-def _dd_fp_fan_sweep(sino,img_trm,p1_bnd_arr,p2_bnd_arr,o1_arr,o2_arr,u_bnd_arr,rays_scl_arr,ia,DSO,DSD):
+def _dd_fp_fan_sweep(sino,img_trm,p1_bnd_arr,p2_arr,o1_bnd_arr,o2_arr,u_bnd_arr,ray_scl_arr,ia,DSO,DSD):
     """
     Distance-driven sweep kernel for 2D parallel or fanbeam forward projection.
 
@@ -139,40 +150,33 @@ def _dd_fp_fan_sweep(sino,img_trm,p1_bnd_arr,p2_bnd_arr,o1_arr,o2_arr,u_bnd_arr,
 
     # Loop over orthogonal pixel lines
     for io in range(no):
-
+        
         #Hoisting pointers for explicit LICM
-        p2 = p2_bnd_arr[io]
+        p2 = p2_arr[io]
         o2 = o2_arr[io]
+        
         img_vec = img_trm[:, io]
-        ray_scl = rays_scl_arr[io]
-
+        ray_scl = ray_scl_arr[io]        
+        
         ip = 0
         iu = 0
         while ip < np and iu < nu:
-            
-            # Left edge of overlap interval
-            # Actual projected pixel boundaries for this pixel row/column
-            p_bnd_l = proj_img2det_fan(p1_bnd_arr[ip], p2, o1_arr[ip],o2, DSO, DSD)
+            p_bnd_l = proj_img2det_fan(p1_bnd_arr[ip], p2,o1_bnd_arr[ip], o2,
+                                       DSO, DSD)
+
+            p_bnd_r = proj_img2det_fan(p1_bnd_arr[ip+1], p2,o1_bnd_arr[ip+1], o2,
+                                       DSO, DSD)
+
             u_bnd_l = u_bnd_arr[iu]
-            overlap_l  = p_bnd_l if p_bnd_l > u_bnd_l else u_bnd_l
-
-            # Right edge of overlap interval
-            # Actual projected pixel boundaries for this pixel row/column
-            p_bnd_r =  proj_img2det_fan(p1_bnd_arr[ip+1], p2, o1_arr[ip+1],o2, DSO, DSD)
             u_bnd_r = u_bnd_arr[iu + 1]
-            overlap_r  = p_bnd_r if p_bnd_r < u_bnd_r else u_bnd_r
-        
+            
             # Accumulate overlap contribution
-            if overlap_r > overlap_l:
-                sino[ia, iu] += (img_vec[ip]* (overlap_r - overlap_l)*ray_scl)
+            ip, iu = accumulate(sino, img_vec[ip],ray_scl,
+                                p_bnd_l, p_bnd_r,u_bnd_l,u_bnd_r,
+                                ia, iu, ip)
 
-            # Advance whichever interval ends first
-            if p_bnd_r < u_bnd_r:
-                ip += 1
-            else:
-                iu += 1
-
-def _dd_bp_sweep(img_out, sino, p_bnd_arr, o_arr, u_bnd_arr, rays_scl_arr, ia):
+            
+def _dd_bp_par_sweep(img_out, sino, p_bnd_arr, o_arr, u_bnd_arr, ray_scl, ia):
     """
     Distance-driven sweep kernel for 2D parallel or fanbeam back-projection.
 
@@ -209,7 +213,6 @@ def _dd_bp_sweep(img_out, sino, p_bnd_arr, o_arr, u_bnd_arr, rays_scl_arr, ia):
         o = o_arr[io]
 
         img_vec = img_out[:, io]
-        ray_scl = rays_scl_arr[io]
 
         ip = 0
         iu = 0
@@ -231,10 +234,53 @@ def _dd_bp_sweep(img_out, sino, p_bnd_arr, o_arr, u_bnd_arr, rays_scl_arr, ia):
                 ip += 1
             else:
                 iu += 1
+                
+        
+def _dd_bp_fan_sweep(sino,img_trm,p1_bnd_arr,p2_arr,o1_bnd_arr,o2_arr,u_bnd_arr,rays_scl_arr,ia,DSO,DSD):
+
+    
+    np, no = img_trm.shape
+    nu = u_bnd_arr.size - 1
+
+    sino_vec = sino[ia]
+    # Loop over orthogonal pixel lines
+    for io in range(no):
+        
+        #Hoisting pointers for explicit LICM
+        p2 = p2_arr[io]
+        o2 = o2_arr[io]
+        
+        img_vec = img_trm[:, io]
+        ray_scl = rays_scl_arr[io]        
+        
+        ip = 0
+        iu = 0
+        while ip < np and iu < nu:
+            p_bnd_l = proj_img2det_fan(p1_bnd_arr[ip], p2,o1_bnd_arr[ip], o2,
+                                       DSO, DSD)
+
+            p_bnd_r = proj_img2det_fan(p1_bnd_arr[ip+1], p2,o1_bnd_arr[ip+1], o2,
+                                       DSO, DSD)
+
+            u_bnd_l = u_bnd_arr[iu]
+            u_bnd_r = u_bnd_arr[iu + 1]
+            
+            overlap_l = max(p_bnd_l, u_bnd_l)
+            overlap_r = min(p_bnd_r, u_bnd_r)
+
+            if overlap_r > overlap_l:
+                # Distribute detector bin value back to the image pixel
+                img_vec[ip] += (sino_vec[iu] * (overlap_r - overlap_l) * ray_scl)
+
+            if p_bnd_r < u_bnd_r:
+                ip += 1
+            else:
+                iu += 1     
+                
 
 
-def _dd_proj_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
-                  cos_ang, sin_ang, is_fan=False, DSO=1.0, DSD=1.0):
+def _dd_fp_par_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
+                  cos_ang, sin_ang):
     
     """
     Prepare distance-driven projection geometry for a single projection angle.
@@ -330,7 +376,7 @@ def _dd_proj_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
         # X-driven
         
         # Scales projected pixel overlap along X for oblique rays
-        ray_scale = abs(sin_ang)
+        ray_scale = 1.0/abs(sin_ang)
 
         #Rotates the x,y coordinate system to o,p (orthogonal and parallel to
         #the detector)
@@ -351,7 +397,7 @@ def _dd_proj_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
         # Y-driven
         
         # Scales projected pixel overlap along Y for oblique rays
-        ray_scale = abs(cos_ang)
+        ray_scale = 1.0/abs(cos_ang)
 
         # Project pixel boundaries along driving axis onto detector
         # Each pixel y component at the boundary is projected along detetector space
@@ -368,25 +414,13 @@ def _dd_proj_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
         p1_bnd_arr = p1_bnd_arr[::-1]
         img_trm = img_trm[::-1, :]
 
-    # Fan-beam magnification correction.
+
     # Values are inverted to allow multiplicaion in hot loop
-    if is_fan:
-        # Fan-beam magnification correction:
-        # Each pixel's overlap is divided by proj_scale
-        # to approximate true line integral along the ray.
-        # Multiply by ray_scale to convert driving-axis projection
-        # to ray length        
-        magnification = DSD / (DSO - p2_arr)
-        rays_scale = 1/(magnification * ray_scale)
-    else:
-        #Mirroring fanbeam structure
-        rays_scale = np.full(p2_arr.size, 1.0/ray_scale, dtype=np.float32)
+
+    return img_trm, p1_bnd_arr, p2_arr, ray_scale
 
 
-    return img_trm, p1_bnd_arr, p2_arr, rays_scale
-
-
-def _dd_proj_geom_fan(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
+def _dd_fp_fan_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
                   cos_ang, sin_ang, DSO, DSD):
     
     """
@@ -478,6 +512,8 @@ def _dd_proj_geom_fan(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
       along the detector coordinate is handled.
     """
     
+    
+
     # Determine driving axis
     if abs(sin_ang) >= abs(cos_ang):
         # X-driven
@@ -497,11 +533,10 @@ def _dd_proj_geom_fan(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
         p2_arr     =  cos_ang * y_arr
 
         o1_bnd_arr =  cos_ang*x_bnd_arr
-        o2_arr =  sin_ang*y_arr
+        o2_arr     =  sin_ang*y_arr
 
         #No transformation need  
         img_trm = img_x
-
     else:
         # Y-driven
         
@@ -512,10 +547,10 @@ def _dd_proj_geom_fan(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
         # Each pixel y component at the boundary and x component at the center
         #is projected along detetector space
         p1_bnd_arr = cos_ang * y_bnd_arr
-        p2_arr = -sin_ang * x_arr
+        p2_arr     = -sin_ang * x_arr
 
-        o1_bnd_arr = cos_ang*y_bnd_arr
-        o2_arr = sin_ang*x_arr
+        o1_bnd_arr = sin_ang*y_bnd_arr
+        o2_arr     = cos_ang*x_arr
 
         # Transposes image so axis 0 correspondsto the driving (sweep) axis
         img_trm = img_y 
@@ -523,16 +558,14 @@ def _dd_proj_geom_fan(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
     # Ensure monotonic increasing for sweep
     if p1_bnd_arr[1] < p1_bnd_arr[0]:
         p1_bnd_arr = p1_bnd_arr[::-1]
+        o1_bnd_arr = o1_bnd_arr[::-1]
         img_trm = img_trm[::-1, :]
 
 
-    # Fan-beam magnification correction:
-    # Each pixel's overlap is divided by proj_scale
-    # to approximate true line integral along the ray.
-    # Multiply by ray_scale to convert driving-axis projection
-    # to ray length        
-    magnification = DSD / (DSO - p2_arr)
-    rays_scale = 1/(magnification * ray_scale)
+    # Fan-beam  correction:
+    r = np.sqrt((DSO - o2_arr)**2 + p2_arr**2)
+    rays_scale = r / ((DSO - o2_arr) * ray_scale)
+      
 
     return img_trm, p1_bnd_arr, p2_arr, o1_bnd_arr, o2_arr, rays_scale
 
@@ -604,14 +637,11 @@ def dd_fp_par_2d(img, ang_arr, nu, du=1.0, su=0, d_pix=1.0):
     for ia, (cos_ang,sin_ang) in enumerate(zip(cos_ang_arr,sin_ang_arr)):
         
         img_trm, p1_bnd_arr, p2_arr, rays_scale = \
-            _dd_proj_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
+            _dd_fp_par_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
                           cos_ang, sin_ang)
     
-        _dd_fp_sweep(sino, img_trm, p1_bnd_arr, p2_arr,
+        _dd_fp_par_sweep(sino, img_trm, p1_bnd_arr, p2_arr,
                             u_bnd_arr, rays_scale, ia)
-
-
-
 
     #Return sino normalized with pixel and detector size
     return sino*d_pix/du
@@ -666,7 +696,6 @@ def dd_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
     img_x = np.ascontiguousarray(img)
     img_y = np.ascontiguousarray(img.T)
 
-
     # Define pixel boundaries and centers in image space
     # Centered at origin (0,0)
     # x_pixs_bnd, y_pixs_bnd: positions of pixel edges along X and Y
@@ -689,17 +718,11 @@ def dd_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
     for ia, (cos_ang,sin_ang) in enumerate(zip(cos_ang_arr,sin_ang_arr)):
 
         img_trm, p1_bnd_arr, p2_arr, o1_bnd_arr, o2_arr, rays_scale = \
-           _dd_proj_geom_fan(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
+           _dd_fp_fan_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
                          cos_ang, sin_ang, DSO, DSD)
 
-        # Sweep along driving axis
-
-
         _dd_fp_fan_sweep(sino, img_trm, p1_bnd_arr,p2_arr,o1_bnd_arr,o2_arr,
-                         u_bnd_arr, rays_scale, ia,DSO,DSD)
-
-
-
+                         u_bnd_arr, rays_scale, ia, DSO, DSD)
 
     #Return sino normalized with pixel and detector size
     return sino*d_pix/du
@@ -732,7 +755,6 @@ def dd_bp_par_2d(sino, ang_arr, img_shape, du=1.0, su=0, d_pix=1.0):
     """
     nx, ny = img_shape
     na, nu = sino.shape
-
     img = np.zeros((nx, ny), dtype=np.float32)
 
     # Stride-1 versions for driving axes
@@ -752,11 +774,11 @@ def dd_bp_par_2d(sino, ang_arr, img_shape, du=1.0, su=0, d_pix=1.0):
 
     for ia, (cos_ang, sin_ang) in enumerate(zip(cos_ang_arr, sin_ang_arr)):
 
-        img_trm, p_bnd_arr, o_arr, rays_scale = \
-            _dd_proj_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
-                          cos_ang, sin_ang, is_fan=False)
+        img_trm, p_bnd_arr, o_arr, ray_scale = \
+            _dd_fp_par_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
+                          cos_ang, sin_ang)
 
-        _dd_bp_sweep(img_trm, sino, p_bnd_arr, o_arr, u_bnd_arr, rays_scale, ia)
+        _dd_bp_par_sweep(img_trm, sino, p_bnd_arr, o_arr, u_bnd_arr, ray_scale, ia)
 
     # Normalize: undo FP normalziation (multiply by detector size, divide by pixel size)
     # Sum all backprojected views into output image
@@ -810,10 +832,11 @@ def dd_bp_fan_2d(sino, ang_arr, img_shape, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
 
     for ia, (cos_ang, sin_ang) in enumerate(zip(cos_ang_arr, sin_ang_arr)):
 
-        img_trm, p_bnd_arr, o_arr, rays_scale = \
-           _dd_proj_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
-                         cos_ang, sin_ang, is_fan=True, DSO=DSO, DSD=DSD)
+        img_trm, p1_bnd_arr, p2_arr, o1_bnd_arr, o2_arr, ray_scl_arr = \
+           _dd_fp_fan_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
+                         cos_ang, sin_ang, DSO, DSD)
 
-        _dd_bp_sweep(img_trm, sino, p_bnd_arr, o_arr, u_bnd_arr, rays_scale, ia)
+        _dd_bp_fan_sweep(sino,img_trm,p1_bnd_arr,p2_arr,o1_bnd_arr,o2_arr,u_bnd_arr,ray_scl_arr,ia,DSO,DSD)
+
 
     return (img_x+img_y.T) / na / d_pix 

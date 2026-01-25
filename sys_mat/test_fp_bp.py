@@ -19,6 +19,7 @@ import vir.sys_mat.pd as pd
 #Image params - Pixels
 nx = 32
 ny = 32
+nz = 32
 d_pix = 1
 
 
@@ -35,22 +36,28 @@ DSD = DSO*2
 #Sino params 
 na = 64
 nu = 32
+nv = 32
 du = 1
+dv = 1
 su = 0.0
-
+sv = 0.0
 
 ang_arr = np.linspace(0, np.pi*2, na, endpoint=False)#, dtype=np.float32)
 u_arr = du*(np.arange(nu) - nu/2.0 + 0.5 + su)
 
 #Test image
-img = np.zeros((nx, ny), dtype=np.float32)
-img[14:18, 14:18] = 1.0  # center impulse
-img[10:22, 10:22] = 1.0  # center impulse
+img3d = np.zeros((nx, ny, nz), dtype=np.float32)
+#img[15:17, 15:17] = 1.0  # center impulse
+img3d[10:22, 10:22, 10:22] = 1.0  # center impulse
 #img[3:6, 3:6] = 1.0  # center impulse
-#img[:] = 1.0  # center impulse
+#img[12:14, 8:10] = 1.0  # center impulse
+img3d[:] = 1.0  # center impulse
 
+#img[30:, 10:22] = 1.0  # center impulse
+#img[10:12, 15:17] = 1.0  # center impulse
+#img[31:33, 31:33] = 1.0  # center impulse
 
-
+img2d = img3d[:,:,int(nz/2)]
 
 """
 plt.figure(figsize=(3,3))
@@ -74,22 +81,24 @@ for ia, ang in enumerate(ang_arr):
 
 
 
+#sino2c = rd.aw_fp_cone_3d(img3d, ang_arr, nu, nv, DSO, DSD, du=du, d_pix=d_pix)
+#sino3c = rd.aw_fp_cone_3d(img3d, ang_arr, nu, ny, DSO, DSD, du=du, d_pix=d_pix,joseph=True)
 
 
-sino1p = dd.dd_fp_par_2d(img, ang_arr, nu, du=du, su=su, d_pix=d_pix)
-sino1f = dd.dd_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=du, su=su, d_pix=d_pix)
-sino2p = rd.aw_fp_par_2d(img, ang_arr, nu, du=du, su=su, d_pix=d_pix)
-sino2f = rd.aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=du, su=su, d_pix=d_pix)
-sino3p = rd.aw_fp_par_2d(img, ang_arr, nu, du=du, su=su, d_pix=d_pix,joseph=True)
-sino3f = rd.aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=du, su=su, d_pix=d_pix,joseph=True)
-sino4p = pd.pd_fp_par_2d(img, ang_arr, nu, du=du, su=su, d_pix=d_pix)
-sino4f = pd.pd_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=du, su=su, d_pix=d_pix)
+
+
+
+
+sino1p = dd.dd_fp_par_2d(img2d, ang_arr, nu, du=du, su=su, d_pix=d_pix)
+sino1f = dd.dd_fp_fan_2d(img2d, ang_arr, nu, DSO, DSD, du=du, su=su, d_pix=d_pix)
+sino2p = rd.aw_fp_par_2d(img2d, ang_arr, nu, du=du, su=su, d_pix=d_pix)
+sino2f = rd.aw_fp_fan_2d(img2d, ang_arr, nu, DSO, DSD, du=du, su=su, d_pix=d_pix)
+sino3p = rd.aw_fp_par_2d(img2d, ang_arr, nu, du=du, su=su, d_pix=d_pix,joseph=True)
+sino3f = rd.aw_fp_fan_2d(img2d, ang_arr, nu, DSO, DSD, du=du, su=su, d_pix=d_pix,joseph=True)
+sino4p = pd.pd_fp_par_2d(img2d, ang_arr, nu, du=du, su=su, d_pix=d_pix)
+sino4f = pd.pd_fp_fan_2d(img2d, ang_arr, nu, DSO, DSD, du=du, su=su, d_pix=d_pix)
 sinos = [sino1p,sino2p,sino3p,sino4p,sino1f,sino2f,sino3f,sino4f]
 
-
-
-      
-    
     
     
 titles = ["DD Parallel","SD Parallel","JO Parallel","PD Parallel",
@@ -103,12 +112,12 @@ for i, (sino,title) in enumerate(zip(sinos,titles)):
         plt.ylabel("Angle")
     if i > 3:
         plt.xlabel("Detector Bin")
- 
 plt.show()
 
 
 
 fractions = [0, 1/8, 1/4, 3/8,1/2]
+#fractions = [0, 1/16, 1/8, 3/16,1/4]
 plt.figure(figsize=(20,8))
 for i, fraction in enumerate(fractions):
     plt.subplot(2,len(fractions),i+1)
@@ -118,7 +127,6 @@ for i, fraction in enumerate(fractions):
     plt.plot(sino4p[int(fraction*na),:], label='PD')
     plt.legend()
     plt.title("Angle "+ str(int(fraction*360))+" profile")
-    
     if i == 0: plt.ylabel("Intensity")
     
 for i, fraction in enumerate(fractions):
@@ -129,20 +137,8 @@ for i, fraction in enumerate(fractions):
     plt.plot(sino4f[int(fraction*na),:], label='PD')
     plt.xlabel("Detector Bin")
     plt.legend()
-
     if i == 0: plt.ylabel("Intensity")
-    
 plt.show()
-
-
-plt.figure(figsize=(4,4))
-plt.subplot(1,1,1)
-plt.plot(sino1p[:,16], label='DD')
-plt.plot(sino2p[:,16], label='AW')
-plt.plot(sino3p[:,16], label='JO')
-plt.plot(sino4p[:,16], label='PD')
-plt.show()
-
 
 #print("Siddons/AW Diff:", (sino1-sino4).max())
 #print("Siddons/Joe Diff:", (sino1-sino2).max())
@@ -196,16 +192,49 @@ plt.show()
 
 
 
-plt.figure(figsize=(20,4))
-plt.subplot(1,4,1)
-plt.title("X Center")
-plt.plot(rec1p[:,15:17].mean(axis=1), label='DD P')
-plt.plot(rec1f[:,15:17].mean(axis=1), label='DD F')
-plt.plot(rec2p[:,15:17].mean(axis=1), label='SD P')
-plt.plot(rec2f[:,15:17].mean(axis=1), label='SD F')
-plt.plot(rec3p[:,15:17].mean(axis=1), label='JO P')
-plt.plot(rec3f[:,15:17].mean(axis=1), label='JO F')
-plt.legend()
+fractions = [0, 1/8, 1/4, 3/8,1/2]
+#fractions = [0, 1/16, 1/8, 3/16,1/4]
+plt.figure(figsize=(20,8))
+for i, fraction in enumerate(fractions):
+    plt.subplot(2,len(fractions),i+1)
+    plt.plot(sino1p[int(fraction*na),:], label='DD')
+    plt.plot(sino2p[int(fraction*na),:], label='AW')
+    plt.plot(sino3p[int(fraction*na),:], label='JO')
+    plt.plot(sino4p[int(fraction*na),:], label='PD')
+    plt.legend()
+    plt.title("Angle "+ str(int(fraction*360))+" profile")
+    if i == 0: plt.ylabel("Intensity")
+    
+for i, fraction in enumerate(fractions):
+    plt.subplot(2,len(fractions),i+1+5)
+    plt.plot(sino1f[int(fraction*na),:], label='DD')
+    plt.plot(sino2f[int(fraction*na),:], label='AW')
+    plt.plot(sino3f[int(fraction*na),:], label='JO')
+    plt.plot(sino4f[int(fraction*na),:], label='PD')
+    plt.xlabel("Detector Bin")
+    plt.legend()
+    if i == 0: plt.ylabel("Intensity")
+plt.show()
+
+
+
+recsp = [rec1p,rec2p,rec3p,rec4p]
+recsf = [rec1f,rec2f,rec3f,rec4f]
+
+labels = ["DD","SD","JO","PD"]
+
+titles = ["X Center", "Y Center", "XY Center", "YX Center"]
+plt.figure(figsize=(20,8))
+plt.subplot(2,4,i+1)
+ 
+for j, rec in enumerate(recsp):
+    plt.title(title)
+    plt.plot(rec[:,int(ny/2-1):int(ny/2+1)].mean(axis=1), label=labels[j])
+    plt.legend()
+
+plt.show()
+
+
 
 plt.subplot(1,4,2)
 plt.title("Y Center")

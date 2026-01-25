@@ -68,6 +68,67 @@ def _jospeh(img,d_pix,sino,ia,iu,cos_ang,sin_ang,x_s,y_s,
         t += step
 
 
+def joseph_fp_cone_3d(
+    img, sino,
+    ia, iu, iv,
+    Sx, Sy, Sz,
+    rx, ry, rz,
+    x0, y0, z0,
+    d_pix,
+    t_enter, t_exit,
+    step
+):
+    nx, ny, nz = img.shape
+
+    t = t_enter
+    while t <= t_exit:
+        x = Sx + rx*t
+        y = Sy + ry*t
+        z = Sz + rz*t
+
+        ix = (x - x0) / d_pix
+        iy = (y - y0) / d_pix
+        iz = (z - z0) / d_pix
+
+        if ix < 0 or iy < 0 or iz < 0 or \
+           ix >= nx-1 or iy >= ny-1 or iz >= nz-1:
+            t += step
+            continue
+
+        i0 = int(ix)
+        j0 = int(iy)
+        k0 = int(iz)
+
+        dx = ix - i0
+        dy = iy - j0
+        dz = iz - k0
+
+        # Trilinear interpolation
+        c000 = img[i0  , j0  , k0  ]
+        c100 = img[i0+1, j0  , k0  ]
+        c010 = img[i0  , j0+1, k0  ]
+        c110 = img[i0+1, j0+1, k0  ]
+        c001 = img[i0  , j0  , k0+1]
+        c101 = img[i0+1, j0  , k0+1]
+        c011 = img[i0  , j0+1, k0+1]
+        c111 = img[i0+1, j0+1, k0+1]
+
+        val = (
+            c000*(1-dx)*(1-dy)*(1-dz) +
+            c100*dx*(1-dy)*(1-dz) +
+            c010*(1-dx)*dy*(1-dz) +
+            c110*dx*dy*(1-dz) +
+            c001*(1-dx)*(1-dy)*dz +
+            c101*dx*(1-dy)*dz +
+            c011*(1-dx)*dy*dz +
+            c111*dx*dy*dz
+        )
+
+        sino[ia, iv, iu] += val * step
+        t += step
+
+
+
 def _joseph_bp(img, d_pix, sino, ia, iu, cos_ang, sin_ang, x_s, y_s, x0, y0, t_enter, t_exit, step):
     nx, ny = img.shape
     # Direction components
@@ -130,6 +191,17 @@ def _fp_2d_intersect_bounding(r0, dr, adr, r_min, r_max):
     return tr_min, tr_max
 
 
+def fp_3d_intersect_box(r0, dr, adr, r_min, r_max):
+    if adr > eps:
+        t1 = (r_min - r0) / dr
+        t2 = (r_max - r0) / dr
+        return min(t1, t2), max(t1, t2)
+    else:
+        return -np.inf, np.inf
+
+
+
+
 def _fp_2d_step_init(r0, ir, dr, adr, r_min, d_pix):
     # Amanatides–Woo stepping initialization
     #
@@ -155,6 +227,24 @@ def _fp_2d_step_init(r0, ir, dr, adr, r_min, d_pix):
     return ir_dir, ir_step, ir_next
 
 
+def fp_3d_step_init(r0, ir, dr, adr, r_min, d_pix):
+    if dr > 0:
+        idir = 1
+        r_next = r_min + (ir + 1)*d_pix
+    else:
+        idir = -1
+        r_next = r_min + ir*d_pix
+
+    if adr > eps:
+        t_step = d_pix / adr
+        t_next = (r_next - r0) / dr
+    else:
+        t_step = np.inf
+        t_next = np.inf
+
+    return idir, t_step, t_next
+
+
 def _fp_2d_traverse_grid(img,sino,ia,iu,t_enter,t_exit,ix_next,iy_next,
                          ix_step,iy_step,ix_dir,iy_dir,ix,iy,nx,ny,d_pix):
     
@@ -170,7 +260,7 @@ def _fp_2d_traverse_grid(img,sino,ia,iu,t_enter,t_exit,ix_next,iy_next,
     t = t_enter
     acc = 0.0
 
-    while t < t_exit:
+    while t <= t_exit:
 
         # Safety check (should rarely trigger)
         if ix < 0 or ix >= nx or iy < 0 or iy >= ny:
@@ -194,7 +284,49 @@ def _fp_2d_traverse_grid(img,sino,ia,iu,t_enter,t_exit,ix_next,iy_next,
     # Store final line integral
     sino[ia, iu] = acc
     
+    print(acc, t_exit-t_enter)
+    
+def aw_fp_traverse_3d(
+    img, sino,
+    ia, iu, iv,
+    t_enter, t_exit,
+    ix, iy, iz,
+    ix_next, iy_next, iz_next,
+    ix_step, iy_step, iz_step,
+    ix_dir, iy_dir, iz_dir,
+    nx, ny, nz
+):
+    t = t_enter
+    acc = 0.0
 
+    while t < t_exit:
+        if ix<0 or iy<0 or iz<0 or ix>=nx or iy>=ny or iz>=nz:
+            break
+
+        if ix_next <= iy_next and ix_next <= iz_next:
+            t_next = min(ix_next, t_exit)
+            acc += img[ix,iy,iz]*(t_next - t)
+            t = t_next
+            ix_next += ix_step
+            ix += ix_dir
+
+        elif iy_next <= iz_next:
+            t_next = min(iy_next, t_exit)
+            acc += img[ix,iy,iz]*(t_next - t)
+            t = t_next
+            iy_next += iy_step
+            iy += iy_dir
+
+        else:
+            t_next = min(iz_next, t_exit)
+            acc += img[ix,iy,iz]*(t_next - t)
+            t = t_next
+            iz_next += iz_step
+            iz += iz_dir
+
+    sino[ia, iv, iu] = acc
+    
+    
 def _aw_bp_grid(img, sino, ia, iu, t_enter, t_exit,
                 ix_next, iy_next, ix_step, iy_step,
                 ix_dir, iy_dir, ix, iy, nx, ny, d_pix):
@@ -471,12 +603,130 @@ def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0,joseph=Fa
                 iy = int(np.floor((ry_y_min - y_min) / d_pix))
     
                 # Amanatides–Woo stepping initialization
-                ix_dir, ix_step, ix_next = _fp_2d_step_init(rx_s, ix, rx, rx_abs, x_min, d_pix)
-                iy_dir, iy_step, iy_next = _fp_2d_step_init(ry_s, iy, ry, ry_abs, y_min, d_pix)
+                #ix_dir, ix_step, ix_next = _fp_2d_step_init(rx_s, ix, rx, rx_abs, x_min, d_pix)
+                #iy_dir, iy_step, iy_next = _fp_2d_step_init(ry_s, iy, ry, ry_abs, y_min, d_pix)
+
+                ix_dir, ix_step, ix_next = _fp_2d_step_init(rx_x_min, ix, rx, rx_abs, x_min, d_pix)
+                iy_dir, iy_step, iy_next = _fp_2d_step_init(ry_y_min, iy, ry, ry_abs, y_min, d_pix)
+
+                ix_next = max(ix_next, t_enter)
+                iy_next = max(iy_next, t_enter)
+
                 
                 # Grid traversal
                 _fp_2d_traverse_grid(img,sino,ia,iu,t_enter,t_exit,ix_next,iy_next,ix_step,iy_step,
                              ix_dir,iy_dir,ix,iy,nx,ny,d_pix)
+                
+                
+                
+    return sino
+
+
+def aw_fp_cone_3d(
+    img, ang_arr,
+    nu, nv,
+    DSO, DSD,
+    du=1.0, dv=1.0,
+    d_pix=1.0,
+    joseph=False
+):
+    nx, ny, nz = img.shape
+    sino = np.zeros((len(ang_arr), nv, nu), dtype=np.float32)
+
+    x_min = -nx*d_pix/2
+    x_max =  nx*d_pix/2
+    y_min = -ny*d_pix/2
+    y_max =  ny*d_pix/2
+    z_min = -nz*d_pix/2
+    z_max =  nz*d_pix/2
+
+    x0 = -d_pix*(nx/2 - 0.5)
+    y0 = -d_pix*(ny/2 - 0.5)
+    z0 = -d_pix*(nz/2 - 0.5)
+
+    u_arr = du*(np.arange(nu) - nu/2 + 0.5)
+    v_arr = dv*(np.arange(nv) - nv/2 + 0.5)
+
+    for ia, ang in enumerate(ang_arr):
+        c = np.cos(ang)
+        s = np.sin(ang)
+
+        Sx, Sy, Sz = DSO*c, DSO*s, 0.0
+        Dx0, Dy0, Dz0 = -(DSD-DSO)*c, -(DSD-DSO)*s, 0.0
+
+        uhat = (-s, c, 0)
+        vhat = (0, 0, 1)
+
+        for iv, v in enumerate(v_arr):
+            for iu, u in enumerate(u_arr):
+
+                Dx = Dx0 + u*uhat[0] + v*vhat[0]
+                Dy = Dy0 + u*uhat[1] + v*vhat[1]
+                Dz = Dz0 + u*uhat[2] + v*vhat[2]
+
+                rx = Dx - Sx
+                ry = Dy - Sy
+                rz = Dz - Sz
+
+                L = np.sqrt(rx*rx + ry*ry + rz*rz)
+                rx /= L; ry /= L; rz /= L
+
+                tx0, tx1 = fp_3d_intersect_box(Sx, rx, abs(rx), x_min, x_max)
+                ty0, ty1 = fp_3d_intersect_box(Sy, ry, abs(ry), y_min, y_max)
+                tz0, tz1 = fp_3d_intersect_box(Sz, rz, abs(rz), z_min, z_max)
+
+                t_enter = max(tx0, ty0, tz0)
+                t_exit  = min(tx1, ty1, tz1)
+
+                if t_exit <= t_enter:
+                    continue
+
+                if joseph:
+                    joseph_fp_cone_3d(
+                        img, sino, ia, iu, iv,
+                        Sx, Sy, Sz,
+                        rx, ry, rz,
+                        x0, y0, z0,
+                        d_pix,
+                        t_enter, t_exit,
+                        step=0.5
+                    )
+                else:
+                    x = Sx + rx*t_enter
+                    y = Sy + ry*t_enter
+                    z = Sz + rz*t_enter
+                    
+                    x = min(max(x, x_min + eps), x_max - eps)
+                    y = min(max(y, y_min + eps), y_max - eps)
+                    z = min(max(z, z_min + eps), z_max - eps)
+
+                    #ix = int((x - x_min)/d_pix)
+                    #iy = int((y - y_min)/d_pix)
+                    #iz = int((z - z_min)/d_pix)
+                    
+                    # Convert to voxel indices
+                    ix = int(np.floor((x - x_min) / d_pix))
+                    iy = int(np.floor((y - y_min) / d_pix))
+                    iz = int(np.floor((z - y_min) / d_pix))
+
+                    ix_dir, ix_step, ix_next = fp_3d_step_init(x, ix, rx, abs(rx), x_min, d_pix)
+                    iy_dir, iy_step, iy_next = fp_3d_step_init(y, iy, ry, abs(ry), y_min, d_pix)
+                    iz_dir, iz_step, iz_next = fp_3d_step_init(z, iz, rz, abs(rz), z_min, d_pix)
+
+                    #ix_dir, ix_step, ix_next = fp_3d_step_init(Sx, ix, rx, abs(rx), x_min, d_pix)
+                    #iy_dir, iy_step, iy_next = fp_3d_step_init(Sy, iy, ry, abs(ry), y_min, d_pix)
+                    #iz_dir, iz_step, iz_next = fp_3d_step_init(Sz, iz, rz, abs(rz), z_min, d_pix)
+
+
+                    aw_fp_traverse_3d(
+                        img, sino, ia, iu, iv,
+                        t_enter, t_exit,
+                        ix, iy, iz,
+                        ix_next, iy_next, iz_next,
+                        ix_step, iy_step, iz_step,
+                        ix_dir, iy_dir, iz_dir,
+                        nx, ny, nz
+                    )
 
     return sino
 
