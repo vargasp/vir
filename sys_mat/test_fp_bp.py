@@ -51,7 +51,7 @@ img3d = np.zeros((nx, ny, nz), dtype=np.float32)
 img3d[10:22, 10:22, 10:22] = 1.0  # center impulse
 #img[3:6, 3:6] = 1.0  # center impulse
 #img[12:14, 8:10] = 1.0  # center impulse
-img3d[:] = 1.0  # center impulse
+#img3d[:] = 1.0  # center impulse
 
 #img[30:, 10:22] = 1.0  # center impulse
 #img[10:12, 15:17] = 1.0  # center impulse
@@ -81,9 +81,10 @@ for ia, ang in enumerate(ang_arr):
 
 
 
-#sino2c = rd.aw_fp_cone_3d(img3d, ang_arr, nu, nv, DSO, DSD, du=du, d_pix=d_pix)
-#sino3c = rd.aw_fp_cone_3d(img3d, ang_arr, nu, ny, DSO, DSD, du=du, d_pix=d_pix,joseph=True)
-
+sino2c = rd.aw_fp_cone_3d(img3d, ang_arr, nu, nv, DSO, DSD, du=du, d_pix=d_pix).transpose(0,2,1)
+sino3c = rd.aw_fp_cone_3d(img3d, ang_arr, nu, ny, DSO, DSD, du=du, d_pix=d_pix,joseph=True).transpose(0,2,1)
+sino1c = np.zeros(sino2c.shape)
+sino4c = np.zeros(sino2c.shape)
 
 
 
@@ -97,15 +98,20 @@ sino3p = rd.aw_fp_par_2d(img2d, ang_arr, nu, du=du, su=su, d_pix=d_pix,joseph=Tr
 sino3f = rd.aw_fp_fan_2d(img2d, ang_arr, nu, DSO, DSD, du=du, su=su, d_pix=d_pix,joseph=True)
 sino4p = pd.pd_fp_par_2d(img2d, ang_arr, nu, du=du, su=su, d_pix=d_pix)
 sino4f = pd.pd_fp_fan_2d(img2d, ang_arr, nu, DSO, DSD, du=du, su=su, d_pix=d_pix)
-sinos = [sino1p,sino2p,sino3p,sino4p,sino1f,sino2f,sino3f,sino4f]
+
+
+sinos = [sino1p,sino2p,sino3p,sino4p,
+         sino1f,sino2f,sino3f,sino4f,
+         sino1c[:,:,int(nz/2)],sino2c[:,:,int(nz/2)],sino3c[:,:,int(nz/2)],sino4c[:,:,int(nz/2)]]
 
     
     
 titles = ["DD Parallel","SD Parallel","JO Parallel","PD Parallel",
-          "DD Fanbeam","SD Fanbeam","JO Fanbeam","PD Fanbeam"]
-plt.figure(figsize=(16,8))
+          "DD Fanbeam","SD Fanbeam","JO Fanbeam","PD Fanbeam",
+          "DD Conebeam","SD Conebeam","JO Conebeam","PD Conebeam"]
+plt.figure(figsize=(16,12))
 for i, (sino,title) in enumerate(zip(sinos,titles)):
-    plt.subplot(2,4,i+1)
+    plt.subplot(3,4,i+1)
     plt.imshow(sino, cmap='gray', aspect='auto', origin='lower')
     plt.title(title)
     if i % 4 ==0: 
@@ -139,6 +145,27 @@ for i, fraction in enumerate(fractions):
     plt.legend()
     if i == 0: plt.ylabel("Intensity")
 plt.show()
+
+
+fractions = [0, 1/8, 1/4, 3/8,1/2]
+#fractions = [0, 1/16, 1/8, 3/16,1/4]
+plt.figure(figsize=(20,4))
+for i, fraction in enumerate(fractions):
+    plt.subplot(1,len(fractions),i+1)
+    plt.plot(sino2f[int(fraction*na),:], label='F AW')
+    plt.plot(sino3f[int(fraction*na),:], label='F JO')
+    plt.plot(sino2c[int(fraction*na),:,int(nz/2)], label='C AW')
+    plt.plot(sino3c[int(fraction*na),:,int(nz/2)], label='C JO')
+    plt.xlabel("Detector Bin")
+    plt.legend()
+    if i == 0: plt.ylabel("Intensity")
+plt.show()
+
+
+
+
+
+
 
 #print("Siddons/AW Diff:", (sino1-sino4).max())
 #print("Siddons/Joe Diff:", (sino1-sino2).max())
