@@ -14,12 +14,46 @@ def proj_img2det_fan(px, py, ox, oy, DSO, DSD):
 
 def accumulate(sino, img_val, ray_scl,p_bnd_l, p_bnd_r,u_bnd_l,u_bnd_r,
                ia, iu, ip):
-    overlap_l  = p_bnd_l if p_bnd_l > u_bnd_l else u_bnd_l
-    overlap_r  = p_bnd_r if p_bnd_r < u_bnd_r else u_bnd_r
+    
+    #This should never happen in parallel beam
+    #It may occur in fan/cone beam
+    #This should be moved to a higher loop if possible
+    if p_bnd_r < p_bnd_l:
+        p_bnd_l, p_bnd_r = p_bnd_r, p_bnd_l
+
+
+    overlap_l = max(p_bnd_l, u_bnd_l)
+    overlap_r = min(p_bnd_r, u_bnd_r)
 
     # Accumulate overlap contribution
     if overlap_r > overlap_l:
         sino[ia, iu] += (img_val* (overlap_r - overlap_l)*ray_scl)
+
+    # Advance whichever interval ends first
+    if p_bnd_r < u_bnd_r:
+        ip += 1
+    else:
+        iu += 1
+        
+    return ip, iu
+
+
+def _accumulate_3d(sino, img_val, ray_scl,p_bnd_l, p_bnd_r,u_bnd_l,u_bnd_r,
+               ia, iu, iv, ip):
+    
+    #This should never happen in parallel beam
+    #It may occur in fan/cone beam
+    #This should be moved to a higher loop if possible
+    if p_bnd_r < p_bnd_l:
+        p_bnd_l, p_bnd_r = p_bnd_r, p_bnd_l
+
+
+    overlap_l = max(p_bnd_l, u_bnd_l)
+    overlap_r = min(p_bnd_r, u_bnd_r)
+
+    # Accumulate overlap contribution
+    if overlap_r > overlap_l:
+        sino[ia,iu,iv] += (img_val* (overlap_r - overlap_l)*ray_scl)
 
     # Advance whichever interval ends first
     if p_bnd_r < u_bnd_r:
@@ -103,7 +137,9 @@ def _dd_fp_par_sweep(sino,img_trm,p_bnd_arr,o_arr,u_bnd_arr,ray_scl,ia):
                                 ia, iu, ip)
 
 
-def _dd_fp_fan_sweep(sino,img_trm,p1_bnd_arr,p2_arr,o1_bnd_arr,o2_arr,u_bnd_arr,ray_scl_arr,ia,DSO,DSD):
+def _dd_fp_fan_sweep(sino,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
+                     o_drv_bnd_arr_trm,o_orth_arr_trm,u_bnd_arr,
+                     ray_scl_arr,ia,DSO,DSD):
     """
     Distance-driven sweep kernel for 2D parallel or fanbeam forward projection.
 
@@ -152,8 +188,8 @@ def _dd_fp_fan_sweep(sino,img_trm,p1_bnd_arr,p2_arr,o1_bnd_arr,o2_arr,u_bnd_arr,
     for io in range(no):
         
         #Hoisting pointers for explicit LICM
-        p2 = p2_arr[io]
-        o2 = o2_arr[io]
+        p_orth_trm = p_orth_arr_trm[io]
+        o_orth_trm = o_orth_arr_trm[io]
         
         img_vec = img_trm[:, io]
         ray_scl = ray_scl_arr[io]        
@@ -161,20 +197,47 @@ def _dd_fp_fan_sweep(sino,img_trm,p1_bnd_arr,p2_arr,o1_bnd_arr,o2_arr,u_bnd_arr,
         ip = 0
         iu = 0
         while ip < np and iu < nu:
-            p_bnd_l = proj_img2det_fan(p1_bnd_arr[ip], p2,o1_bnd_arr[ip], o2,
+            p_bnd_l = proj_img2det_fan(p_drv_bnd_arr_trm[ip],p_orth_trm,
+                                       o_drv_bnd_arr_trm[ip], o_orth_trm,
                                        DSO, DSD)
 
-            p_bnd_r = proj_img2det_fan(p1_bnd_arr[ip+1], p2,o1_bnd_arr[ip+1], o2,
+            p_bnd_r = proj_img2det_fan(p_drv_bnd_arr_trm[ip+1],p_orth_trm,
+                                       o_drv_bnd_arr_trm[ip+1],o_orth_trm,
                                        DSO, DSD)
 
             u_bnd_l = u_bnd_arr[iu]
             u_bnd_r = u_bnd_arr[iu + 1]
+
+            #This should never happen in parallel beam
+            #It may occur in fan/cone beam
+            #This should be moved to a higher loop if possible
+            if p_bnd_r < p_bnd_l:
+                p_bnd_l, p_bnd_r = p_bnd_r, p_bnd_l
+        
+        
+            overlap_l = max(p_bnd_l, u_bnd_l)
+            overlap_r = min(p_bnd_r, u_bnd_r)
+        
+            # Accumulate overlap contribution
+            if overlap_r > overlap_l:
+                sino[ia, iu] += (img_vec[ip]* (overlap_r - overlap_l)*ray_scl)
+        
+            # Advance whichever interval ends first
+            if p_bnd_r < u_bnd_r:
+                ip += 1
+            else:
+                iu += 1
+                
+
+
+
             
             # Accumulate overlap contribution
+            """
             ip, iu = accumulate(sino, img_vec[ip],ray_scl,
                                 p_bnd_l, p_bnd_r,u_bnd_l,u_bnd_r,
                                 ia, iu, ip)
-
+            """
             
 def _dd_bp_par_sweep(img_out, sino, p_bnd_arr, o_arr, u_bnd_arr, ray_scl, ia):
     """
@@ -840,3 +903,177 @@ def dd_bp_fan_2d(sino, ang_arr, img_shape, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
 
 
     return (img_x+img_y.T) / na / d_pix 
+
+
+
+
+
+
+
+
+
+
+
+def proj_img2det_cone(p, o, z, DSO, DSD):
+    t = -DSD / (o - DSO)
+    u = t * p
+    v = t * z
+    return u, v
+
+
+def _dd_fp_cone_sweep(
+    sino,
+    vol_trm,
+    p1_bnd_arr, p2_arr,
+    z_bnd_arr, z_arr,
+    o1_bnd_arr, o2_arr,
+    u_bnd_arr, v_bnd_arr,
+    ray_scl_arr,
+    ia, DSO, DSD
+):
+    npix, nz, no = vol_trm.shape
+    nu = u_bnd_arr.size - 1
+    nv = v_bnd_arr.size - 1
+
+    for io in range(no):
+
+        p2 = p2_arr[io]
+        o2 = o2_arr[io]
+        ray_scl = ray_scl_arr[io]
+
+        for iz in range(nz):
+
+            # ---- project z boundaries → v ----
+            z_l = z_bnd_arr[iz]
+            z_r = z_bnd_arr[iz + 1]
+
+            scale = DSD / (DSO - o2)
+
+            pv_l = scale * z_l
+            pv_r = scale * z_r
+            if pv_r < pv_l:
+                pv_l, pv_r = pv_r, pv_l
+
+            # Find starting v-bin
+            iv = 0
+            while iv < nv and v_bnd_arr[iv + 1] <= pv_l:
+                iv += 1
+
+            img_vec = vol_trm[:, iz, io]
+
+            # ---- sweep overlapping v bins ----
+            while iv < nv and v_bnd_arr[iv] < pv_r:
+
+                vb_l = v_bnd_arr[iv]
+                vb_r = v_bnd_arr[iv + 1]
+
+                ov_l = max(pv_l, vb_l)
+                ov_r = min(pv_r, vb_r)
+
+                if ov_r <= ov_l:
+                    iv += 1
+                    continue
+
+                # ---- fan-style u sweep (IDENTICAL to fan code) ----
+                ip = 0
+                iu = 0
+                while ip < npix and iu < nu:
+                    p_bnd_l = proj_img2det_fan(p1_bnd_arr[ip], p2,o1_bnd_arr[ip], o2,
+                                               DSO, DSD)
+
+                    p_bnd_r = proj_img2det_fan(p1_bnd_arr[ip+1], p2,o1_bnd_arr[ip+1], o2,
+                                               DSO, DSD)
+
+                    u_bnd_l = u_bnd_arr[iu]
+                    u_bnd_r = u_bnd_arr[iu + 1]
+                    
+                    ip, iu = _accumulate_3d(sino,img_vec[ip],ray_scl,p_bnd_l,p_bnd_r,u_bnd_l,u_bnd_r,
+                                   ia, iu, iv, ip)
+
+
+                iv += 1
+
+
+
+def dd_fp_cone_3d(
+    vol, ang_arr,
+    nu, nv,
+    DSO, DSD,
+    du=1.0, dv=1.0,
+    su=0.0, sv=0.0,
+    d_pix=1.0
+):
+    nx, ny, nz = vol.shape
+    sino = np.zeros((ang_arr.size, nu, nv), dtype=np.float32)
+
+    vol_x = np.ascontiguousarray(vol)
+    vol_y = np.ascontiguousarray(vol.transpose(1, 0, 2))
+
+    x_bnd_arr = d_pix * (np.arange(nx + 1) - nx / 2)
+    y_bnd_arr = d_pix * (np.arange(ny + 1) - ny / 2)
+    z_bnd_arr = d_pix * (np.arange(nz + 1) - nz / 2)
+
+    x_arr = (x_bnd_arr[:-1] + x_bnd_arr[1:]) / 2
+    y_arr = (y_bnd_arr[:-1] + y_bnd_arr[1:]) / 2
+    z_arr = (z_bnd_arr[:-1] + z_bnd_arr[1:]) / 2
+
+    u_bnd_arr = du * (np.arange(nu + 1) - nu / 2 + su)
+    v_bnd_arr = dv * (np.arange(nv + 1) - nv / 2 + sv)
+
+    cos_ang_arr = np.cos(ang_arr)
+    sin_ang_arr = np.sin(ang_arr)
+
+    for ia, (cos_ang, sin_ang) in enumerate(zip(cos_ang_arr, sin_ang_arr)):
+
+        (
+            img_trm,
+            p1_bnd_arr, p2_arr,
+            o1_bnd_arr, o2_arr,
+            ray_scl
+        ) = _dd_fp_fan_geom(
+            vol_x, vol_y,
+            x_bnd_arr, y_bnd_arr,
+            x_arr, y_arr,
+            cos_ang, sin_ang,
+            DSO, DSD)
+
+        _dd_fp_cone_sweep(
+            sino, img_trm,
+            p1_bnd_arr, p2_arr,
+            z_bnd_arr, z_arr,
+            o1_bnd_arr, o2_arr,
+            u_bnd_arr, v_bnd_arr,
+            ray_scl,
+            ia, DSO, DSD
+        )
+
+    return sino * (d_pix**2) / (du * dv)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

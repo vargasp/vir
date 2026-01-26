@@ -81,9 +81,11 @@ for ia, ang in enumerate(ang_arr):
 
 
 
+
+sino1c = dd.dd_fp_cone_3d(img3d, ang_arr, nu, nv,DSO, DSD, du=1.0, dv=1.0,su=0.0, sv=0.0, d_pix=1.0)
+
 sino2c = rd.aw_fp_cone_3d(img3d, ang_arr, nu, nv, DSO, DSD, du=du, d_pix=d_pix).transpose(0,2,1)
 sino3c = rd.aw_fp_cone_3d(img3d, ang_arr, nu, ny, DSO, DSD, du=du, d_pix=d_pix,joseph=True).transpose(0,2,1)
-sino1c = np.zeros(sino2c.shape)
 sino4c = np.zeros(sino2c.shape)
 
 
@@ -98,6 +100,14 @@ sino3p = rd.aw_fp_par_2d(img2d, ang_arr, nu, du=du, su=su, d_pix=d_pix,joseph=Tr
 sino3f = rd.aw_fp_fan_2d(img2d, ang_arr, nu, DSO, DSD, du=du, su=su, d_pix=d_pix,joseph=True)
 sino4p = pd.pd_fp_par_2d(img2d, ang_arr, nu, du=du, su=su, d_pix=d_pix)
 sino4f = pd.pd_fp_fan_2d(img2d, ang_arr, nu, DSO, DSD, du=du, su=su, d_pix=d_pix)
+
+
+
+
+
+
+
+sino1c = dd.dd_fp_cone_3d(img3d, ang_arr, nu, nv,DSO, DSD, du=1.0, dv=1.0,su=0.0, sv=0.0, d_pix=1.0)
 
 
 sinos = [sino1p,sino2p,sino3p,sino4p,
@@ -152,8 +162,10 @@ fractions = [0, 1/8, 1/4, 3/8,1/2]
 plt.figure(figsize=(20,4))
 for i, fraction in enumerate(fractions):
     plt.subplot(1,len(fractions),i+1)
+    plt.plot(sino1f[int(fraction*na),:], label='F DD')
     plt.plot(sino2f[int(fraction*na),:], label='F AW')
     plt.plot(sino3f[int(fraction*na),:], label='F JO')
+    plt.plot(sino1c[int(fraction*na),:,int(nz/2)], label='C DD')
     plt.plot(sino2c[int(fraction*na),:,int(nz/2)], label='C AW')
     plt.plot(sino3c[int(fraction*na),:,int(nz/2)], label='C JO')
     plt.xlabel("Detector Bin")
