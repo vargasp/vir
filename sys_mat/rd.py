@@ -12,33 +12,221 @@ import numpy as np
 eps = 1e-6
 
 
-def _jospeh(img,d_pix,sino,ia,iu,cos_ang,sin_ang,x_s,y_s,
+
+def _img_bounds(nr,dr):
+    #Returns the image boundaries and center of first voxel
+    return -dr*nr/2, dr*nr/2, -dr*(nr/2 - 0.5)
+
+
+def _intersect_bounding(r0, dr, adr, r_min, r_max):
+    # Intersect ray with image bounding box
+    #
+    # We compute parametric entry/exit values for a single component of r
+    #   r(tr_enter) enters the image
+    #   r(tr_exit) exits the image    
+    if adr > eps:
+        tr_entry = (r_min - r0) / dr
+        tr_exit = (r_max - r0) / dr
+        return min(tr_entry, tr_exit), max(tr_entry, tr_exit)
+    else:
+        # Ray is (almost) vertical → no x-bound intersection
+        return -np.inf, np.inf
+
+
+def _calc_ir0(ray_r_org,ray_r_hat,t_entry,img_bnd_r_min,img_bnd_r_max,d_pix):
+    
+    
+    r = ray_r_org + t_entry*ray_r_hat
+    r = min(max(r, img_bnd_r_min + eps), img_bnd_r_max - eps)
+    
+    # Convert to voxel indices
+    return int(np.floor((r - img_bnd_r_min) / d_pix))
+                    
+
+def _fp_step_init(r0, ir, dr, adr, r_min, d_pix):
+    """
+    Initialize Amanatides–Woo traversal parameters for ONE axis (x, y, or z).
+    
+    This function computes the quantities needed to traverse a regular
+    Cartesian grid along a single axis using the Amanatides–Woo algorithm.
+    
+    The ray is assumed to be parameterized as:
+        r(t) = r0 + t * d
+    
+    where:
+        - r0 is the ray origin coordinate along this axis
+        - dr is the ray direction component along this axis
+        - t is the ray parameter (same t used for t_enter / t_exit)
+    
+    All returned values are expressed in terms of the ray parameter t
+    (NOT voxel indices).
+    
+    Parameters
+    ----------
+    r0 : float
+        Ray origin coordinate along this axis (img space).
+        MUST be the same origin used to compute t_enter and t_exit.
+    
+    ir : int
+        Integer voxel index along this axis at the ray entry point.
+        Typically computed as:
+            ir = floor((r_entry - r_min) / d_pix)
+    
+    dr : float
+        Ray direction component along this axis.
+    
+    adr : float
+        Absolute value of dr (i.e., abs(dr)).
+        Passed in explicitly to avoid repeated abs() calls.
+    
+    r_min : float
+        Img-coordinate location of the minimum grid boundary
+        along this axis (voxel index 0).
+    
+    d_pix : float
+        Voxel size along this axis.
+    
+    Returns
+    -------
+    idir : int
+        Direction to step voxel indices along this axis:
+            +1 if dr > 0 (increasing index),
+            -1 if dr < 0 (decreasing index).
+    
+    tr_step : float
+        Increment in ray parameter t between successive grid-plane
+        crossings along this axis:
+            tr_step = d_pix / |dr|.
+    
+    tr_next : float
+        Ray parameter value at which the ray first crosses a grid plane
+        along this axis.
+        This is NOT a voxel index — it lives in ray-parameter space.
+    """
+    
+    # Determine voxel traversal direction and next grid plane
+    if dr > 0:
+        # Ray moves toward increasing voxel indices
+        idir = 1
+
+        # Next grid plane is the "right" face of the current voxel
+        # Grid planes are located at: r = r_min + k * d_pix
+        r_next = r_min + (ir + 1)*d_pix
+    else:
+        # Ray moves toward decreasing voxel indices
+        idir = -1
+
+        # Next grid plane is the "left" face of the current voxel
+        r_next = r_min + ir*d_pix
+
+    # Compute ray-parameter increments for grid crossings
+    if adr > eps:
+        # Distance in t between successive grid-plane crossings
+        # along this axis
+        tr_step = d_pix / adr
+
+        # Ray parameter t at which the ray first hits the next grid plane
+        # Solve: r_next = r0 + t_next * dr
+        tr_next = (r_next - r0) / dr
+    else:
+        # Ray is (nearly) parallel to the grid planes on this axis,
+        # so it will never cross a plane here
+        tr_step = np.inf
+        tr_next = np.inf
+
+    return idir, tr_step, tr_next
+                    
+
+
+def _fp_2d_traverse_grid(img,sino,ia,iu,t_entry,t_exit,tx_next,ty_next,
+                         tx_step,ty_step,ix_dir,iy_dir,ix,iy,nx,ny,d_pix):
+    
+    # Ensure first crossing occurs after entry point
+    tx_next = max(tx_next, t_entry)
+    ty_next = max(ty_next, t_entry)
+
+    # Traverse the grid voxel-by-voxel
+    # At each step:
+    #   - Choose the nearest boundary crossing
+    #   - Accumulate voxel value × segment length
+    #   - Advance to the next voxel
+    t = t_entry
+    acc = 0.0
+
+    while t <= t_exit:
+
+        # Safety check (should rarely trigger)
+        if ix < 0 or ix >= nx or iy < 0 or iy >= ny:
+            break
+
+        if tx_next <= ty_next:
+            # Cross a vertical boundary first
+            t_next = min(tx_next, t_exit)
+            acc += img[ix, iy] * (t_next - t)
+            t = t_next
+            tx_next += tx_step
+            ix += ix_dir
+        else:
+            # Cross a horizontal boundary first
+            t_next = min(ty_next, t_exit)
+            acc += img[ix, iy] * (t_next - t) 
+            t = t_next
+            ty_next += ty_step
+            iy += iy_dir
+
+    # Store final line integral
+    sino[ia, iu] = acc
+    
+    
+def _aw_fp_traverse_3d(img,sino,ia,iu,iv,t_entry,t_exit,
+    ix, iy, iz,
+    tx_next, ty_next, tz_next,
+    tx_step, ty_step, tz_step,
+    ix_dir, iy_dir, iz_dir,
+    nx, ny, nz
+):
+    t = t_entry
+    acc = 0.0
+
+    while t < t_exit:
+
+        # Safety check (should rarely trigger)
+        if ix<0 or iy<0 or iz<0 or ix>=nx or iy>=ny or iz>=nz:
+            break
+
+        if tx_next <= ty_next and tx_next <= tz_next:
+            t_next = min(tx_next, t_exit)
+            acc += img[ix,iy,iz]*(t_next - t)
+            t = t_next
+            tx_next += tx_step
+            ix += ix_dir
+
+        elif ty_next <= tz_next:
+            t_next = min(ty_next, t_exit)
+            acc += img[ix,iy,iz]*(t_next - t)
+            t = t_next
+            ty_next += ty_step
+            iy += iy_dir
+
+        else:
+            t_next = min(tz_next, t_exit)
+            acc += img[ix,iy,iz]*(t_next - t)
+            t = t_next
+            tz_next += tz_step
+            iz += iz_dir
+
+    sino[ia, iv, iu] = acc
+
+def _joseph_fp_2d(img,d_pix,sino,ia,iu,ray_x_hat,ray_y_hat,ray_x_org,ray_y_org,
            x0,y0,t_enter,t_exit,step):
 
     nx, ny = img.shape
 
-    #Ray directions
-    ray_rx_dir = cos_ang
-    ray_ry_dir = sin_ang 
-
-    """
-    x_min = -d_pix*nx/2
-    x_max =  d_pix*nx/2
-    y_min = -d_pix*ny/2
-    y_max =  d_pix*ny/2
-    """
-
     t = t_enter
     while t <= t_exit:
         # Current position along ray
-        x = x_s + ray_rx_dir * t
-        y = y_s + ray_ry_dir * t
-
-        """
-        # Clamp slightly inside the image to avoid edge ambiguity
-        x = min(max(x, x_min + eps), x_max - eps)
-        y = min(max(y, y_min + eps), y_max - eps)
-        """
+        x = ray_x_org + t*ray_x_hat 
+        y = ray_y_org + t*ray_y_hat
         
         # Convert to pixel index
         ix = (x - x0) / d_pix
@@ -68,11 +256,10 @@ def _jospeh(img,d_pix,sino,ia,iu,cos_ang,sin_ang,x_s,y_s,
         t += step
 
 
-def joseph_fp_cone_3d(
-    img, sino,
+def _joseph_fp_3d(img, sino,
     ia, iu, iv,
-    Sx, Sy, Sz,
-    rx, ry, rz,
+    ray_x_org, ray_y_org, ray_z_org,
+    ray_x_hat, ray_y_hat, ray_z_hat,
     x0, y0, z0,
     d_pix,
     t_enter, t_exit,
@@ -82,9 +269,9 @@ def joseph_fp_cone_3d(
 
     t = t_enter
     while t <= t_exit:
-        x = Sx + rx*t
-        y = Sy + ry*t
-        z = Sz + rz*t
+        x = ray_x_org + t*ray_x_hat
+        y = ray_y_org + t*ray_y_hat
+        z = ray_z_org + t*ray_z_hat
 
         ix = (x - x0) / d_pix
         iy = (y - y0) / d_pix
@@ -170,246 +357,13 @@ def _joseph_bp(img, d_pix, sino, ia, iu, cos_ang, sin_ang, x_s, y_s, x0, y0, t_e
         t += step
 
 
-def _intersect_bounding(r0, dr, adr, r_min, r_max):
-    # Intersect ray with image bounding box
-    #
-    # We compute parametric entry/exit values for a single component of r
-    #   r(tr_enter) enters the image
-    #   r(tr_exit) exits the image    
-    if adr > eps:
-        tr_enter = (r_min - r0) / dr
-        tr_exit = (r_max - r0) / dr
-        return min(tr_enter, tr_exit), max(tr_enter, tr_exit)
-    else:
-        # Ray is (almost) vertical → no x-bound intersection
-        return -np.inf, np.inf
 
 
 
-def _fp_2d_step_init(r0, ir, dr, adr, r_min, d_pix):
-    # Amanatides–Woo stepping initialization
-    #
-    # For each axis:
-    #   - ix_dir / iy_dir indicates which direction we move
-    #   - ix_next / iy_next is the parametric distance to the next
-    #     vertical/horizontal grid boundary
-    #   - ix_step / iy_step is the distance between crossings
-    if dr > 0:
-        ir_dir = 1
-        r_next = r_min + (ir + 1) * d_pix
-    else:
-        ir_dir = -1
-        r_next = r_min + ir * d_pix
-
-    if adr > eps:
-        ir_step = d_pix / adr
-        ir_next = (r_next - r0) / dr
-    else:
-        ir_step = np.inf
-        ir_next = np.inf
-        
-    return ir_dir, ir_step, ir_next
 
 
-def fp_3d_step_init(r0, ir, dr, adr, r_min, d_pix):
-    """
-    Initialize Amanatides–Woo traversal parameters for ONE axis (x, y, or z).
-    
-    This function computes the quantities needed to traverse a regular
-    Cartesian grid along a single axis using the Amanatides–Woo algorithm.
-    
-    The ray is assumed to be parameterized as:
-        r(t) = r0 + t * d
-    
-    where:
-        - r0 is the ray origin coordinate along this axis
-        - dr is the ray direction component along this axis
-        - t is the ray parameter (same t used for t_enter / t_exit)
-    
-    All returned values are expressed in terms of the ray parameter t
-    (NOT voxel indices).
-    
-    Parameters
-    ----------
-    r0 : float
-        Ray origin coordinate along this axis (img space).
-        MUST be the same origin used to compute t_enter and t_exit.
-    
-    ir : int
-        Integer voxel index along this axis at the ray entry point.
-        Typically computed as:
-            ir = floor((r_entry - r_min) / d_pix)
-    
-    dr : float
-        Ray direction component along this axis.
-    
-    adr : float
-        Absolute value of dr (i.e., abs(dr)).
-        Passed in explicitly to avoid repeated abs() calls.
-    
-    r_min : float
-        Img-coordinate location of the minimum grid boundary
-        along this axis (voxel index 0).
-    
-    d_pix : float
-        Voxel size along this axis.
-    
-    Returns
-    -------
-    idir : int
-        Direction to step voxel indices along this axis:
-            +1 if dr > 0 (increasing index),
-            -1 if dr < 0 (decreasing index).
-    
-    t_step : float
-        Increment in ray parameter t between successive grid-plane
-        crossings along this axis:
-            t_step = d_pix / |dr|.
-    
-    t_next : float
-        Ray parameter value at which the ray first crosses a grid plane
-        along this axis.
-        This is NOT a voxel index — it lives in ray-parameter space.
-    """
-    
-    # Determine voxel traversal direction and next grid plane
-    if dr > 0:
-        idir = 1
-        r_next = r_min + (ir + 1)*d_pix
-    else:
-        idir = -1
-        r_next = r_min + ir*d_pix
-
-    if adr > eps:
-        t_step = d_pix / adr
-        t_next = (r_next - r0) / dr
-    else:
-        t_step = np.inf
-        t_next = np.inf
-
-    return idir, t_step, t_next
-
-"""
-    # ------------------------------------------------------------
-    # Determine voxel traversal direction and next grid plane
-    # ------------------------------------------------------------
-
-    if dr > 0:
-        # Ray moves toward increasing voxel indices
-        idir = 1
-
-        # Next grid plane is the "right" face of the current voxel
-        # Grid planes are located at: r = r_min + k * d_pix
-        r_next = r_min + (ir + 1) * d_pix
-    else:
-        # Ray moves toward decreasing voxel indices
-        idir = -1
-
-        # Next grid plane is the "left" face of the current voxel
-        r_next = r_min + ir * d_pix
-
-    # ------------------------------------------------------------
-    # Compute ray-parameter increments for grid crossings
-    # ------------------------------------------------------------
-
-    if adr > eps:
-        # Distance in t between successive grid-plane crossings
-        # along this axis
-        t_step = d_pix / adr
-
-        # Ray parameter t at which the ray first hits the next grid plane
-        # Solve: r_next = r0 + t_next * dr
-        t_next = (r_next - r0) / dr
-    else:
-        # Ray is (nearly) parallel to the grid planes on this axis,
-        # so it will never cross a plane here
-        t_step = np.inf
-        t_next = np.inf
-
-    return idir, t_step, t_next
 
 
-"""
-def _fp_2d_traverse_grid(img,sino,ia,iu,t_enter,t_exit,ix_next,iy_next,
-                         ix_step,iy_step,ix_dir,iy_dir,ix,iy,nx,ny,d_pix):
-    
-    # Ensure first crossing occurs after entry point
-    ix_next = max(ix_next, t_enter)
-    iy_next = max(iy_next, t_enter)
-
-    # Traverse the grid voxel-by-voxel
-    # At each step:
-    #   - Choose the nearest boundary crossing
-    #   - Accumulate voxel value × segment length
-    #   - Advance to the next voxel
-    t = t_enter
-    acc = 0.0
-
-    while t <= t_exit:
-
-        # Safety check (should rarely trigger)
-        if ix < 0 or ix >= nx or iy < 0 or iy >= ny:
-            break
-
-        if ix_next <= iy_next:
-            # Cross a vertical boundary first
-            t_next = min(ix_next, t_exit)
-            acc += img[ix, iy] * (t_next - t)
-            t = t_next
-            ix_next += ix_step
-            ix += ix_dir
-        else:
-            # Cross a horizontal boundary first
-            t_next = min(iy_next, t_exit)
-            acc += img[ix, iy] * (t_next - t) 
-            t = t_next
-            iy_next += iy_step
-            iy += iy_dir
-
-    # Store final line integral
-    sino[ia, iu] = acc
-    
-    print(acc, t_exit-t_enter)
-    
-def aw_fp_traverse_3d(
-    img, sino,
-    ia, iu, iv,
-    t_enter, t_exit,
-    ix, iy, iz,
-    ix_next, iy_next, iz_next,
-    ix_step, iy_step, iz_step,
-    ix_dir, iy_dir, iz_dir,
-    nx, ny, nz
-):
-    t = t_enter
-    acc = 0.0
-
-    while t < t_exit:
-        if ix<0 or iy<0 or iz<0 or ix>=nx or iy>=ny or iz>=nz:
-            break
-
-        if ix_next <= iy_next and ix_next <= iz_next:
-            t_next = min(ix_next, t_exit)
-            acc += img[ix,iy,iz]*(t_next - t)
-            t = t_next
-            ix_next += ix_step
-            ix += ix_dir
-
-        elif iy_next <= iz_next:
-            t_next = min(iy_next, t_exit)
-            acc += img[ix,iy,iz]*(t_next - t)
-            t = t_next
-            iy_next += iy_step
-            iy += iy_dir
-
-        else:
-            t_next = min(iz_next, t_exit)
-            acc += img[ix,iy,iz]*(t_next - t)
-            t = t_next
-            iz_next += iz_step
-            iz += iz_dir
-
-    sino[ia, iv, iu] = acc
     
     
 def _aw_bp_grid(img, sino, ia, iu, t_enter, t_exit,
@@ -488,15 +442,8 @@ def aw_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0,joseph=False):
     sino = np.zeros((ang_arr.size, nu), dtype=np.float32)
 
     # Define image bounds in world coordinates
-    x_min = -d_pix*nx/2
-    x_max =  d_pix*nx/2
-    y_min = -d_pix*ny/2
-    y_max =  d_pix*ny/2
-
-    #Joseph parameters
-    # Grid: centered at zero, units in physical space
-    x0 = -d_pix*(nx/2 - 0.5) # First pixel center (x)
-    y0 = -d_pix*(ny/2 - 0.5) # First pixel center (y)
+    img_bnd_x_min, img_bnd_x_max, x0 = _img_bounds(nx,d_pix)
+    img_bnd_y_min, img_bnd_y_max, y0 = _img_bounds(ny,d_pix)
     step=.5          
 
 
@@ -527,8 +474,8 @@ def aw_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0,joseph=False):
             ry_u =  rx * u
 
             # Intersect ray with image bounding box
-            tx_min, tx_max = _intersect_bounding(rx_u, rx, rx_abs, x_min, x_max)
-            ty_min, ty_max = _intersect_bounding(ry_u, ry, ry_abs, y_min, y_max)
+            tx_min, tx_max = _intersect_bounding(rx_u, rx, rx_abs, img_bnd_x_min, img_bnd_x_max)
+            ty_min, ty_max = _intersect_bounding(ry_u, ry, ry_abs, img_bnd_y_min, img_bnd_y_max)
 
             # Combined entry/exit interval
             t_enter = max(tx_min, ty_min)
@@ -540,7 +487,7 @@ def aw_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0,joseph=False):
 
             if joseph:
             
-                _jospeh(img,d_pix,sino,ia,iu,cos_ang,sin_ang,
+                _joseph_fp_2d(img,d_pix,sino,ia,iu,cos_ang,sin_ang,
                        rx_u,ry_u,x0,y0,t_enter,t_exit,step)
             else:
                 
@@ -549,28 +496,28 @@ def aw_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0,joseph=False):
                 ry_y_min = ry_u + t_enter * ry
     
                 # Clamp slightly inside the image to avoid edge ambiguity
-                rx_x_min = min(max(rx_x_min, x_min + eps), x_max - eps)
-                ry_y_min = min(max(ry_y_min, y_min + eps), y_max - eps)              
+                rx_x_min = min(max(rx_x_min, img_bnd_x_min + eps), img_bnd_x_max - eps)
+                ry_y_min = min(max(ry_y_min, img_bnd_y_min + eps), img_bnd_y_max - eps)              
                 
                 # Convert entry point to voxel indices
-                ix = int(np.floor((rx_x_min - x_min) / d_pix))
-                iy = int(np.floor((ry_y_min - y_min) / d_pix))
+                ix_entry = int(np.floor((rx_x_min - img_bnd_x_min) / d_pix))
+                iy_entry = int(np.floor((ry_y_min - img_bnd_y_min) / d_pix))
     
                 # Amanatides–Woo stepping initialization
-                ix_dir, ix_step, ix_next = _fp_2d_step_init(rx_u, ix, rx, rx_abs, x_min, d_pix)
-                iy_dir, iy_step, iy_next = _fp_2d_step_init(ry_u, iy, ry, ry_abs, y_min, d_pix)
+                ix_dir, tx_step, tx_next = _fp_step_init(rx_u,ix_entry,rx, rx_abs, img_bnd_x_min, d_pix)
+                iy_dir, ty_step, ty_next = _fp_step_init(ry_u,iy_entry,ry, ry_abs, img_bnd_y_min, d_pix)
                 
                 # Traverse the grid voxel-by-voxel
-                _fp_2d_traverse_grid(img, sino, ia, iu, t_enter, t_exit,
-                                     ix_next, iy_next, ix_step, iy_step, ix_dir, iy_dir,
-                                     ix, iy, nx, ny, d_pix)
+                _fp_2d_traverse_grid(img,sino,ia,iu,t_enter,t_exit,
+                                     tx_next, ty_next, tx_step, ty_step,
+                                     ix_dir, iy_dir,ix_entry, iy_entry, nx, ny, d_pix)
 
     #Returns the sino
     return sino
 
-def _img_bounds(nr,dr):
-    #Returns the image boundaries and center of first voxel
-    return -dr*nr/2, dr*nr/2, -dr*(nr/2 - 0.5)
+                    
+                    
+
 
 def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0,joseph=False):
     """
@@ -608,8 +555,8 @@ def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0,joseph=Fa
     # Define image bounds in world coordinates
     # Grid: centered at zero, units in physical space
     #Joseph parameters - first pixel
-    x_min, x_max, x0 = _img_bounds(nx,d_pix)
-    y_min, y_max, y0 = _img_bounds(ny,d_pix)
+    img_bnd_x_min, img_bnd_x_max, x0 = _img_bounds(nx,d_pix)
+    img_bnd_y_min, img_bnd_y_max, y0 = _img_bounds(ny,d_pix)
 
     #Joseph parameters
     step=.5          
@@ -625,12 +572,12 @@ def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0,joseph=Fa
     for ia, (cos_ang,sin_ang) in enumerate(zip(cos_ang_arr,sin_ang_arr)):
 
         # Ray origination at the source
-        rx_s = DSO * cos_ang
-        ry_s = DSO * sin_ang
+        ray_x_org = DSO * cos_ang
+        ray_y_org = DSO * sin_ang
 
         # Detector reference point
-        rx_u0 = -(DSD - DSO) * cos_ang
-        ry_u0 = -(DSD - DSO) * sin_ang
+        det_x_org = -(DSD - DSO) * cos_ang
+        det_y_org = -(DSD - DSO) * sin_ang
 
         # Ray direction (parallel abd orthoganal to detector)
         rp = -sin_ang
@@ -642,59 +589,48 @@ def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0,joseph=Fa
             # r(t) = (ray_o_x_pos, ray_o_y_pos) + t * (rx, ry)
 
             # Detector point
-            rx_u = rx_u0 + u*rp
-            ry_u = ry_u0 + u*ro
+            det_x = det_x_org + u*rp
+            det_y = det_y_org + u*ro
 
             # Ray from source to detector
-            rx = rx_u - rx_s
-            ry = ry_u - ry_s
+            ray_x_vec = det_x - ray_x_org
+            ray_y_vec = det_y - ray_y_org
 
             #Ray directions in unit vector components
-            ray_len = np.sqrt(rx**2 + ry**2)
-            rx /= ray_len
-            ry /= ray_len
+            ray_mag = np.sqrt(ray_x_vec**2 + ray_y_vec**2)
+            ray_x_hat = ray_x_vec/ray_mag
+            ray_y_hat = ray_y_vec/ray_mag
 
             # Absolute values are used for step size calculations
-            rx_abs = abs(rx)
-            ry_abs = abs(ry)
+            rx_abs = abs(ray_x_hat)
+            ry_abs = abs(ray_y_hat)
 
             # Intersection with image bounding box
-            t_x_min, t_x_max = _intersect_bounding(rx_s, rx, rx_abs, x_min, x_max)
-            t_y_min, t_y_max = _intersect_bounding(ry_s, ry, ry_abs, y_min, y_max)
+            t_x_min, t_x_max = _intersect_bounding(ray_x_org, ray_x_hat, rx_abs, img_bnd_x_min, img_bnd_x_max)
+            t_y_min, t_y_max = _intersect_bounding(ray_y_org, ray_y_hat, ry_abs, img_bnd_y_min, img_bnd_y_max)
 
-            t_enter = max(t_x_min, t_y_min)
+            t_entry = max(t_x_min, t_y_min)
             t_exit = min(t_x_max, t_y_max)
 
-            if t_exit <= t_enter:
+            if t_exit <= t_entry:
                 continue
 
             if joseph:    
-                _jospeh(img,d_pix,sino,ia,iu,rx,ry,
-                       rx_s,ry_s,x0,y0,t_enter,t_exit,step)
+                _joseph_fp_2d(img,d_pix,sino,ia,iu,ray_x_hat,ray_y_hat,
+                       ray_x_org,ray_y_org,x0,y0,t_entry,t_exit,step)
             else:
-
-                # Entry point (clamped)
-                rx_x_min = rx_s + t_enter * rx
-                ry_y_min = ry_s + t_enter * ry
-                
-                rx_x_min = min(max(rx_x_min, x_min + eps), x_max - eps)
-                ry_y_min = min(max(ry_y_min, y_min + eps), y_max - eps)
-    
-                # Convert to voxel indices
-                ix = int(np.floor((rx_x_min - x_min) / d_pix))
-                iy = int(np.floor((ry_y_min - y_min) / d_pix))
+   
+                ix_entry = _calc_ir0(ray_x_org,ray_x_hat,t_entry,img_bnd_x_min,img_bnd_x_max,d_pix)
+                iy_entry = _calc_ir0(ray_y_org,ray_y_hat,t_entry,img_bnd_y_min,img_bnd_y_max,d_pix)
     
                 # Amanatides–Woo stepping initialization
-                ix_dir, ix_step, ix_next = _fp_2d_step_init(rx_s, ix, rx, rx_abs, x_min, d_pix)
-                iy_dir, iy_step, iy_next = _fp_2d_step_init(ry_s, iy, ry, ry_abs, y_min, d_pix)
-
-
-                ix_next = max(ix_next, t_enter)
-                iy_next = max(iy_next, t_enter)
+                ix_dir, tx_step, tx_next = _fp_step_init(ray_x_org, ix_entry, ray_x_hat, rx_abs, img_bnd_x_min, d_pix)
+                iy_dir, ty_step, ty_next = _fp_step_init(ray_y_org, iy_entry, ray_y_hat, ry_abs, img_bnd_y_min, d_pix)
                 
                 # Grid traversal
-                _fp_2d_traverse_grid(img,sino,ia,iu,t_enter,t_exit,ix_next,iy_next,ix_step,iy_step,
-                             ix_dir,iy_dir,ix,iy,nx,ny,d_pix)
+                _fp_2d_traverse_grid(img,sino,ia,iu,t_entry,t_exit,
+                                     tx_next,ty_next,tx_step,ty_step,
+                                     ix_dir,iy_dir,ix_entry,iy_entry,nx,ny,d_pix)
                 
                 
                 
@@ -711,9 +647,9 @@ def aw_fp_cone_3d(img, ang_arr,
     nx, ny, nz = img.shape
     sino = np.zeros((ang_arr.size, nv, nu), dtype=np.float32)
 
-    x_min, x_max, x0 = _img_bounds(nx,d_pix)
-    y_min, y_max, y0 = _img_bounds(ny,d_pix)
-    z_min, z_max, z0 = _img_bounds(nz,d_pix)
+    img_bnd_x_min, img_bnd_x_max, x0 = _img_bounds(nx,d_pix)
+    img_bnd_y_min, img_bnd_y_max, y0 = _img_bounds(ny,d_pix)
+    img_bnd_z_min, img_bnd_z_max, z0 = _img_bounds(nz,d_pix)
 
 
     u_arr = du*(np.arange(nu) - nu/2 + 0.5)
@@ -727,71 +663,69 @@ def aw_fp_cone_3d(img, ang_arr,
     # Main loops: angles → detectors → voxel traversal
     for ia, (cos_ang,sin_ang) in enumerate(zip(cos_ang_arr,sin_ang_arr)):
 
-        # Ray origination at the source
-        Sx, Sy, Sz = DSO*cos_ang, DSO*sin_ang, 0.0
+        # Ray origin (located at the source)
+        ray_x_org = DSO*cos_ang
+        ray_y_org = DSO*sin_ang
+        ray_z_org = 0.0
         
-        # Detector reference point
-        Dx0, Dy0, Dz0 = -(DSD-DSO)*cos_ang, -(DSD-DSO)*sin_ang, 0.0
+        # Detector origin point
+        det_x_org = -(DSD-DSO)*cos_ang
+        det_y_org =  -(DSD-DSO)*sin_ang
+        det_z_org = 0.0
 
-        uhat = (-sin_ang, cos_ang, 0)
-        vhat = (0, 0, 1)
+        # Detector basis (unit vectors)
+        det_u_hat = (-sin_ang, cos_ang, 0)
+        det_v_hat = (0, 0, 1)
 
         for iv, v in enumerate(v_arr):
             for iu, u in enumerate(u_arr):
 
-                Dx = Dx0 + u*uhat[0] + v*vhat[0]
-                Dy = Dy0 + u*uhat[1] + v*vhat[1]
-                Dz = Dz0 + u*uhat[2] + v*vhat[2]
+                #Detector positions
+                det_x = det_x_org + u*det_u_hat[0] + v*det_v_hat[0]
+                det_y = det_y_org + u*det_u_hat[1] + v*det_v_hat[1]
+                det_z = det_z_org + u*det_u_hat[2] + v*det_v_hat[2]
 
-                rx = Dx - Sx
-                ry = Dy - Sy
-                rz = Dz - Sz
+                #Ray vector 
+                ray_x_vec = det_x - ray_x_org
+                ray_y_vec = det_y - ray_y_org
+                ray_z_vec = det_z - ray_z_org
 
-                L = np.sqrt(rx*rx + ry*ry + rz*rz)
-                rx /= L
-                ry /= L
-                rz /= L
+                ray_mag = np.sqrt(ray_x_vec**2 + ray_y_vec**2 + ray_z_vec**2)
+                ray_x_hat = ray_x_vec/ray_mag
+                ray_y_hat = ray_y_vec/ray_mag
+                ray_z_hat = ray_z_vec/ray_mag
 
-                tx0, tx1 = _intersect_bounding(Sx, rx, abs(rx), x_min, x_max)
-                ty0, ty1 = _intersect_bounding(Sy, ry, abs(ry), y_min, y_max)
-                tz0, tz1 = _intersect_bounding(Sz, rz, abs(rz), z_min, z_max)
+                tx_entry, tx_exit = _intersect_bounding(ray_x_org, ray_x_hat, abs(ray_x_hat), img_bnd_x_min, img_bnd_x_max)
+                ty_entry, ty_exit = _intersect_bounding(ray_y_org, ray_y_hat, abs(ray_y_hat), img_bnd_y_min, img_bnd_y_max)
+                tz_entry, tz_exit = _intersect_bounding(ray_z_org, ray_z_hat, abs(ray_z_hat), img_bnd_z_min, img_bnd_z_max)
 
-                t_enter = max(tx0, ty0, tz0)
-                t_exit  = min(tx1, ty1, tz1)
+                t_entry = max(tx_entry, ty_entry, tz_entry)
+                t_exit  = min(tx_exit, ty_exit, tz_exit)
 
-                if t_exit <= t_enter:
+                if t_exit <= t_entry:
                     continue
 
                 if joseph:
-                    joseph_fp_cone_3d(img,sino,ia,iu,iv,
-                                      Sx, Sy, Sz,rx, ry, rz,
-                        x0, y0, z0,d_pix,t_enter, t_exit,step=0.5)
+                    _joseph_fp_3d(img,sino,ia,iu,iv,
+                                      ray_x_org, ray_y_org, ray_z_org,ray_x_hat, ray_y_hat, ray_z_hat,
+                        x0, y0, z0,d_pix,t_entry, t_exit,step=0.5)
                 else:
-                    x = Sx + rx*t_enter
-                    y = Sy + ry*t_enter
-                    z = Sz + rz*t_enter
-                    
-                    x = min(max(x, x_min + eps), x_max - eps)
-                    y = min(max(y, y_min + eps), y_max - eps)
-                    z = min(max(z, z_min + eps), z_max - eps)
-                    
-                    # Convert to voxel indices
-                    ix = int(np.floor((x - x_min) / d_pix))
-                    iy = int(np.floor((y - y_min) / d_pix))
-                    iz = int(np.floor((z - y_min) / d_pix))
+
+                    ix_entry = _calc_ir0(ray_x_org,ray_x_hat,t_entry,img_bnd_x_min,img_bnd_x_max,d_pix)
+                    iy_entry = _calc_ir0(ray_y_org,ray_y_hat,t_entry,img_bnd_y_min,img_bnd_y_max,d_pix)
+                    iz_entry = _calc_ir0(ray_z_org,ray_z_hat,t_entry,img_bnd_z_min,img_bnd_z_max,d_pix)
+
+                    ix_dir, tx_step, tx_next = _fp_step_init(ray_x_org, ix_entry, ray_x_hat, abs(ray_x_hat), img_bnd_x_min, d_pix)
+                    iy_dir, ty_step, ty_next = _fp_step_init(ray_y_org, iy_entry, ray_y_hat, abs(ray_y_hat), img_bnd_y_min, d_pix)
+                    iz_dir, tz_step, tz_next = _fp_step_init(ray_z_org, iz_entry, ray_z_hat, abs(ray_z_hat), img_bnd_z_min, d_pix)
 
 
-                    ix_dir, ix_step, ix_next = fp_3d_step_init(Sx, ix, rx, abs(rx), x_min, d_pix)
-                    iy_dir, iy_step, iy_next = fp_3d_step_init(Sy, iy, ry, abs(ry), y_min, d_pix)
-                    iz_dir, iz_step, iz_next = fp_3d_step_init(Sz, iz, rz, abs(rz), z_min, d_pix)
-
-
-                    aw_fp_traverse_3d(
+                    _aw_fp_traverse_3d(
                         img, sino, ia, iu, iv,
-                        t_enter, t_exit,
-                        ix, iy, iz,
-                        ix_next, iy_next, iz_next,
-                        ix_step, iy_step, iz_step,
+                        t_entry, t_exit,
+                        ix_entry, iy_entry, iz_entry,
+                        tx_next, ty_next, tz_next,
+                        tx_step, ty_step, tz_step,
                         ix_dir, iy_dir, iz_dir,
                         nx, ny, nz
                     )
@@ -852,8 +786,8 @@ def aw_bp_par_2d(sino, ang_arr, img_shape, du=1.0, su=0.0, d_pix=1.0, joseph=Fal
                 ix = int(np.floor((rx_x_min - x_min) / d_pix))
                 iy = int(np.floor((ry_y_min - y_min) / d_pix))
                 
-                ix_dir, ix_step, ix_next = _fp_2d_step_init(rx_u, ix, rx, rx_abs, x_min, d_pix)
-                iy_dir, iy_step, iy_next = _fp_2d_step_init(ry_u, iy, ry, ry_abs, y_min, d_pix)
+                ix_dir, ix_step, ix_next = _fp_step_init(rx_u, ix, rx, rx_abs, x_min, d_pix)
+                iy_dir, iy_step, iy_next = _fp_step_init(ry_u, iy, ry, ry_abs, y_min, d_pix)
                 _aw_bp_grid(img, sino, ia, iu, t_enter, t_exit,
                             ix_next, iy_next, ix_step, iy_step, ix_dir, iy_dir,
                             ix, iy, nx, ny, d_pix)
@@ -903,20 +837,20 @@ def aw_bp_fan_2d(sino, ang_arr, img_shape, DSO, DSD, du=1.0, su=0.0, d_pix=1.0, 
             rx_abs = abs(rx)
             ry_abs = abs(ry)
 
-            t_x_min, t_x_max = _intersect_bounding(rx_s, rx, rx_abs, x_min, x_max)
-            t_y_min, t_y_max = _intersect_bounding(ry_s, ry, ry_abs, y_min, y_max)
-            t_enter = max(t_x_min, t_y_min)
-            t_exit = min(t_x_max, t_y_max)
+            tx_entry, tx_exit = _intersect_bounding(rx_s, rx, rx_abs, x_min, x_max)
+            ty_entry, ty_exit = _intersect_bounding(ry_s, ry, ry_abs, y_min, y_max)
+            t_entry = max(tx_entry, ty_entry)
+            t_exit  = min(tx_exit, ty_exit)
 
-            if t_exit <= t_enter:
+            if t_exit <= t_entry:
                 continue
 
             if joseph:
                 _joseph_bp(img, d_pix, sino, ia, iu, rx, ry, rx_s, ry_s,
-                           x0, y0, t_enter, t_exit, step)
+                           x0, y0, t_entry, t_exit, step)
             else:
-                rx_x_min = rx_s + t_enter * rx
-                ry_y_min = ry_s + t_enter * ry
+                rx_x_min = rx_s + t_entry * rx
+                ry_y_min = ry_s + t_entry * ry
                 rx_x_min = min(max(rx_x_min, x_min + eps), x_max - eps)
                 ry_y_min = min(max(ry_y_min, y_min + eps), y_max - eps)              
 
@@ -924,9 +858,9 @@ def aw_bp_fan_2d(sino, ang_arr, img_shape, DSO, DSD, du=1.0, su=0.0, d_pix=1.0, 
                 
                 ix = int(np.floor((rx_x_min - x_min) / d_pix))
                 iy = int(np.floor((ry_y_min - y_min) / d_pix))
-                ix_dir, ix_step, ix_next = _fp_2d_step_init(rx_s, ix, rx, rx_abs, x_min, d_pix)
-                iy_dir, iy_step, iy_next = _fp_2d_step_init(ry_s, iy, ry, ry_abs, y_min, d_pix)
-                _aw_bp_grid(img, sino, ia, iu, t_enter, t_exit,
+                ix_dir, ix_step, ix_next = _fp_step_init(rx_s, ix, rx, rx_abs, x_min, d_pix)
+                iy_dir, iy_step, iy_next = _fp_step_init(ry_s, iy, ry, ry_abs, y_min, d_pix)
+                _aw_bp_grid(img, sino, ia, iu, t_entry, t_exit,
                             ix_next, iy_next, ix_step, iy_step, ix_dir, iy_dir,
                             ix, iy, nx, ny, d_pix)
     return img / na / d_pix / d_pix * du
