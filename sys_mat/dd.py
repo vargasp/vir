@@ -39,7 +39,7 @@ def accumulate(sino, img_val, ray_scl,p_bnd_l, p_bnd_r,u_bnd_l,u_bnd_r,
 
 
 def _accumulate_3d(sino, img_val, ray_scl,p_bnd_l, p_bnd_r,u_bnd_l,u_bnd_r,
-               ia, iu, iv, ip):
+               ia, iu, iv, ip,ov_r,ov_l):
     
     #This should never happen in parallel beam
     #It may occur in fan/cone beam
@@ -53,7 +53,7 @@ def _accumulate_3d(sino, img_val, ray_scl,p_bnd_l, p_bnd_r,u_bnd_l,u_bnd_r,
 
     # Accumulate overlap contribution
     if overlap_r > overlap_l:
-        sino[ia,iu,iv] += (img_val* (overlap_r - overlap_l)*ray_scl)
+        sino[ia,iu,iv] += (img_val* (overlap_r - overlap_l)*(ov_r - ov_l)*ray_scl)
 
     # Advance whichever interval ends first
     if p_bnd_r < u_bnd_r:
@@ -64,7 +64,8 @@ def _accumulate_3d(sino, img_val, ray_scl,p_bnd_l, p_bnd_r,u_bnd_l,u_bnd_r,
     return ip, iu
 
 
-def _dd_fp_par_sweep(sino,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,u_bnd_arr,ray_scl,ia):
+def _dd_fp_par_sweep(sino,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
+                     u_bnd_arr,ray_scl,ia):
     """
     Distance-driven sweep kernel for 2D parallel or fanbeam forward projection.
 
@@ -292,17 +293,19 @@ def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm, p_orth_arr_trm,
                 ip = 0
                 iu = 0
                 while ip < np and iu < nu:
-                    p_bnd_l = proj_img2det_fan(p_drv_bnd_arr_trm[ip], p_orth_trm,o_drv_bnd_arr_trm[ip], o_orth_trm,
+                    p_bnd_l = proj_img2det_fan(p_drv_bnd_arr_trm[ip],p_orth_trm,
+                                               o_drv_bnd_arr_trm[ip],o_orth_trm,
                                                DSO, DSD)
 
-                    p_bnd_r = proj_img2det_fan(p_drv_bnd_arr_trm[ip+1], p_orth_trm,o_drv_bnd_arr_trm[ip+1], o_orth_trm,
+                    p_bnd_r = proj_img2det_fan(p_drv_bnd_arr_trm[ip+1],p_orth_trm,
+                                               o_drv_bnd_arr_trm[ip+1], o_orth_trm,
                                                DSO, DSD)
 
                     u_bnd_l = u_bnd_arr[iu]
                     u_bnd_r = u_bnd_arr[iu + 1]
                     
                     ip, iu = _accumulate_3d(sino,img_vec[ip],ray_scl,p_bnd_l,p_bnd_r,u_bnd_l,u_bnd_r,
-                                   ia, iu, iv, ip)
+                                   ia, iu, iv, ip,ov_r,ov_l)
 
 
                 iv += 1
@@ -563,10 +566,10 @@ def _dd_fp_fan_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
         # Each pixel x component at the boundary and y component at the center
         #is projected along detetector space
         p_drv_bnd_arr_trm = -sin_ang * x_bnd_arr
-        p_orth_arr_trm     =  cos_ang * y_arr
+        p_orth_arr_trm    =  cos_ang * y_arr
 
         o_drv_bnd_arr_trm =  cos_ang*x_bnd_arr
-        o_orth_arr_trm     =  sin_ang*y_arr
+        o_orth_arr_trm    =  sin_ang*y_arr
 
         #No transformation need  
         img_trm = img_x
@@ -580,10 +583,10 @@ def _dd_fp_fan_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
         # Each pixel y component at the boundary and x component at the center
         #is projected along detetector space
         p_drv_bnd_arr_trm = cos_ang * y_bnd_arr
-        p_orth_arr_trm     = -sin_ang * x_arr
+        p_orth_arr_trm    = -sin_ang * x_arr
 
         o_drv_bnd_arr_trm = sin_ang*y_bnd_arr
-        o_orth_arr_trm     = cos_ang*x_arr
+        o_orth_arr_trm    = cos_ang*x_arr
 
         # Transposes image so axis 0 correspondsto the driving (sweep) axis
         img_trm = img_y 
@@ -869,7 +872,8 @@ def dd_bp_fan_2d(sino, ang_arr, img_shape, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
            _dd_fp_fan_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
                          cos_ang, sin_ang, DSO, DSD)
 
-        _dd_bp_fan_sweep(sino,img_trm,p1_bnd_arr,p2_arr,o1_bnd_arr,o2_arr,u_bnd_arr,ray_scl_arr,ia,DSO,DSD)
+        _dd_bp_fan_sweep(sino,img_trm,p1_bnd_arr,p2_arr,o1_bnd_arr,o2_arr,
+                         u_bnd_arr,ray_scl_arr,ia,DSO,DSD)
 
 
     return (img_x+img_y.T) / na / d_pix 
@@ -958,7 +962,8 @@ def dd_fp_cone_3d(
 
 
         
-def _dd_bp_fan_sweep(sino,img_trm,p1_bnd_arr,p2_arr,o1_bnd_arr,o2_arr,u_bnd_arr,rays_scl_arr,ia,DSO,DSD):
+def _dd_bp_fan_sweep(sino,img_trm,p1_bnd_arr,p2_arr,o1_bnd_arr,o2_arr,
+                     u_bnd_arr,rays_scl_arr,ia,DSO,DSD):
 
     
     np, no = img_trm.shape
