@@ -8,8 +8,8 @@ Created on Mon Jan  5 06:34:23 2026
 
 import numpy as np
 
-def proj_img2det_fan(px, py, ox, oy, DSO, DSD):
-    return DSD * (px + py) / (DSO - (ox + oy))
+def proj_img2det_fan(p_term1, p_term2, o_term1, o_term2, DSO, DSD):
+    return DSD * (p_term1 + p_term2) / (DSO - (o_term1 + o_term2))
 
 
 def accumulate(sino, img_val, ray_scl,p_bnd_l, p_bnd_r,u_bnd_l,u_bnd_r,
@@ -64,7 +64,7 @@ def _accumulate_3d(sino, img_val, ray_scl,p_bnd_l, p_bnd_r,u_bnd_l,u_bnd_r,
     return ip, iu
 
 
-def _dd_fp_par_sweep(sino,img_trm,p_bnd_arr,o_arr,u_bnd_arr,ray_scl,ia):
+def _dd_fp_par_sweep(sino,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,u_bnd_arr,ray_scl,ia):
     """
     Distance-driven sweep kernel for 2D parallel or fanbeam forward projection.
 
@@ -113,7 +113,7 @@ def _dd_fp_par_sweep(sino,img_trm,p_bnd_arr,o_arr,u_bnd_arr,ray_scl,ia):
     for io in range(no):
 
         #Hoisting pointers for explicit LICM
-        o = o_arr[io]
+        p_orth_trm = p_orth_arr_trm[io]
 
         img_vec = img_trm[:, io]
 
@@ -123,8 +123,8 @@ def _dd_fp_par_sweep(sino,img_trm,p_bnd_arr,o_arr,u_bnd_arr,ray_scl,ia):
             
             # Left edge of overlap interval
             # Actual projected pixel boundaries for this pixel row/column
-            p_bnd_l = p_bnd_arr[ip] + o
-            p_bnd_r = p_bnd_arr[ip + 1] + o
+            p_bnd_l = p_drv_bnd_arr_trm[ip] + p_orth_trm
+            p_bnd_r = p_drv_bnd_arr_trm[ip + 1] + p_orth_trm
  
             # Right edge of overlap interval
             # Actual projected pixel boundaries for this pixel row/column
@@ -194,27 +194,27 @@ def _dd_fp_fan_sweep(sino,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
         img_vec = img_trm[:, io]
         ray_scl = ray_scl_arr[io]        
         
+
+        p_bnd_l = proj_img2det_fan(p_drv_bnd_arr_trm[0],p_orth_trm,
+                                   o_drv_bnd_arr_trm[0], o_orth_trm,
+                                   DSO, DSD)
+
+        p_bnd_r = proj_img2det_fan(p_drv_bnd_arr_trm[1],p_orth_trm,
+                                   o_drv_bnd_arr_trm[1],o_orth_trm,
+                                   DSO, DSD)
+
+        u_bnd_l = u_bnd_arr[0]
+        u_bnd_r = u_bnd_arr[1]
+
         ip = 0
         iu = 0
-        while ip < np and iu < nu:
-            p_bnd_l = proj_img2det_fan(p_drv_bnd_arr_trm[ip],p_orth_trm,
-                                       o_drv_bnd_arr_trm[ip], o_orth_trm,
-                                       DSO, DSD)
-
-            p_bnd_r = proj_img2det_fan(p_drv_bnd_arr_trm[ip+1],p_orth_trm,
-                                       o_drv_bnd_arr_trm[ip+1],o_orth_trm,
-                                       DSO, DSD)
-
-            u_bnd_l = u_bnd_arr[iu]
-            u_bnd_r = u_bnd_arr[iu + 1]
-
+        while True:
             #This should never happen in parallel beam
             #It may occur in fan/cone beam
             #This should be moved to a higher loop if possible
             if p_bnd_r < p_bnd_l:
                 p_bnd_l, p_bnd_r = p_bnd_r, p_bnd_l
-        
-        
+                
             overlap_l = max(p_bnd_l, u_bnd_l)
             overlap_r = min(p_bnd_r, u_bnd_r)
         
@@ -222,124 +222,94 @@ def _dd_fp_fan_sweep(sino,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
             if overlap_r > overlap_l:
                 sino[ia, iu] += (img_vec[ip]* (overlap_r - overlap_l)*ray_scl)
         
+            if ip==(np-1) or iu==(nu-1):
+                break
+        
             # Advance whichever interval ends first
             if p_bnd_r < u_bnd_r:
                 ip += 1
+                p_bnd_l = p_bnd_r
+                p_bnd_r = proj_img2det_fan(p_drv_bnd_arr_trm[ip+1],p_orth_trm,
+                                           o_drv_bnd_arr_trm[ip+1],o_orth_trm,
+                                           DSO, DSD)
             else:
                 iu += 1
-                
+                u_bnd_l = u_bnd_r
+                u_bnd_r = u_bnd_arr[iu+1]
 
 
 
-            
-            # Accumulate overlap contribution
-            """
-            ip, iu = accumulate(sino, img_vec[ip],ray_scl,
-                                p_bnd_l, p_bnd_r,u_bnd_l,u_bnd_r,
-                                ia, iu, ip)
-            """
-            
-def _dd_bp_par_sweep(img_out, sino, p_bnd_arr, o_arr, u_bnd_arr, ray_scl, ia):
-    """
-    Distance-driven sweep kernel for 2D parallel or fanbeam back-projection.
-
-    Distributes the sinogram data of a single angle back to the image using overlap intervals 
-    computed in detector space. Updates `img_out` in-place.
-
-    Parameters
-    ----------
-    img_out : ndarray, shape (np, no)
-        Image buffer to accumulate backprojected values.
-    sino : ndarray, shape (n_angles, nu)
-        Input sinogram array.
-    p_bnd_arr : ndarray, shape (np + 1,)
-        Projected pixel boundary coordinates along the driving axis in detector space.
-    o_arr : ndarray, shape (no,)
-        Orthogonal pixel-center offsets projected onto detector coordinate.
-    u_bnd_arr : ndarray, shape (nu + 1,)
-        Detector bin boundary coordinates in detector space.
-    rays_scl_arr : ndarray, shape (np)
-        Scaling factor for pixel overlap, as in forward sweep.
-    ia : int
-        Index of projection angle to read from sinogram.
-
-    Returns
-    -------
-    None (operates in-place)
-    """
-    np_, no = img_out.shape
+def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm, p_orth_arr_trm,
+                      z_bnd_arr, z_arr,
+                      o_drv_bnd_arr_trm, o_orth_arr_trm,
+                      u_bnd_arr, v_bnd_arr,ray_scl_arr,ia, DSO, DSD):
+    np, nz, no = vol.shape
     nu = u_bnd_arr.size - 1
+    nv = v_bnd_arr.size - 1
 
-    sino_vec = sino[ia]
-    # Loop over orthogonal pixel lines
     for io in range(no):
-        o = o_arr[io]
 
-        img_vec = img_out[:, io]
+        p_orth_trm = p_orth_arr_trm[io]
+        o_orth_trm = o_orth_arr_trm[io]
+        ray_scl = ray_scl_arr[io]
 
-        ip = 0
-        iu = 0
-        while ip < np_ and iu < nu:
-            # Compute overlap as in FP
-            p_bnd_l = p_bnd_arr[ip] + o
-            u_bnd_l = u_bnd_arr[iu]
-            overlap_l = max(p_bnd_l, u_bnd_l)
+        for iz in range(nz):
 
-            p_bnd_r = p_bnd_arr[ip + 1] + o
-            u_bnd_r = u_bnd_arr[iu + 1]
-            overlap_r = min(p_bnd_r, u_bnd_r)
+            # ---- project z boundaries → v ----
+            z_l = z_bnd_arr[iz]
+            z_r = z_bnd_arr[iz + 1]
 
-            if overlap_r > overlap_l:
-                # Distribute detector bin value back to the image pixel
-                img_vec[ip] += (sino_vec[iu] * (overlap_r - overlap_l) * ray_scl)
+            scale = DSD / (DSO - o_orth_trm)
 
-            if p_bnd_r < u_bnd_r:
-                ip += 1
-            else:
-                iu += 1
-                
-        
-def _dd_bp_fan_sweep(sino,img_trm,p1_bnd_arr,p2_arr,o1_bnd_arr,o2_arr,u_bnd_arr,rays_scl_arr,ia,DSO,DSD):
+            pv_l = scale * z_l
+            pv_r = scale * z_r
+            if pv_r < pv_l:
+                pv_l, pv_r = pv_r, pv_l
 
-    
-    np, no = img_trm.shape
-    nu = u_bnd_arr.size - 1
+            # Find starting v-bin
+            iv = 0
+            while iv < nv and v_bnd_arr[iv + 1] <= pv_l:
+                iv += 1
 
-    sino_vec = sino[ia]
-    # Loop over orthogonal pixel lines
-    for io in range(no):
-        
-        #Hoisting pointers for explicit LICM
-        p2 = p2_arr[io]
-        o2 = o2_arr[io]
-        
-        img_vec = img_trm[:, io]
-        ray_scl = rays_scl_arr[io]        
-        
-        ip = 0
-        iu = 0
-        while ip < np and iu < nu:
-            p_bnd_l = proj_img2det_fan(p1_bnd_arr[ip], p2,o1_bnd_arr[ip], o2,
-                                       DSO, DSD)
+            img_vec = vol[:, iz, io]
 
-            p_bnd_r = proj_img2det_fan(p1_bnd_arr[ip+1], p2,o1_bnd_arr[ip+1], o2,
-                                       DSO, DSD)
+            # ---- sweep overlapping v bins ----
+            while iv < nv and v_bnd_arr[iv] < pv_r:
 
-            u_bnd_l = u_bnd_arr[iu]
-            u_bnd_r = u_bnd_arr[iu + 1]
-            
-            overlap_l = max(p_bnd_l, u_bnd_l)
-            overlap_r = min(p_bnd_r, u_bnd_r)
+                vb_l = v_bnd_arr[iv]
+                vb_r = v_bnd_arr[iv + 1]
 
-            if overlap_r > overlap_l:
-                # Distribute detector bin value back to the image pixel
-                img_vec[ip] += (sino_vec[iu] * (overlap_r - overlap_l) * ray_scl)
+                ov_l = max(pv_l, vb_l)
+                ov_r = min(pv_r, vb_r)
 
-            if p_bnd_r < u_bnd_r:
-                ip += 1
-            else:
-                iu += 1     
-                
+                if ov_r <= ov_l:
+                    iv += 1
+                    continue
+
+
+
+                # ---- fan-style u sweep (IDENTICAL to fan code) ----
+                ip = 0
+                iu = 0
+                while ip < np and iu < nu:
+                    p_bnd_l = proj_img2det_fan(p_drv_bnd_arr_trm[ip], p_orth_trm,o_drv_bnd_arr_trm[ip], o_orth_trm,
+                                               DSO, DSD)
+
+                    p_bnd_r = proj_img2det_fan(p_drv_bnd_arr_trm[ip+1], p_orth_trm,o_drv_bnd_arr_trm[ip+1], o_orth_trm,
+                                               DSO, DSD)
+
+                    u_bnd_l = u_bnd_arr[iu]
+                    u_bnd_r = u_bnd_arr[iu + 1]
+                    
+                    ip, iu = _accumulate_3d(sino,img_vec[ip],ray_scl,p_bnd_l,p_bnd_r,u_bnd_l,u_bnd_r,
+                                   ia, iu, iv, ip)
+
+
+                iv += 1
+
+
+
+
 
 
 def _dd_fp_par_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
@@ -448,10 +418,10 @@ def _dd_fp_par_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
 
         # Project pixel boundaries along driving axis onto detector
         # Each pixel x component at the boundary is projected along detetector space
-        p1_bnd_arr = -sin_ang * x_bnd_arr
+        p_drv_bnd_arr_trm = -sin_ang * x_bnd_arr
 
         # Each pixel's y component at the center is projected along detetector space
-        p2_arr = cos_ang * y_arr
+        p_orth_arr_trm = cos_ang * y_arr
 
         #No transformation need  
         img_trm = img_x
@@ -464,23 +434,23 @@ def _dd_fp_par_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
 
         # Project pixel boundaries along driving axis onto detector
         # Each pixel y component at the boundary is projected along detetector space
-        p1_bnd_arr = cos_ang * y_bnd_arr
+        p_drv_bnd_arr_trm = cos_ang * y_bnd_arr
 
         # Each pixel's x component at the center is projected along detetector space
-        p2_arr = -sin_ang * x_arr
+        p_orth_arr_trm = -sin_ang * x_arr
 
         # Transposes image so axis 0 correspondsto the driving (sweep) axis
         img_trm = img_y 
 
     # Ensure monotonic increasing for sweep
-    if p1_bnd_arr[1] < p1_bnd_arr[0]:
-        p1_bnd_arr = p1_bnd_arr[::-1]
+    if p_drv_bnd_arr_trm[1] < p_drv_bnd_arr_trm[0]:
+        p_drv_bnd_arr_trm = p_drv_bnd_arr_trm[::-1]
         img_trm = img_trm[::-1, :]
 
 
     # Values are inverted to allow multiplicaion in hot loop
 
-    return img_trm, p1_bnd_arr, p2_arr, ray_scale
+    return img_trm, p_drv_bnd_arr_trm, p_orth_arr_trm, ray_scale
 
 
 def _dd_fp_fan_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
@@ -592,11 +562,11 @@ def _dd_fp_fan_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
         # Project pixel boundaries along driving axis onto detector
         # Each pixel x component at the boundary and y component at the center
         #is projected along detetector space
-        p1_bnd_arr = -sin_ang * x_bnd_arr
-        p2_arr     =  cos_ang * y_arr
+        p_drv_bnd_arr_trm = -sin_ang * x_bnd_arr
+        p_orth_arr_trm     =  cos_ang * y_arr
 
-        o1_bnd_arr =  cos_ang*x_bnd_arr
-        o2_arr     =  sin_ang*y_arr
+        o_drv_bnd_arr_trm =  cos_ang*x_bnd_arr
+        o_orth_arr_trm     =  sin_ang*y_arr
 
         #No transformation need  
         img_trm = img_x
@@ -609,28 +579,28 @@ def _dd_fp_fan_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
         # Project pixel boundaries along driving axis onto detector
         # Each pixel y component at the boundary and x component at the center
         #is projected along detetector space
-        p1_bnd_arr = cos_ang * y_bnd_arr
-        p2_arr     = -sin_ang * x_arr
+        p_drv_bnd_arr_trm = cos_ang * y_bnd_arr
+        p_orth_arr_trm     = -sin_ang * x_arr
 
-        o1_bnd_arr = sin_ang*y_bnd_arr
-        o2_arr     = cos_ang*x_arr
+        o_drv_bnd_arr_trm = sin_ang*y_bnd_arr
+        o_orth_arr_trm     = cos_ang*x_arr
 
         # Transposes image so axis 0 correspondsto the driving (sweep) axis
         img_trm = img_y 
 
     # Ensure monotonic increasing for sweep
-    if p1_bnd_arr[1] < p1_bnd_arr[0]:
-        p1_bnd_arr = p1_bnd_arr[::-1]
-        o1_bnd_arr = o1_bnd_arr[::-1]
+    if p_drv_bnd_arr_trm[1] < p_drv_bnd_arr_trm[0]:
+        p_drv_bnd_arr_trm = p_drv_bnd_arr_trm[::-1]
+        o_drv_bnd_arr_trm = o_drv_bnd_arr_trm[::-1]
         img_trm = img_trm[::-1, :]
 
 
     # Fan-beam  correction:
-    r = np.sqrt((DSO - o2_arr)**2 + p2_arr**2)
-    rays_scale = r / ((DSO - o2_arr) * ray_scale)
+    r = np.sqrt((DSO - o_orth_arr_trm)**2 + p_orth_arr_trm**2)
+    rays_scale = r / ((DSO - o_orth_arr_trm) * ray_scale)
       
 
-    return img_trm, p1_bnd_arr, p2_arr, o1_bnd_arr, o2_arr, rays_scale
+    return img_trm, p_drv_bnd_arr_trm, p_orth_arr_trm, o_drv_bnd_arr_trm, o_orth_arr_trm, rays_scale
 
 def dd_fp_par_2d(img, ang_arr, nu, du=1.0, su=0, d_pix=1.0):
     """
@@ -921,78 +891,6 @@ def proj_img2det_cone(p, o, z, DSO, DSD):
     return u, v
 
 
-def _dd_fp_cone_sweep(
-    sino,
-    vol_trm,
-    p1_bnd_arr, p2_arr,
-    z_bnd_arr, z_arr,
-    o1_bnd_arr, o2_arr,
-    u_bnd_arr, v_bnd_arr,
-    ray_scl_arr,
-    ia, DSO, DSD
-):
-    npix, nz, no = vol_trm.shape
-    nu = u_bnd_arr.size - 1
-    nv = v_bnd_arr.size - 1
-
-    for io in range(no):
-
-        p2 = p2_arr[io]
-        o2 = o2_arr[io]
-        ray_scl = ray_scl_arr[io]
-
-        for iz in range(nz):
-
-            # ---- project z boundaries → v ----
-            z_l = z_bnd_arr[iz]
-            z_r = z_bnd_arr[iz + 1]
-
-            scale = DSD / (DSO - o2)
-
-            pv_l = scale * z_l
-            pv_r = scale * z_r
-            if pv_r < pv_l:
-                pv_l, pv_r = pv_r, pv_l
-
-            # Find starting v-bin
-            iv = 0
-            while iv < nv and v_bnd_arr[iv + 1] <= pv_l:
-                iv += 1
-
-            img_vec = vol_trm[:, iz, io]
-
-            # ---- sweep overlapping v bins ----
-            while iv < nv and v_bnd_arr[iv] < pv_r:
-
-                vb_l = v_bnd_arr[iv]
-                vb_r = v_bnd_arr[iv + 1]
-
-                ov_l = max(pv_l, vb_l)
-                ov_r = min(pv_r, vb_r)
-
-                if ov_r <= ov_l:
-                    iv += 1
-                    continue
-
-                # ---- fan-style u sweep (IDENTICAL to fan code) ----
-                ip = 0
-                iu = 0
-                while ip < npix and iu < nu:
-                    p_bnd_l = proj_img2det_fan(p1_bnd_arr[ip], p2,o1_bnd_arr[ip], o2,
-                                               DSO, DSD)
-
-                    p_bnd_r = proj_img2det_fan(p1_bnd_arr[ip+1], p2,o1_bnd_arr[ip+1], o2,
-                                               DSO, DSD)
-
-                    u_bnd_l = u_bnd_arr[iu]
-                    u_bnd_r = u_bnd_arr[iu + 1]
-                    
-                    ip, iu = _accumulate_3d(sino,img_vec[ip],ray_scl,p_bnd_l,p_bnd_r,u_bnd_l,u_bnd_r,
-                                   ia, iu, iv, ip)
-
-
-                iv += 1
-
 
 
 def dd_fp_cone_3d(
@@ -1059,7 +957,108 @@ def dd_fp_cone_3d(
 
 
 
+        
+def _dd_bp_fan_sweep(sino,img_trm,p1_bnd_arr,p2_arr,o1_bnd_arr,o2_arr,u_bnd_arr,rays_scl_arr,ia,DSO,DSD):
 
+    
+    np, no = img_trm.shape
+    nu = u_bnd_arr.size - 1
+
+    sino_vec = sino[ia]
+    # Loop over orthogonal pixel lines
+    for io in range(no):
+        
+        #Hoisting pointers for explicit LICM
+        p2 = p2_arr[io]
+        o2 = o2_arr[io]
+        
+        img_vec = img_trm[:, io]
+        ray_scl = rays_scl_arr[io]        
+        
+        ip = 0
+        iu = 0
+        while ip < np and iu < nu:
+            p_bnd_l = proj_img2det_fan(p1_bnd_arr[ip], p2,o1_bnd_arr[ip], o2,
+                                       DSO, DSD)
+
+            p_bnd_r = proj_img2det_fan(p1_bnd_arr[ip+1], p2,o1_bnd_arr[ip+1], o2,
+                                       DSO, DSD)
+
+            u_bnd_l = u_bnd_arr[iu]
+            u_bnd_r = u_bnd_arr[iu + 1]
+            
+            overlap_l = max(p_bnd_l, u_bnd_l)
+            overlap_r = min(p_bnd_r, u_bnd_r)
+
+            if overlap_r > overlap_l:
+                # Distribute detector bin value back to the image pixel
+                img_vec[ip] += (sino_vec[iu] * (overlap_r - overlap_l) * ray_scl)
+
+            if p_bnd_r < u_bnd_r:
+                ip += 1
+            else:
+                iu += 1     
+                
+            
+def _dd_bp_par_sweep(img_out, sino, p_drv_bnd_arr_trm, p_orth_arr_trm, u_bnd_arr, ray_scl, ia):
+    """
+    Distance-driven sweep kernel for 2D parallel or fanbeam back-projection.
+
+    Distributes the sinogram data of a single angle back to the image using overlap intervals 
+    computed in detector space. Updates `img_out` in-place.
+
+    Parameters
+    ----------
+    img_out : ndarray, shape (np, no)
+        Image buffer to accumulate backprojected values.
+    sino : ndarray, shape (n_angles, nu)
+        Input sinogram array.
+    p_bnd_arr : ndarray, shape (np + 1,)
+        Projected pixel boundary coordinates along the driving axis in detector space.
+    o_arr : ndarray, shape (no,)
+        Orthogonal pixel-center offsets projected onto detector coordinate.
+    u_bnd_arr : ndarray, shape (nu + 1,)
+        Detector bin boundary coordinates in detector space.
+    rays_scl_arr : ndarray, shape (np)
+        Scaling factor for pixel overlap, as in forward sweep.
+    ia : int
+        Index of projection angle to read from sinogram.
+
+    Returns
+    -------
+    None (operates in-place)
+    """
+    np_, no = img_out.shape
+    nu = u_bnd_arr.size - 1
+
+    sino_vec = sino[ia]
+    # Loop over orthogonal pixel lines
+    for io in range(no):
+        p_orth_trm = p_orth_arr_trm[io]
+
+        img_vec = img_out[:, io]
+
+        ip = 0
+        iu = 0
+        while ip < np_ and iu < nu:
+            # Compute overlap as in FP
+            p_bnd_l = p_drv_bnd_arr_trm[ip] + p_orth_trm
+            u_bnd_l = u_bnd_arr[iu]
+            overlap_l = max(p_bnd_l, u_bnd_l)
+
+            p_bnd_r = p_drv_bnd_arr_trm[ip + 1] + p_orth_trm
+            u_bnd_r = u_bnd_arr[iu + 1]
+            overlap_r = min(p_bnd_r, u_bnd_r)
+
+            if overlap_r > overlap_l:
+                # Distribute detector bin value back to the image pixel
+                img_vec[ip] += (sino_vec[iu] * (overlap_r - overlap_l) * ray_scl)
+
+            if p_bnd_r < u_bnd_r:
+                ip += 1
+            else:
+                iu += 1
+                
 
 
 
