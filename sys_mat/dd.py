@@ -257,13 +257,13 @@ def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm, p_orth_arr_trm,
         for iz in range(nz):
 
             # ---- project z boundaries → v ----
-            z_l = z_bnd_arr[iz]
-            z_r = z_bnd_arr[iz + 1]
+            z_bnd_l = z_bnd_arr[iz]
+            z_bnd_r = z_bnd_arr[iz + 1]
 
             scale = DSD / (DSO - o_orth_trm)
 
-            pv_l = scale * z_l
-            pv_r = scale * z_r
+            pv_l = scale * z_bnd_l
+            pv_r = scale * z_bnd_r
             if pv_r < pv_l:
                 pv_l, pv_r = pv_r, pv_l
 
