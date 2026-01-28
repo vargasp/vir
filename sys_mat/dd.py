@@ -8,6 +8,7 @@ Created on Mon Jan  5 06:34:23 2026
 
 import numpy as np
 
+
 def proj_img2det_fan(p_term1, p_term2, o_term1, o_term2, DSO, DSD):
     return DSD * (p_term1 + p_term2) / (DSO - (o_term1 + o_term2))
 
@@ -244,7 +245,7 @@ def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm, p_orth_arr_trm,
                       z_bnd_arr, z_arr,
                       o_drv_bnd_arr_trm, o_orth_arr_trm,
                       u_bnd_arr, v_bnd_arr,ray_scl_arr,ia, DSO, DSD):
-    np, nz, no = vol.shape
+    nP, nz, no = vol.shape
     nu = u_bnd_arr.size - 1
     nv = v_bnd_arr.size - 1
 
@@ -254,61 +255,77 @@ def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm, p_orth_arr_trm,
         o_orth_trm = o_orth_arr_trm[io]
         ray_scl = ray_scl_arr[io]
 
+        #1st Order Approximation of of projection. Ignores depth dependency
+        #to improve speed
+        z_bnd_arr_prj_v = z_bnd_arr * DSD / (DSO - o_orth_trm)
+        
+        
+        p_bnd_arr_prj_u = proj_img2det_fan(p_drv_bnd_arr_trm,p_orth_trm,
+                                           o_drv_bnd_arr_trm,o_orth_trm,
+                                           DSO, DSD)
+
+        #This should never happen in parallel beam
+        #It may occur in fan/cone beam
+        #This should be moved to a higher loop if possible
+        if p_bnd_arr_prj_u[1] < p_bnd_arr_prj_u[0]:
+            print("OH NO")
+
+
+
+
+        # ---- project z boundaries → v ----
         for iz in range(nz):
-
-            # ---- project z boundaries → v ----
-            z_bnd_l = z_bnd_arr[iz]
-            z_bnd_r = z_bnd_arr[iz + 1]
-
-            scale = DSD / (DSO - o_orth_trm)
-
-            pv_l = scale * z_bnd_l
-            pv_r = scale * z_bnd_r
-            if pv_r < pv_l:
-                pv_l, pv_r = pv_r, pv_l
-
+            #Project z_bnd on detector
+            z_bnd_prj_v_l = z_bnd_arr_prj_v[iz]
+            z_bnd_prj_v_r = z_bnd_arr_prj_v[iz+1]
+            
             # Find starting v-bin
-            iv = 0
-            while iv < nv and v_bnd_arr[iv + 1] <= pv_l:
-                iv += 1
+            iv = np.searchsorted(v_bnd_arr[1:],z_bnd_prj_v_l,side="right")
+            iv_end = np.searchsorted(v_bnd_arr, z_bnd_prj_v_r, side="left")
 
             img_vec = vol[:, iz, io]
 
             # ---- sweep overlapping v bins ----
-            while iv < nv and v_bnd_arr[iv] < pv_r:
+            for iv in range(iv, min(iv_end, nv)):
 
-                vb_l = v_bnd_arr[iv]
-                vb_r = v_bnd_arr[iv + 1]
+                v_bnd_l = v_bnd_arr[iv]
+                v_bnd_r = v_bnd_arr[iv+1]
 
-                ov_l = max(pv_l, vb_l)
-                ov_r = min(pv_r, vb_r)
+                overlap_v_l = max(z_bnd_prj_v_l, v_bnd_l)
+                overlap_v_r = min(z_bnd_prj_v_r, v_bnd_r)
 
-                if ov_r <= ov_l:
-                    iv += 1
+                if overlap_v_r <= overlap_v_l:
                     continue
 
-
+                overlap_v = overlap_v_r - overlap_v_l
+                p_bnd_prj_u_l = p_bnd_arr_prj_u[0]
+                p_bnd_prj_u_r = p_bnd_arr_prj_u[1]
+                
+                
+                u_bnd_l = u_bnd_arr[0]
+                u_bnd_r = u_bnd_arr[1]
 
                 # ---- fan-style u sweep (IDENTICAL to fan code) ----
                 ip = 0
                 iu = 0
-                while ip < np and iu < nu:
-                    p_bnd_l = proj_img2det_fan(p_drv_bnd_arr_trm[ip],p_orth_trm,
-                                               o_drv_bnd_arr_trm[ip],o_orth_trm,
-                                               DSO, DSD)
+                while ip < nP-1 and iu < nu-1:
+                    overlap_u_l = max(p_bnd_prj_u_l, u_bnd_l)
+                    overlap_u_r = min(p_bnd_prj_u_r, u_bnd_r)
 
-                    p_bnd_r = proj_img2det_fan(p_drv_bnd_arr_trm[ip+1],p_orth_trm,
-                                               o_drv_bnd_arr_trm[ip+1], o_orth_trm,
-                                               DSO, DSD)
+                    # Accumulate overlap contribution
+                    if overlap_u_r > overlap_u_l:
+                        sino[ia,iu,iv] += (img_vec[ip] * (overlap_u_r - overlap_u_l)*overlap_v*ray_scl)
 
-                    u_bnd_l = u_bnd_arr[iu]
-                    u_bnd_r = u_bnd_arr[iu + 1]
-                    
-                    ip, iu = _accumulate_3d(sino,img_vec[ip],ray_scl,p_bnd_l,p_bnd_r,u_bnd_l,u_bnd_r,
-                                   ia, iu, iv, ip,ov_r,ov_l)
-
-
-                iv += 1
+                    # Advance whichever interval ends first
+                    if p_bnd_prj_u_r < u_bnd_r:
+                        ip += 1
+                        p_bnd_prj_u_l = p_bnd_prj_u_r
+                        p_bnd_prj_u_r = p_bnd_arr_prj_u[ip+1]
+                        
+                    else:
+                        iu += 1
+                        u_bnd_l = u_bnd_r
+                        u_bnd_r = u_bnd_arr[iu+1]
 
 
 
