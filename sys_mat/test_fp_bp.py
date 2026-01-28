@@ -34,7 +34,7 @@ DSD = DSO*2
 
 
 #Sino params 
-na = 64
+na = 4
 nu = 32
 nv = 32
 du = 1
@@ -47,10 +47,11 @@ u_arr = du*(np.arange(nu) - nu/2.0 + 0.5 + su)
 
 #Test image
 img3d = np.zeros((nx, ny, nz), dtype=np.float32)
-img3d[11:13, 13:15,15:17] = 1.0  # center impulse
+#img3d[11:13, 13:15,15:17] = 1.0  # center impulse
 #img3d[10:22, 10:22, 10:22] = 1.0  # center impulse
 #img3d[3:6, 3:6,3:6] = 1.0  # center impulse
 #img3d[:] = 1.0  # center impulse
+img3d[11:21, 11:21, 11:21] = 1.0  # center impulse
 
 #img[30:, 10:22] = 1.0  # center impulse
 #img[10:12, 15:17] = 1.0  # center impulse
@@ -135,20 +136,20 @@ fractions = [0, 1/8, 1/4, 3/8,1/2]
 plt.figure(figsize=(20,8))
 for i, fraction in enumerate(fractions):
     plt.subplot(2,len(fractions),i+1)
-    plt.plot(sino1p[int(fraction*na),:], label='DD')
-    plt.plot(sino2p[int(fraction*na),:], label='AW')
-    plt.plot(sino3p[int(fraction*na),:], label='JO')
-    plt.plot(sino4p[int(fraction*na),:], label='PD')
+    plt.plot(sino1p[int(fraction*na),:].clip(8), label='DD')
+    plt.plot(sino2p[int(fraction*na),:].clip(8), label='AW')
+    plt.plot(sino3p[int(fraction*na),:].clip(8), label='JO')
+    plt.plot(sino4p[int(fraction*na),:].clip(8), label='PD')
     plt.legend()
     plt.title("Angle "+ str(int(fraction*360))+" profile")
     if i == 0: plt.ylabel("Intensity")
     
 for i, fraction in enumerate(fractions):
     plt.subplot(2,len(fractions),i+1+5)
-    plt.plot(sino1f[int(fraction*na),:], label='DD')
-    plt.plot(sino2f[int(fraction*na),:], label='AW')
-    plt.plot(sino3f[int(fraction*na),:], label='JO')
-    plt.plot(sino4f[int(fraction*na),:], label='PD')
+    plt.plot(sino1f[int(fraction*na),:].clip(8), label='DD')
+    plt.plot(sino2f[int(fraction*na),:].clip(8), label='AW')
+    plt.plot(sino3f[int(fraction*na),:].clip(8), label='JO')
+    plt.plot(sino4f[int(fraction*na),:].clip(8), label='PD')
     plt.xlabel("Detector Bin")
     plt.legend()
     if i == 0: plt.ylabel("Intensity")
