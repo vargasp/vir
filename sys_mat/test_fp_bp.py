@@ -85,8 +85,7 @@ sino1c = dd.dd_fp_cone_3d(img3d, ang_arr, nu, nv,DSO, DSD, du=1.0, dv=1.0,su=0.0
 
 sino2c = rd.aw_fp_cone_3d(img3d, ang_arr, nu, nv, DSO, DSD, du=du, d_pix=d_pix).transpose(0,2,1)
 sino3c = rd.aw_fp_cone_3d(img3d, ang_arr, nu, ny, DSO, DSD, du=du, d_pix=d_pix,joseph=True).transpose(0,2,1)
-sino4c = np.zeros(sino2c.shape)
-
+sino4c = pd.pd_fp_cone_3d(img3d, ang_arr, nu, nv, DSO, DSD, du=1.0, dv=1.0,su=0.0, sv=0.0,d_pix=1.0).transpose(0,2,1)
 
 
 

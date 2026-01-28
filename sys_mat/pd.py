@@ -209,3 +209,125 @@ def pd_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
     return sino
 
 
+
+def pd_fp_cone_3d(img, ang_arr,
+                  nu, nv,
+                  DSO, DSD,
+                  du=1.0, dv=1.0,
+                  su=0.0, sv=0.0,
+                  d_pix=1.0):
+    """
+    Pixel-driven separable-footprint cone-beam forward projector (3D, circular).
+
+    img : ndarray (nx, ny, nz)
+    ang_arr : projection angles (radians)
+    nu, nv : detector size
+    """
+
+    nx, ny, nz = img.shape
+    sino = np.zeros((ang_arr.size, nv, nu), dtype=np.float32)
+
+    # Pixel boundaries
+    x_bnd = d_pix * (np.arange(nx + 1) - nx / 2)
+    y_bnd = d_pix * (np.arange(ny + 1) - ny / 2)
+    z_bnd = d_pix * (np.arange(nz + 1) - nz / 2)
+
+    # Detector bin boundaries
+    u_bnd = du * (np.arange(nu + 1) - nu / 2 + su)
+    v_bnd = dv * (np.arange(nv + 1) - nv / 2 + sv)
+
+    cos_arr = np.cos(ang_arr)
+    sin_arr = np.sin(ang_arr)
+
+    for ia, (c, s) in enumerate(zip(cos_arr, sin_arr)):
+
+        # Rotate image coordinates
+        px_bnd = -s * x_bnd
+        py_bnd =  c * y_bnd
+        ox_bnd =  c * x_bnd
+        oy_bnd =  s * y_bnd
+
+        px_l = px_bnd[0]
+        ox_l = ox_bnd[0]
+
+        for ix, (px_r, ox_r) in enumerate(zip(px_bnd[1:], ox_bnd[1:])):
+
+            py_l = py_bnd[0]
+            oy_l = oy_bnd[0]
+
+            # Midpoints for ray normalization
+            px_c = 0.5 * (px_l + px_r)
+            ox_c = 0.5 * (ox_l + ox_r)
+
+            for iy, (py_r, oy_r) in enumerate(zip(py_bnd[1:], oy_bnd[1:])):
+
+                py_c = 0.5 * (py_l + py_r)
+                oy_c = 0.5 * (oy_l + oy_r)
+
+                # In-plane cone angle
+                u_c = DSD * (px_c + py_c) / (DSO - (ox_c + oy_c))
+                gamma = np.arctan(u_c / DSD)
+
+                rx = np.cos(ang_arr[ia] + gamma)
+                ry = np.sin(ang_arr[ia] + gamma)
+
+                ray_norm_xy = 1.0 / (abs(rx) + abs(ry))
+
+                z_l = z_bnd[0]
+
+                for iz, z_r in enumerate(z_bnd[1:]):
+
+                    val = img[ix, iy, iz]
+                    if val == 0:
+                        z_l = z_r
+                        continue
+
+                    z_c = 0.5 * (z_l + z_r)
+
+                    denom = DSO - (ox_c + oy_c)
+                    u0 = DSD * (px_l + py_l) / denom
+                    u1 = DSD * (px_r + py_l) / denom
+                    u2 = DSD * (px_l + py_r) / denom
+                    u3 = DSD * (px_r + py_r) / denom
+
+                    v0 = DSD * z_l / denom
+                    v1 = DSD * z_r / denom
+
+                    u_min = min(u0, u1, u2, u3)
+                    u_max = max(u0, u1, u2, u3)
+                    v_min = min(v0, v1)
+                    v_max = max(v0, v1)
+
+                    # Footprint stretch (separable)
+                    ray_norm = ray_norm_xy / (abs(z_c) + denom / DSD)
+
+                    iu0 = np.searchsorted(u_bnd, u_min, side="right") - 1
+                    iu1 = np.searchsorted(u_bnd, u_max, side="left")
+                    iv0 = np.searchsorted(v_bnd, v_min, side="right") - 1
+                    iv1 = np.searchsorted(v_bnd, v_max, side="left")
+
+                    for iv in range(max(0, iv0), min(nv, iv1)):
+                        vl = max(v_min, v_bnd[iv])
+                        vr = min(v_max, v_bnd[iv + 1])
+                        if vr <= vl:
+                            continue
+
+                        for iu in range(max(0, iu0), min(nu, iu1)):
+                            ul = max(u_min, u_bnd[iu])
+                            ur = min(u_max, u_bnd[iu + 1])
+                            if ur > ul:
+                                sino[ia, iv, iu] += (
+                                    val * ray_norm *
+                                    (ur - ul) / du *
+                                    (vr - vl) / dv
+                                )
+
+                    z_l = z_r
+
+                py_l = py_r
+                oy_l = oy_r
+
+            px_l = px_r
+            ox_l = ox_r
+
+    return sino
