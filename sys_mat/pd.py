@@ -299,7 +299,11 @@ def pd_fp_cone_3d(img, ang_arr,
                     v_max = max(v0, v1)
 
                     # Footprint stretch (separable)
-                    ray_norm = ray_norm_xy / (abs(z_c) + denom / DSD)
+                    #ray_norm = ray_norm_xy / (abs(z_c) + denom / DSD)
+
+                    ray_norm_z = denom/np.sqrt(denom**2 +z_c**2)
+                    ray_norm = ray_norm_xy * ray_norm_z
+
 
                     iu0 = np.searchsorted(u_bnd, u_min, side="right") - 1
                     iu1 = np.searchsorted(u_bnd, u_max, side="left")
