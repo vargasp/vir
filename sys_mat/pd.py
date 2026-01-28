@@ -306,7 +306,8 @@ def pd_fp_cone_3d(img, ang_arr,
 
                     pix_scale = 1.0 / (abs(s) + abs(c))
                     p_c = px_c + py_c
-                    ray_norm_xy = np.cos(np.arctan(p_c / (DSO - (ox_c + oy_c))))
+                    #ray_norm_xy = np.cos(np.arctan(p_c / (DSO - (ox_c + oy_c))))
+                    ray_norm_xy = 1.0
                     ray_norm = ray_norm_xy * ray_norm_z*pix_scale
 
                     iu0 = np.searchsorted(u_bnd, u_min, side="right") - 1
