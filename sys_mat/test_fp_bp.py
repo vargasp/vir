@@ -47,10 +47,9 @@ u_arr = du*(np.arange(nu) - nu/2.0 + 0.5 + su)
 
 #Test image
 img3d = np.zeros((nx, ny, nz), dtype=np.float32)
-#img[15:17, 15:17] = 1.0  # center impulse
-img3d[10:22, 10:22, 10:22] = 1.0  # center impulse
-#img[3:6, 3:6] = 1.0  # center impulse
-#img[12:14, 8:10] = 1.0  # center impulse
+img3d[11:13, 13:15,15:17] = 1.0  # center impulse
+#img3d[10:22, 10:22, 10:22] = 1.0  # center impulse
+#img3d[3:6, 3:6,3:6] = 1.0  # center impulse
 #img3d[:] = 1.0  # center impulse
 
 #img[30:, 10:22] = 1.0  # center impulse
@@ -126,7 +125,7 @@ for i, (sino,title) in enumerate(zip(sinos,titles)):
     plt.title(title)
     if i % 4 ==0: 
         plt.ylabel("Angle")
-    if i > 3:
+    if i > 7:
         plt.xlabel("Detector Bin")
 plt.show()
 

@@ -283,8 +283,8 @@ def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm, p_orth_arr_trm,
             iv = np.searchsorted(v_bnd_arr[1:],z_bnd_prj_v_l,side="right")
             iv_end = np.searchsorted(v_bnd_arr, z_bnd_prj_v_r, side="left")
 
-            img_vec = vol[:, iz, io]
-
+            img_vec = vol[:, io, iz]
+            
             # ---- sweep overlapping v bins ----
             for iv in range(iv, min(iv_end, nv)):
 
@@ -300,6 +300,32 @@ def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm, p_orth_arr_trm,
                 overlap_v = overlap_v_r - overlap_v_l
                 p_bnd_prj_u_l = p_bnd_arr_prj_u[0]
                 p_bnd_prj_u_r = p_bnd_arr_prj_u[1]
+                
+                
+                
+                """
+                # z slab center (or edges)
+                z_l = z_bnd_arr[iz]
+                z_r = z_bnd_arr[iz+1]
+                
+                # project both slab faces
+                p_u_l = proj_img2det_fan(
+                    p_drv_bnd_arr_trm, p_orth_trm,
+                    o_drv_bnd_arr_trm, o_orth_trm + z_l,
+                    DSO, DSD
+                )
+                
+                p_u_r = proj_img2det_fan(
+                    p_drv_bnd_arr_trm, p_orth_trm,
+                    o_drv_bnd_arr_trm, o_orth_trm + z_r,
+                    DSO, DSD
+                )
+                
+                # take union of u-intervals
+                p_bnd_prj_u_l = min(p_u_l[0], p_u_l[1], p_u_r[0], p_u_r[1])
+                p_bnd_prj_u_r = max(p_u_l[0], p_u_l[1], p_u_r[0], p_u_r[1])
+                """
+                                
                 
                 
                 u_bnd_l = u_bnd_arr[0]
@@ -612,7 +638,8 @@ def _dd_fp_fan_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
     if p_drv_bnd_arr_trm[1] < p_drv_bnd_arr_trm[0]:
         p_drv_bnd_arr_trm = p_drv_bnd_arr_trm[::-1]
         o_drv_bnd_arr_trm = o_drv_bnd_arr_trm[::-1]
-        img_trm = img_trm[::-1, :]
+        
+        img_trm = img_trm[::-1,...]
 
 
     # Fan-beam  correction:
@@ -1081,7 +1108,6 @@ def _dd_bp_par_sweep(img_out, sino, p_drv_bnd_arr_trm, p_orth_arr_trm, u_bnd_arr
             else:
                 iu += 1
                 
-
 
 
 
