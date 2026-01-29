@@ -983,6 +983,8 @@ def dd_fp_cone_3d(
             cos_ang, sin_ang,
             DSO, DSD)
 
+        ray_scl = np.ones(p1_bnd_arr.size)
+            
         _dd_fp_cone_sweep(
             sino, img_trm,
             p1_bnd_arr, p2_arr,

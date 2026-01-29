@@ -57,51 +57,48 @@ sino4c = pd.pd_fp_cone_3d(img3d, ang_arr, nu, nv, DSO, DSD, du=du, dv=dv,su=su, 
 sinos = [sino1c,sino2c,sino3c,sino4c]
 
 
-
 plt.figure(figsize=(16,8))
 fractions = [0, 1/4, 2/4, 3/4]
 for a, fraction in enumerate(fractions):
     plt.subplot(2,len(fractions),a+1)
-    plt.plot(sino1c[a*2,:,16].clip(8), label='DD')
-    plt.plot(sino2c[a*2,:,16].clip(8), label='AW')
-    plt.plot(sino3c[a*2,:,16].clip(8), label='JO')
-    plt.plot(sino4c[a*2,:,16].clip(8), label='PD')
+    plt.plot(sino1c[a*2,:,16].clip(9.95), label='DD')
+    plt.plot(sino2c[a*2,:,16].clip(9.95), label='AW')
+    plt.plot(sino3c[a*2,:,16].clip(9.95), label='JO')
+    plt.plot(sino4c[a*2,:,16].clip(9.95), label='PD')
     plt.legend()
-    plt.title("Angle "+ str(int(fraction*360))+" profile")
+    plt.title("u det: Angle "+ str(int(fraction*360))+" profile")
 
-fractions = [1/8, 3/8, 5/8, 7/8]
 for a, fraction in enumerate(fractions):
     plt.subplot(2,len(fractions),a+5)
-    plt.plot(sino1c[a*2+1,:,16], label='DD')
-    plt.plot(sino2c[a*2+1,:,16], label='AW')
-    plt.plot(sino3c[a*2+1,:,16], label='JO')
-    plt.plot(sino4c[a*2+1,:,16], label='PD')
+    plt.plot(sino1c[a*2,16,:].clip(9.95), label='DD')
+    plt.plot(sino2c[a*2,16,:].clip(9.95), label='AW')
+    plt.plot(sino3c[a*2,16,:].clip(9.95), label='JO')
+    plt.plot(sino4c[a*2,16,:].clip(9.95), label='PD')
     plt.legend()
-    plt.title("Angle "+ str(int(fraction*360))+" profile")
+    plt.title("v det: Angle "+ str(int(fraction*360))+" profile")
 plt.show()
 
 
 
 plt.figure(figsize=(16,8))
-fractions = [0, 1/4, 2/4, 3/4]
-for a, fraction in enumerate(fractions):
-    plt.subplot(2,len(fractions),a+1)
-    plt.plot(sino1c[a*2,16,:].clip(8), label='DD')
-    plt.plot(sino2c[a*2,16,:].clip(8), label='AW')
-    plt.plot(sino3c[a*2,16,:].clip(8), label='JO')
-    plt.plot(sino4c[a*2,16,:].clip(8), label='PD')
-    plt.legend()
-    plt.title("Angle "+ str(int(fraction*360))+" profile")
-
 fractions = [1/8, 3/8, 5/8, 7/8]
 for a, fraction in enumerate(fractions):
-    plt.subplot(2,len(fractions),a+5)
-    plt.plot(sino1c[a*2+1,16,:], label='DD')
-    plt.plot(sino2c[a*2+1,16,:], label='AW')
-    plt.plot(sino3c[a*2+1,16,:], label='JO')
-    plt.plot(sino4c[a*2+1,16,:], label='PD')
+    plt.subplot(2,len(fractions),a+1)
+    plt.plot(sino1c[a*2+1,12:20,16].clip(12), label='DD')
+    plt.plot(sino2c[a*2+1,12:20,16].clip(12), label='AW')
+    plt.plot(sino3c[a*2+1,12:20,16].clip(12), label='JO')
+    plt.plot(sino4c[a*2+1,12:20,16].clip(12), label='PD')
     plt.legend()
-    plt.title("Angle "+ str(int(fraction*360))+" profile")
+    plt.title("u det: Angle "+ str(int(fraction*360))+" profile")
+
+for a, fraction in enumerate(fractions):
+    plt.subplot(2,len(fractions),a+5)
+    plt.plot(sino1c[a*2+1,16,:].clip(12), label='DD')
+    plt.plot(sino2c[a*2+1,16,:].clip(12), label='AW')
+    plt.plot(sino3c[a*2+1,16,:].clip(12), label='JO')
+    plt.plot(sino4c[a*2+1,16,:].clip(12), label='PD')
+    plt.legend()
+    plt.title("v det: Angle "+ str(int(fraction*360))+" profile")
 plt.show()
 
 
@@ -112,6 +109,19 @@ plt.show()
 
 
 
+
+
+titles = ["DD Conebeam","SD Conebeam","JO Conebeam","PD Conebeam"]
+fractions = [0, 1/4, 2/4, 3/4]
+plt.figure(figsize=(16,16))
+for i, (sino,title) in enumerate(zip(sinos,titles)):
+    for a in range(4):
+        plt.subplot(4,4,i*4+a+1)
+        plt.imshow(sino[a*2,:,:].T, cmap='gray', aspect='auto', origin='lower')
+        
+        title2 = " Angle "+ str(int(fractions[a]*360))
+        plt.title(titles[i]+title2)
+plt.show()
 
 
 
