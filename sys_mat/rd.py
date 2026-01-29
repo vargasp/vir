@@ -178,7 +178,7 @@ def _fp_2d_traverse_grid(img,sino,ia,iu,t_entry,t_exit,tx_next,ty_next,
     sino[ia, iu] = acc
     
     
-def _aw_fp_traverse_3d(img,sino,ia,iu,iv,t_entry,t_exit,
+def _aw_fp_traverse_3d(img,t_entry,t_exit,
     ix, iy, iz,
     tx_next, ty_next, tz_next,
     tx_step, ty_step, tz_step,
@@ -215,7 +215,7 @@ def _aw_fp_traverse_3d(img,sino,ia,iu,iv,t_entry,t_exit,
             tz_next += tz_step
             iz += iz_dir
 
-    sino[ia, iv, iu] = acc
+    return acc
 
 def _joseph_fp_2d(img,d_pix,sino,ia,iu,ray_x_hat,ray_y_hat,ray_x_org,ray_y_org,
            x0,y0,t_enter,t_exit,step):
@@ -720,8 +720,8 @@ def aw_fp_cone_3d(img, ang_arr,
                     iz_dir, tz_step, tz_next = _fp_step_init(ray_z_org, iz_entry, ray_z_hat, abs(ray_z_hat), img_bnd_z_min, d_pix)
 
 
-                    _aw_fp_traverse_3d(
-                        img, sino, ia, iu, iv,
+                    sino[ia, iv, iu] = _aw_fp_traverse_3d(
+                        img,
                         t_entry, t_exit,
                         ix_entry, iy_entry, iz_entry,
                         tx_next, ty_next, tz_next,
@@ -729,6 +729,29 @@ def aw_fp_cone_3d(img, ang_arr,
                         ix_dir, iy_dir, iz_dir,
                         nx, ny, nz
                     )
+                    
+                    # Footprint stretch (separable)
+                    #ray_norm = ray_norm_xy / (abs(z_c) + denom / DSD)
+                    #denom = DSO - (ox_c + oy_c)
+                    #p_c = px_c + py_c
+
+                    #ray_norm_xy = np.cos(np.arctan(p_c / (DSO - (ox_c + oy_c))))
+
+                    #ray_norm_z = denom/np.sqrt(denom**2 +z_c**2)
+                    #ray_norm_xy = denom/np.sqrt(denom**2 +p_c**2)
+
+                    #ray_norm = ray_norm_xy * ray_norm_z
+
+                    #pix_scale = 1.0 / (abs(s) + abs(c))
+                    
+                    pix_scale = 1.0
+                    ray_norm_xy = 1.0
+                    ray_norm_z = 1.0
+                    
+                    ray_norm = pix_scale/ray_norm_xy / ray_norm_z
+                    
+                    sino[ia, iv, iu]*ray_norm
+                    
 
     return sino
 

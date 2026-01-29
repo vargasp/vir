@@ -301,7 +301,7 @@ def pd_fp_cone_3d(img, ang_arr,
                     # Footprint stretch (separable)
                     #ray_norm = ray_norm_xy / (abs(z_c) + denom / DSD)
                     
-                    p_c = px_c + py_c
+                    #p_c = px_c + py_c
 
                     #ray_norm_xy = np.cos(np.arctan(p_c / (DSO - (ox_c + oy_c))))
 
