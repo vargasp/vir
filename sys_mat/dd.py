@@ -651,97 +651,6 @@ def _dd_fp_fan_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
 
 def _dd_fp_cone_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
                   cos_ang, sin_ang, DSO, DSD):
-    
-    """
-    Prepare distance-driven projection geometry for a single projection angle.
-
-    This function selects a numerically well-conditioned driving axis (x or y),
-    projects pixel boundaries onto the detector coordinate, and returns a
-    pre-arranged image view such that axis 0 corresponds to the driving
-    (sweep) axis required by the distance-driven kernel.
-
-    Two image layouts are accepted:
-        - `img_x`: image stored in canonical (x-driven) layout
-        - `img_y`: pre-transposed image (y-driven layout)
-
-    This avoids performing a transpose inside the projection loop and ensures
-    cache-friendly, stride-1 access in the hot sweep kernel.
-
-    The function supports both parallel-beam and fan-beam geometries and
-    guarantees monotonic projected pixel boundaries on return.
-
-    Geometry conventions
-    --------------------
-    - The detector coordinate `u` is linear and centered at zero.
-    - Projection angle is defined by (cos(theta), sin(theta)) = (c_ang, s_ang).
-    - Pixel grids are centered at the image origin.
-    - Pixel boundary projections along the driving axis are monotonic after
-      an optional flip, which is required by the sweep kernel.
-
-    Driving axis selection
-    ----------------------
-    The driving (sweep) axis is chosen to maximize numerical conditioning:
-        - X-driven if |sin(theta)| >= |cos(theta)|
-        - Y-driven otherwise
-
-    Fan-beam handling
-    -----------------
-    When `is_fan=True`, a per-orthogonal-pixel magnification correction is
-    applied to approximate true ray path lengths. The correction is inverted
-    here so that the sweep kernel uses multiplication instead of division in
-    its hot loop.
-
-
-    Parameters
-    ----------
-    img_x : ndarray
-        Input image in canonical orientation, used when the projection is
-        X-driven (axis 0 corresponds to X).
-    img_y : ndarray
-        Pre-transposed view of the input image, used when the projection is
-        Y-driven (axis 0 corresponds to Y).
-    x_bnd_arr, y_bnd_arr : ndarray
-        Pixel boundary coordinates along X and Y, respectively.
-        Shape is (n + 1,) for n pixels.
-    x_arr, y_arr : ndarray
-        Pixel center coordinates along X and Y, respectively.
-        Shape is (n,).
-    cos_ang, sin_ang : float
-        Cosine and sine of the projection angle.
-    is_fan : bool, optional
-        If True, apply fan-beam magnification correction. Default is False.
-    DSO : float, optional
-        Source-to-origin distance (fan-beam only).
-    DSD : float, optional
-        Source-to-detector distance (fan-beam only).
-
-    Returns
-    -------
-    img_trm : ndarray
-        Image view selected from `img_c` or `img_f`, possibly flipped so that
-        axis 0 corresponds to the driving axis and pixel boundaries are
-        monotonic in detector space.
-    p_bnd_arr : ndarray
-        Projected pixel boundary coordinates along the driving axis in
-        detector space. Shape is (np + 1,).
-    o_arr : ndarray
-        Orthogonal pixel-center offsets projected onto the detector
-        coordinate. Shape is (no,).
-    rays_scale : ndarray
-        Per-orthogonal-pixel scaling factors applied in the sweep kernel.
-        For parallel-beam geometry this is constant; for fan-beam geometry
-        it includes magnification correction.
-
-    Notes
-    -----
-    - This function performs no allocations in the hot sweep loop.
-    - Returned arrays are views whenever possible.
-    - Monotonicity of `u_pixs_drive_bnd` is guaranteed on return.
-    - No angular fan-beam weighting is applied here; only geometric scaling
-      along the detector coordinate is handled.
-    """
-    
-    
 
     # Determine driving axis
     if abs(sin_ang) >= abs(cos_ang):
@@ -795,7 +704,8 @@ def _dd_fp_cone_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
     # Fan-beam  correction:
     r = np.sqrt((DSO - o_orth_arr_trm)**2 + p_orth_arr_trm**2)
     rays_scale = r / ((DSO - o_orth_arr_trm) * ray_scale)
-      
+    
+    rays_scale = np.ones(p_drv_bnd_arr_trm.size) * (abs(sin_ang) + abs(cos_ang))
 
     return img_trm, p_drv_bnd_arr_trm, p_orth_arr_trm, o_drv_bnd_arr_trm, o_orth_arr_trm, rays_scale
 
@@ -1132,10 +1042,7 @@ def dd_fp_cone_3d(
             x_bnd_arr, y_bnd_arr,
             x_arr, y_arr,
             cos_ang, sin_ang,
-            DSO, DSD)
-
-        ray_scl = np.ones(p1_bnd_arr.size)
-        
+            DSO, DSD)      
         
         _dd_fp_cone_sweep(
             sino, img_trm,
