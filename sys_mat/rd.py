@@ -753,7 +753,7 @@ def aw_fp_cone_3d(img, ang_arr,
                     ray_norm = pix_scale/ray_norm_xy / ray_norm_z
                     
                 ray_scale = DSD/np.sqrt(DSD**2 + u**2 + v**2)
-                ray_scale = DSD**2/ pow(DSD*DSD + u*u + v*v, 1.5);
+                #ray_scale = DSD**2/ pow(DSD*DSD + u*u + v*v, 1.5);
                 sino[ia, iu, iv]= sino[ia, iu, iv]*ray_scale
                     
 

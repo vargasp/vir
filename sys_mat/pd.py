@@ -303,20 +303,20 @@ def pd_fp_cone_3d(img, ang_arr,
                     
                     p_c = px_c + py_c
 
-                    ray_norm_xy = np.cos(np.arctan(p_c / (DSO - (ox_c + oy_c))))
+                    #ray_norm_xy = np.cos(np.arctan(p_c / (DSO - (ox_c + oy_c))))
 
                     #ray_norm_z = denom/np.sqrt(denom**2 +z_c**2)
                     #ray_norm_xy = denom/np.sqrt(denom**2 +p_c**2)
 
                     #ray_norm = ray_norm_xy * ray_norm_z
 
-                    pix_scale = 1.0 / (abs(s) + abs(c))
-                    
+                    #pix_scale = 1.0 / (abs(s) + abs(c))
 
-                    ray_norm_xy = 1.0
-                    ray_norm_z = 1.0
+
+                    #ray_norm_xy = 1.0
+                    #ray_norm_z = 1.0
                     
-                    ray_norm = pix_scale/ray_norm_xy / ray_norm_z
+                    #ray_norm = pix_scale/ray_norm_xy / ray_norm_z
 
                     iu0 = np.searchsorted(u_bnd, u_min, side="right") - 1
                     iu1 = np.searchsorted(u_bnd, u_max, side="left")
@@ -333,10 +333,11 @@ def pd_fp_cone_3d(img, ang_arr,
                             ul = max(u_min, u_bnd[iu])
                             ur = min(u_max, u_bnd[iu + 1])
                             if ur > ul:
-                                ray_norm = DSD / np.sqrt(DSD**2 + ((ur+ul)/2)**2 + ((vr+vl)/2)**2) 
+                                #ray_norm = DSD / np.sqrt(DSD**2 + ((ur+ul)/2)**2 + ((vr+vl)/2)**2) 
+                                ray_norm = 1
 
                                 
-                                sino[ia, iv, iu] += (
+                                sino[ia, iu, iv] += (
                                     val * ray_norm *
                                     (ur - ul) / du *
                                     (vr - vl) / dv
