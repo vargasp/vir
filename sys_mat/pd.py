@@ -317,7 +317,8 @@ def pd_fp_cone_3d(img, ang_arr,
                     #ray_norm_z = 1.0
                     
                     #ray_norm = pix_scale/ray_norm_xy / ray_norm_z
-                    ray_norm = pix_scale
+                    ray_norm = pix_scale * np.cos(gamma)
+                    ray_norm = pix_scale 
 
                     iu0 = np.searchsorted(u_bnd, u_min, side="right") - 1
                     iu1 = np.searchsorted(u_bnd, u_max, side="left")
