@@ -256,8 +256,7 @@ def _joseph_fp_2d(img,d_pix,sino,ia,iu,ray_x_hat,ray_y_hat,ray_x_org,ray_y_org,
         t += step
 
 
-def _joseph_fp_3d(img, sino,
-    ia, iu, iv,
+def _joseph_fp_3d(img,
     ray_x_org, ray_y_org, ray_z_org,
     ray_x_hat, ray_y_hat, ray_z_hat,
     x0, y0, z0,
@@ -267,6 +266,7 @@ def _joseph_fp_3d(img, sino,
 ):
     nx, ny, nz = img.shape
 
+    acc = 0.0 
     t = t_enter
     while t <= t_exit:
         x = ray_x_org + t*ray_x_hat
@@ -311,8 +311,10 @@ def _joseph_fp_3d(img, sino,
             c111*dx*dy*dz
         )
 
-        sino[ia, iv, iu] += val * step
+        acc += val * step
         t += step
+    
+    return acc
 
 
 
@@ -706,7 +708,7 @@ def aw_fp_cone_3d(img, ang_arr,
                     continue
 
                 if joseph:
-                    _joseph_fp_3d(img,sino,ia,iu,iv,
+                    sino[ia, iu, iv] =  _joseph_fp_3d(img,
                                       ray_x_org, ray_y_org, ray_z_org,ray_x_hat, ray_y_hat, ray_z_hat,
                         x0, y0, z0,d_pix,t_entry, t_exit,step=0.5)
                 else:
@@ -720,7 +722,7 @@ def aw_fp_cone_3d(img, ang_arr,
                     iz_dir, tz_step, tz_next = _fp_step_init(ray_z_org, iz_entry, ray_z_hat, abs(ray_z_hat), img_bnd_z_min, d_pix)
 
 
-                    sino[ia, iv, iu] = _aw_fp_traverse_3d(
+                    sino[ia, iu, iv] = _aw_fp_traverse_3d(
                         img,
                         t_entry, t_exit,
                         ix_entry, iy_entry, iz_entry,
@@ -750,7 +752,9 @@ def aw_fp_cone_3d(img, ang_arr,
                     
                     ray_norm = pix_scale/ray_norm_xy / ray_norm_z
                     
-                    sino[ia, iv, iu]*ray_norm
+                ray_scale = DSD/np.sqrt(DSD**2 + u**2 + v**2)
+                ray_scale = DSD**2/ pow(DSD*DSD + u*u + v*v, 1.5);
+                sino[ia, iu, iv]= sino[ia, iu, iv]*ray_scale
                     
 
     return sino

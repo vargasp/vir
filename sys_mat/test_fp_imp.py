@@ -55,9 +55,9 @@ img3d[x, y, z] = 1.0  # center impulse
 
 
 sino1c = dd.dd_fp_cone_3d(img3d, ang_arr, nu, nv, DSO, DSD, du=du, dv=dv,su=su, sv=sv, d_pix=1.0)
-sino2c = rd.aw_fp_cone_3d(img3d, ang_arr, nu, nv, DSO, DSD, du=du, d_pix=d_pix).transpose(0,2,1)
-sino3c = rd.aw_fp_cone_3d(img3d, ang_arr, nu, nv, DSO, DSD, du=du, d_pix=d_pix,joseph=True).transpose(0,2,1)
-sino4c = pd.pd_fp_cone_3d(img3d, ang_arr, nu, nv, DSO, DSD, du=du, dv=dv,su=su, sv=sv,d_pix=1.0).transpose(0,2,1)
+sino2c = rd.aw_fp_cone_3d(img3d, ang_arr, nu, nv, DSO, DSD, du=du, d_pix=d_pix)
+sino3c = rd.aw_fp_cone_3d(img3d, ang_arr, nu, nv, DSO, DSD, du=du, d_pix=d_pix,joseph=True)
+sino4c = pd.pd_fp_cone_3d(img3d, ang_arr, nu, nv, DSO, DSD, du=du, dv=dv,su=su, sv=sv,d_pix=1.0)
 sinos = [sino1c,sino2c,sino3c,sino4c]
 
 plt.figure(figsize=(20,8))

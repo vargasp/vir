@@ -56,9 +56,9 @@ img3d[59:69, 39:89, 39:89] = 1.0  # center impulse
 #img3d[10:22, 10:22, 10:22] = 1.0  # center impulse
 
 sino1c = dd.dd_fp_cone_3d(img3d, ang_arr, nu, nv, DSO, DSD, du=du, dv=dv,su=su, sv=sv, d_pix=d_pix)
-sino2c = rd.aw_fp_cone_3d(img3d, ang_arr, nu, nv, DSO, DSD, du=du, d_pix=d_pix).transpose(0,2,1)
-sino3c = rd.aw_fp_cone_3d(img3d, ang_arr, nu, ny, DSO, DSD, du=du, d_pix=d_pix,joseph=True).transpose(0,2,1)
-sino4c = pd.pd_fp_cone_3d(img3d, ang_arr, nu, nv, DSO, DSD, du=du, dv=dv,su=su, sv=sv,d_pix=d_pix).transpose(0,2,1)
+sino2c = rd.aw_fp_cone_3d(img3d, ang_arr, nu, nv, DSO, DSD, du=du, d_pix=d_pix)
+sino3c = rd.aw_fp_cone_3d(img3d, ang_arr, nu, nv, DSO, DSD, du=du, d_pix=d_pix,joseph=True)
+sino4c = pd.pd_fp_cone_3d(img3d, ang_arr, nu, nv, DSO, DSD, du=du, dv=dv,su=su, sv=sv,d_pix=d_pix)
 
 
 
@@ -86,7 +86,7 @@ plt.plot(sino2c[1,:,int(nz/2)], label='AW')
 plt.plot(sino3c[1,:,int(nz/2)], label='JO')
 plt.plot(sino4c[1,:,int(nz/2)], label='PD')
 plt.legend()
-plt.title("u det: Angle 45 profile")
+plt.title("udet: Angle 45 profile")
 
 
 plt.subplot(2,2,4)
