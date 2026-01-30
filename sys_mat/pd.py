@@ -312,7 +312,7 @@ def pd_fp_cone_3d(img, ang_arr,
 
                     pix_scale = 1.0 / (abs(s) + abs(c))
                     
-                    
+
                     ray_norm_xy = 1.0
                     ray_norm_z = 1.0
                     
@@ -333,6 +333,9 @@ def pd_fp_cone_3d(img, ang_arr,
                             ul = max(u_min, u_bnd[iu])
                             ur = min(u_max, u_bnd[iu + 1])
                             if ur > ul:
+                                ray_norm = DSD / np.sqrt(DSD**2 + ((ur+ul)/2)**2 + ((vr+vl)/2)**2) 
+
+                                
                                 sino[ia, iv, iu] += (
                                     val * ray_norm *
                                     (ur - ul) / du *
@@ -347,4 +350,4 @@ def pd_fp_cone_3d(img, ang_arr,
             px_l = px_r
             ox_l = ox_r
 
-    return sino
+    return sino*d_pix
