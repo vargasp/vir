@@ -178,7 +178,7 @@ def _fp_2d_traverse_grid(img,sino,ia,iu,t_entry,t_exit,tx_next,ty_next,
     sino[ia, iu] = acc
     
     
-def _aw_fp_traverse_3d(img,sino,ia,iu,iv,t_entry,t_exit,
+def _aw_fp_traverse_3d(img,t_entry,t_exit,
     ix, iy, iz,
     tx_next, ty_next, tz_next,
     tx_step, ty_step, tz_step,
@@ -215,7 +215,7 @@ def _aw_fp_traverse_3d(img,sino,ia,iu,iv,t_entry,t_exit,
             tz_next += tz_step
             iz += iz_dir
 
-    sino[ia, iv, iu] = acc
+    return acc
 
 def _joseph_fp_2d(img,d_pix,sino,ia,iu,ray_x_hat,ray_y_hat,ray_x_org,ray_y_org,
            x0,y0,t_enter,t_exit,step):
@@ -256,8 +256,7 @@ def _joseph_fp_2d(img,d_pix,sino,ia,iu,ray_x_hat,ray_y_hat,ray_x_org,ray_y_org,
         t += step
 
 
-def _joseph_fp_3d(img, sino,
-    ia, iu, iv,
+def _joseph_fp_3d(img,
     ray_x_org, ray_y_org, ray_z_org,
     ray_x_hat, ray_y_hat, ray_z_hat,
     x0, y0, z0,
@@ -267,6 +266,7 @@ def _joseph_fp_3d(img, sino,
 ):
     nx, ny, nz = img.shape
 
+    acc = 0.0
     t = t_enter
     while t <= t_exit:
         x = ray_x_org + t*ray_x_hat
@@ -311,8 +311,10 @@ def _joseph_fp_3d(img, sino,
             c111*dx*dy*dz
         )
 
-        sino[ia, iv, iu] += val * step
+        acc += val * step
         t += step
+        
+    return acc
 
 
 
@@ -706,7 +708,7 @@ def aw_fp_cone_3d(img, ang_arr,
                     continue
 
                 if joseph:
-                    _joseph_fp_3d(img,sino,ia,iu,iv,
+                    sino[ia,iv,iu] = _joseph_fp_3d(img,
                                       ray_x_org, ray_y_org, ray_z_org,ray_x_hat, ray_y_hat, ray_z_hat,
                         x0, y0, z0,d_pix,t_entry, t_exit,step=0.5)
                 else:
@@ -720,8 +722,8 @@ def aw_fp_cone_3d(img, ang_arr,
                     iz_dir, tz_step, tz_next = _fp_step_init(ray_z_org, iz_entry, ray_z_hat, abs(ray_z_hat), img_bnd_z_min, d_pix)
 
 
-                    _aw_fp_traverse_3d(
-                        img, sino, ia, iu, iv,
+                    sino[ia, iv, iu] = _aw_fp_traverse_3d(
+                        img,
                         t_entry, t_exit,
                         ix_entry, iy_entry, iz_entry,
                         tx_next, ty_next, tz_next,
@@ -729,6 +731,12 @@ def aw_fp_cone_3d(img, ang_arr,
                         ix_dir, iy_dir, iz_dir,
                         nx, ny, nz
                     )
+                    
+                ray_scale = DSD / np.sqrt(DSD**2 + u**2 + v**2) 
+                #ray_scale = 1.0
+                sino[ia,iv,iu] = sino[ia,iv,iu]*ray_scale
+
+
 
     return sino
 
