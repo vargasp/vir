@@ -28,8 +28,8 @@ DSO = 1e8
 DSD = 1e8 + max(nx,ny)/2
 
 #Fan Beam Geometry - Parallel
-DSO = max(nx,ny)*np.sqrt(2)/2 
-DSD = DSO*2
+#DSO = max(nx,ny)*np.sqrt(2)/2 
+#DSD = DSO*2
 
 
 
@@ -82,11 +82,10 @@ for ia, ang in enumerate(ang_arr):
 
 
 
-sino1c = dd.dd_fp_cone_3d(img3d, ang_arr, nu, nv,DSO, DSD, du=1.0, dv=1.0,su=0.0, sv=0.0, d_pix=1.0)
-
-sino2c = rd.aw_fp_cone_3d(img3d, ang_arr, nu, nv, DSO, DSD, du=du, d_pix=d_pix).transpose(0,2,1)
-sino3c = rd.aw_fp_cone_3d(img3d, ang_arr, nu, ny, DSO, DSD, du=du, d_pix=d_pix,joseph=True).transpose(0,2,1)
-sino4c = pd.pd_fp_cone_3d(img3d, ang_arr, nu, nv, DSO, DSD, du=1.0, dv=1.0,su=0.0, sv=0.0,d_pix=1.0).transpose(0,2,1)
+sino1c = dd.dd_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=1.0, dv=1.0,su=0.0, sv=0.0, d_pix=1.0)
+sino2c = rd.aw_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du, d_pix=d_pix)
+sino3c = rd.aw_fp_cone_3d(img3d,ang_arr,nu,ny,DSO,DSD,du=du, d_pix=d_pix,joseph=True)
+sino4c = pd.pd_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=1.0, dv=1.0,su=0.0,sv=0.0,d_pix=1.0)
 
 
 
@@ -106,7 +105,6 @@ sino4f = pd.pd_fp_fan_2d(img2d, ang_arr, nu, DSO, DSD, du=du, su=su, d_pix=d_pix
 
 
 
-sino1c = dd.dd_fp_cone_3d(img3d, ang_arr, nu, nv,DSO, DSD, du=1.0, dv=1.0,su=0.0, sv=0.0, d_pix=1.0)
 
 
 sinos = [sino1p,sino2p,sino3p,sino4p,

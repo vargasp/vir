@@ -284,41 +284,46 @@ def pd_fp_cone_3d(img, ang_arr,
 
                     z_c = 0.5 * (z_l + z_r)
 
-                    denom = DSO - (ox_c + oy_c)
-                    u0 = DSD * (px_l + py_l) / denom
-                    u1 = DSD * (px_r + py_l) / denom
-                    u2 = DSD * (px_l + py_r) / denom
-                    u3 = DSD * (px_r + py_r) / denom
+                    denom = DSO - ox_c
+                    
+                    # Detector center coordinate (tangential direction)
+                    u_c = DSD * py_c / denom
+                    
+                    # In-plane cone angle
+                    gamma = np.arctan2(py_c, denom)
+                    
+                    # Ray direction (XY plane)
+                    # Ray direction from source through voxel center (XY)
+                    dx = px_c
+                    dy = py_c
+                    
+                    norm = np.sqrt(dx*dx + dy*dy + denom*denom)
+                    
+                    rx = dx / norm
+                    ry = dy / norm
 
+                    
+                    # 2D ray normalization (separable footprint)
+                    ray_norm_xy = 1.0 / (abs(rx) + abs(ry))
+                    
+                    # Detector footprint corners (ONLY y contributes to u)
+                    u0 = DSD * py_l / denom
+                    u1 = DSD * py_l / denom
+                    u2 = DSD * py_r / denom
+                    u3 = DSD * py_r / denom
+                    
+                    # Z footprint (unchanged)
                     v0 = DSD * z_l / denom
                     v1 = DSD * z_r / denom
-
+                    
                     u_min = min(u0, u1, u2, u3)
                     u_max = max(u0, u1, u2, u3)
                     v_min = min(v0, v1)
                     v_max = max(v0, v1)
-
-                    # Footprint stretch (separable)
-                    #ray_norm = ray_norm_xy / (abs(z_c) + denom / DSD)
                     
-                    p_c = px_c + py_c
+                    pix_scale =  (abs(c) + abs(s))
+                    ray_norm = pix_scale
 
-                    #ray_norm_xy = np.cos(np.arctan(p_c / (DSO - (ox_c + oy_c))))
-
-                    #ray_norm_z = denom/np.sqrt(denom**2 +z_c**2)
-                    #ray_norm_xy = denom/np.sqrt(denom**2 +p_c**2)
-
-                    #ray_norm = ray_norm_xy * ray_norm_z
-
-                    pix_scale = 1.0 / (abs(s) + abs(c))
-
-
-                    #ray_norm_xy = 1.0
-                    #ray_norm_z = 1.0
-                    
-                    #ray_norm = pix_scale/ray_norm_xy / ray_norm_z
-                    ray_norm = pix_scale * np.cos(gamma)
-                    ray_norm = pix_scale 
 
                     iu0 = np.searchsorted(u_bnd, u_min, side="right") - 1
                     iu1 = np.searchsorted(u_bnd, u_max, side="left")

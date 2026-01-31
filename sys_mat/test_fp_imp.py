@@ -44,7 +44,7 @@ sv = 0.0
 x = 13
 y = 16
 z = 23
-ang_arr = np.linspace(0, np.pi*2, na, endpoint=False)#, dtype=np.float32)
+ang_arr = np.linspace(0, np.pi/2, na, endpoint=False)#, dtype=np.float32)
 u_arr = du*(np.arange(nu) - nu/2.0 + 0.5 + su)
 
 #Test image
