@@ -49,7 +49,7 @@ u_arr = du*(np.arange(nu) - nu/2.0 + 0.5 + su)
 img3d = np.zeros((nx, ny, nz), dtype=np.float32)
 #img3d[11:13, 13:15,15:17] = 1.0  # center impulse
 #img3d[10:22, 10:22, 10:22] = 1.0  # center impulse
-img3d[8:10, 8:10,15:17] = 1.0  # center impulse
+img3d[10:12, 12:14,15:17] = 1.0  # center impulse
 #img3d[:] = 1.0  # center impulse
 #img3d[11:21, 11:21, 11:21] = 1.0  # center impulse
 
