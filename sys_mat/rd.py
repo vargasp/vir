@@ -138,8 +138,8 @@ def _fp_step_init(r0, ir, dr, adr, r_min, d_pix):
                     
 
 
-def _fp_2d_traverse_grid(img,sino,ia,iu,t_entry,t_exit,tx_next,ty_next,
-                         tx_step,ty_step,ix_dir,iy_dir,ix,iy,nx,ny,d_pix):
+def _aw_fp_traverse_2d(img,t_entry,t_exit,tx_next,ty_next,tx_step,ty_step,
+                       ix_dir,iy_dir,ix,iy,nx,ny,d_pix):
     
     # Ensure first crossing occurs after entry point
     tx_next = max(tx_next, t_entry)
@@ -174,17 +174,13 @@ def _fp_2d_traverse_grid(img,sino,ia,iu,t_entry,t_exit,tx_next,ty_next,
             ty_next += ty_step
             iy += iy_dir
 
-    # Store final line integral
-    sino[ia, iu] = acc
+    return acc
+
     
-    
-def _aw_fp_traverse_3d(img,t_entry,t_exit,
-    ix, iy, iz,
-    tx_next, ty_next, tz_next,
+def _aw_fp_traverse_3d(img,t_entry,t_exit,tx_next, ty_next, tz_next,
     tx_step, ty_step, tz_step,
-    ix_dir, iy_dir, iz_dir,
-    nx, ny, nz
-):
+    ix, iy, iz,ix_dir, iy_dir, iz_dir,nx, ny, nz):
+    
     t = t_entry
     acc = 0.0
 
@@ -460,6 +456,10 @@ def aw_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0,joseph=False):
     for ia, (cos_ang,sin_ang) in enumerate(zip(cos_ang_arr,sin_ang_arr)):
         
         #Ray directions in unit vector components
+        # Ray direction (parallel abd orthoganal to detector)
+        det_u_orn = (-sin_ang, cos_ang)
+
+        
         rx = cos_ang
         ry = sin_ang 
         
@@ -472,45 +472,35 @@ def aw_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0,joseph=False):
             # r(t) = (rx_u, ry_u) + t * (rx, ry)
             
             # Ray origination at the detector
-            rx_u = -ry * u
-            ry_u =  rx * u
+            ray_x_org = u*det_u_orn[0]
+            ray_y_org = u*det_u_orn[1]
 
             # Intersect ray with image bounding box
-            tx_min, tx_max = _intersect_bounding(rx_u, rx, rx_abs, img_bnd_x_min, img_bnd_x_max)
-            ty_min, ty_max = _intersect_bounding(ry_u, ry, ry_abs, img_bnd_y_min, img_bnd_y_max)
+            tx_min, tx_max = _intersect_bounding(ray_x_org, rx, rx_abs, img_bnd_x_min, img_bnd_x_max)
+            ty_min, ty_max = _intersect_bounding(ray_y_org, ry, ry_abs, img_bnd_y_min, img_bnd_y_max)
 
             # Combined entry/exit interval
-            t_enter = max(tx_min, ty_min)
+            t_entry = max(tx_min, ty_min)
             t_exit = min(tx_max,  ty_max)
 
-            if t_exit <= t_enter:
+            if t_exit <= t_entry:
                 # Ray does not intersect the image
                 continue
 
             if joseph:
-            
                 _joseph_fp_2d(img,d_pix,sino,ia,iu,cos_ang,sin_ang,
-                       rx_u,ry_u,x0,y0,t_enter,t_exit,step)
+                       ray_x_org,ray_y_org,x0,y0,t_entry,t_exit,step)
             else:
                 
-                # Compute entry point into the image
-                rx_x_min = rx_u + t_enter * rx
-                ry_y_min = ry_u + t_enter * ry
-    
-                # Clamp slightly inside the image to avoid edge ambiguity
-                rx_x_min = min(max(rx_x_min, img_bnd_x_min + eps), img_bnd_x_max - eps)
-                ry_y_min = min(max(ry_y_min, img_bnd_y_min + eps), img_bnd_y_max - eps)              
-                
-                # Convert entry point to voxel indices
-                ix_entry = int(np.floor((rx_x_min - img_bnd_x_min) / d_pix))
-                iy_entry = int(np.floor((ry_y_min - img_bnd_y_min) / d_pix))
-    
+                ix_entry = _calc_ir0(ray_x_org,rx,t_entry,img_bnd_x_min,img_bnd_x_max,d_pix)
+                iy_entry = _calc_ir0(ray_y_org,ry,t_entry,img_bnd_y_min,img_bnd_y_max,d_pix)
+
                 # Amanatides–Woo stepping initialization
-                ix_dir, tx_step, tx_next = _fp_step_init(rx_u,ix_entry,rx, rx_abs, img_bnd_x_min, d_pix)
-                iy_dir, ty_step, ty_next = _fp_step_init(ry_u,iy_entry,ry, ry_abs, img_bnd_y_min, d_pix)
+                ix_dir, tx_step, tx_next = _fp_step_init(ray_x_org,ix_entry,rx, rx_abs, img_bnd_x_min, d_pix)
+                iy_dir, ty_step, ty_next = _fp_step_init(ray_y_org,iy_entry,ry, ry_abs, img_bnd_y_min, d_pix)
                 
                 # Traverse the grid voxel-by-voxel
-                _fp_2d_traverse_grid(img,sino,ia,iu,t_enter,t_exit,
+                sino[ia, iu] = _aw_fp_traverse_2d(img,t_entry,t_exit,
                                      tx_next, ty_next, tx_step, ty_step,
                                      ix_dir, iy_dir,ix_entry, iy_entry, nx, ny, d_pix)
 
@@ -578,12 +568,11 @@ def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0,joseph=Fa
         ray_y_org = DSO * sin_ang
 
         # Detector reference point
-        det_x_org = -(DSD - DSO) * cos_ang
-        det_y_org = -(DSD - DSO) * sin_ang
+        det_x_org = -(DSD - DSO)*cos_ang
+        det_y_org = -(DSD - DSO)*sin_ang
 
         # Ray direction (parallel abd orthoganal to detector)
-        rp = -sin_ang
-        ro = cos_ang
+        det_u_orn = (-sin_ang, cos_ang)
 
         for iu, u in enumerate(u_arr):
  
@@ -591,8 +580,8 @@ def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0,joseph=Fa
             # r(t) = (ray_o_x_pos, ray_o_y_pos) + t * (rx, ry)
 
             # Detector point
-            det_x = det_x_org + u*rp
-            det_y = det_y_org + u*ro
+            det_x = det_x_org + u*det_u_orn[0]
+            det_y = det_y_org + u*det_u_orn[1]
 
             # Ray from source to detector
             ray_x_vec = det_x - ray_x_org
@@ -630,7 +619,8 @@ def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0,joseph=Fa
                 iy_dir, ty_step, ty_next = _fp_step_init(ray_y_org, iy_entry, ray_y_hat, ry_abs, img_bnd_y_min, d_pix)
                 
                 # Grid traversal
-                _fp_2d_traverse_grid(img,sino,ia,iu,t_entry,t_exit,
+                # Store final line integral
+                sino[ia, iu] = _aw_fp_traverse_2d(img,t_entry,t_exit,
                                      tx_next,ty_next,tx_step,ty_step,
                                      ix_dir,iy_dir,ix_entry,iy_entry,nx,ny,d_pix)
                 
@@ -671,21 +661,21 @@ def aw_fp_cone_3d(img, ang_arr,
         ray_z_org = 0.0
         
         # Detector origin point
-        det_x_org = -(DSD-DSO)*cos_ang
-        det_y_org =  -(DSD-DSO)*sin_ang
+        det_x_org = -(DSD - DSO)*cos_ang
+        det_y_org = -(DSD - DSO)*sin_ang
         det_z_org = 0.0
 
-        # Detector basis (unit vectors)
-        det_u_hat = (-sin_ang, cos_ang, 0)
-        det_v_hat = (0, 0, 1)
+        # Detector basis orientation (unit vectors)
+        det_u_orn = (-sin_ang, cos_ang, 0)
+        det_v_orn = (0, 0, 1)
 
         for iv, v in enumerate(v_arr):
             for iu, u in enumerate(u_arr):
 
                 #Detector positions
-                det_x = det_x_org + u*det_u_hat[0] + v*det_v_hat[0]
-                det_y = det_y_org + u*det_u_hat[1] + v*det_v_hat[1]
-                det_z = det_z_org + u*det_u_hat[2] + v*det_v_hat[2]
+                det_x = det_x_org + u*det_u_orn[0] + v*det_v_orn[0]
+                det_y = det_y_org + u*det_u_orn[1] + v*det_v_orn[1]
+                det_z = det_z_org + u*det_u_orn[2] + v*det_v_orn[2]
 
                 #Ray vector 
                 ray_x_vec = det_x - ray_x_org
@@ -722,15 +712,10 @@ def aw_fp_cone_3d(img, ang_arr,
                     iz_dir, tz_step, tz_next = _fp_step_init(ray_z_org, iz_entry, ray_z_hat, abs(ray_z_hat), img_bnd_z_min, d_pix)
 
 
-                    sino[ia, iu, iv] = _aw_fp_traverse_3d(
-                        img,
-                        t_entry, t_exit,
+                    sino[ia,iu,iv] = _aw_fp_traverse_3d(img,t_entry, t_exit,
+                        tx_next,ty_next,tz_next,tx_step, ty_step, tz_step,
                         ix_entry, iy_entry, iz_entry,
-                        tx_next, ty_next, tz_next,
-                        tx_step, ty_step, tz_step,
-                        ix_dir, iy_dir, iz_dir,
-                        nx, ny, nz
-                    )
+                        ix_dir,iy_dir,iz_dir,nx,ny,nz)
                     
                     # Footprint stretch (separable)
                     #ray_norm = ray_norm_xy / (abs(z_c) + denom / DSD)
@@ -756,8 +741,9 @@ def aw_fp_cone_3d(img, ang_arr,
                 #ray_scale = DSD**2/ pow(DSD*DSD + u*u + v*v, 1.5);
                 sino[ia, iu, iv]= sino[ia, iu, iv]*ray_scale
                     
-
     return sino
+
+
 
 
 def aw_bp_par_2d(sino, ang_arr, img_shape, du=1.0, su=0.0, d_pix=1.0, joseph=False):
