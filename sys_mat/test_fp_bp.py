@@ -17,9 +17,9 @@ import vir.sys_mat.pd as pd
 
 
 #Image params - Pixels
-nx = 32
-ny = 32
-nz = 32
+nx = 8
+ny = 8
+nz = 8
 d_pix = 1
 
 
@@ -35,8 +35,8 @@ DSD = 1e8 + max(nx,ny)/2
 
 #Sino params 
 na = 64
-nu = 32
-nv = 32
+nu = 8
+nv = 8
 du = 1
 dv = 1
 su = 0.0
@@ -70,7 +70,7 @@ plt.ylabel("Y Pixels")
 """
 
 #Test Sino
-r = 4
+r = 1
 x0 = 0
 y0 = 0
 sino = np.zeros((na, nu))
@@ -80,7 +80,7 @@ for ia, ang in enumerate(ang_arr):
     sino[ia,:] = 2 * np.sqrt((r**2 - s**2).clip(0))
 
 
-
+"""
 
 sino1c = dd.dd_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=1.0, dv=1.0,su=0.0, sv=0.0, d_pix=1.0)
 sino2c = rd.aw_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du, d_pix=d_pix)
@@ -174,6 +174,8 @@ plt.show()
 
 
 
+"""
+
 
 
 #print("Siddons/AW Diff:", (sino1-sino4).max())
@@ -182,13 +184,11 @@ plt.show()
 
 
 
-"""
 
 
 
-
-#sino = sino[0:1,:]
-#ang_arr = [ang_arr[0]]
+sino = sino[8:9,:]
+ang_arr = [ang_arr[8]]
 
 
 rec1p = dd.dd_bp_par_2d(sino, ang_arr, (nx,ny), d_pix=d_pix, du=du,su=su)
@@ -203,12 +203,6 @@ rec4f = dd.dd_bp_fan_2d(sino, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su=
 rec4p[:,:] = 0.0
 rec4f[:,:] = 0.0
 
-#rec2p[:,:] = 0 
-#rec2f[:,:] = 0 
-#rec3p[:,:] = 0 
-#rec3f[:,:] = 0 
-#rec4p[:,:] = 0 
-#rec4f[:,:] = 0 
 
 
 recs = [rec1p,rec2p,rec3p,rec4p,rec1f,rec2f,rec3f,rec4f]
@@ -227,81 +221,60 @@ for i, (rec,title) in enumerate(zip(recs,titles)):
 plt.show()
 
 
-
-fractions = [0, 1/8, 1/4, 3/8,1/2]
-#fractions = [0, 1/16, 1/8, 3/16,1/4]
-plt.figure(figsize=(20,8))
-for i, fraction in enumerate(fractions):
-    plt.subplot(2,len(fractions),i+1)
-    plt.plot(sino1p[int(fraction*na),:], label='DD')
-    plt.plot(sino2p[int(fraction*na),:], label='AW')
-    plt.plot(sino3p[int(fraction*na),:], label='JO')
-    plt.plot(sino4p[int(fraction*na),:], label='PD')
-    plt.legend()
-    plt.title("Angle "+ str(int(fraction*360))+" profile")
-    if i == 0: plt.ylabel("Intensity")
-    
-for i, fraction in enumerate(fractions):
-    plt.subplot(2,len(fractions),i+1+5)
-    plt.plot(sino1f[int(fraction*na),:], label='DD')
-    plt.plot(sino2f[int(fraction*na),:], label='AW')
-    plt.plot(sino3f[int(fraction*na),:], label='JO')
-    plt.plot(sino4f[int(fraction*na),:], label='PD')
-    plt.xlabel("Detector Bin")
-    plt.legend()
-    if i == 0: plt.ylabel("Intensity")
-plt.show()
-
-
-
 recsp = [rec1p,rec2p,rec3p,rec4p]
 recsf = [rec1f,rec2f,rec3f,rec4f]
-
 labels = ["DD","SD","JO","PD"]
-
-titles = ["X Center", "Y Center", "XY Center", "YX Center"]
-plt.figure(figsize=(20,8))
-plt.subplot(2,4,i+1)
- 
+titles = ["P - X Center", "P - Y Center", "P - XY Center", "P  -YX Center"]
+plt.figure(figsize=(16,8))
+plt.subplot(2,4,1)
 for j, rec in enumerate(recsp):
-    plt.title(title)
     plt.plot(rec[:,int(ny/2-1):int(ny/2+1)].mean(axis=1), label=labels[j])
-    plt.legend()
+plt.title(titles[0])
+plt.legend()
 
+plt.subplot(2,4,2)
+for j, rec in enumerate(recsp):
+    plt.plot(rec[int(nx/2-1):int(nx/2+1),:].mean(axis=0), label=labels[j])
+plt.title(titles[1])
+plt.legend()
+
+plt.subplot(2,4,3)
+for j, rec in enumerate(recsp):
+    plt.plot(rec[np.arange(32),np.arange(32)], label=labels[j])
+plt.title(titles[2])
+plt.legend()
+
+plt.subplot(2,4,4)
+for j, rec in enumerate(recsp):
+    plt.plot(rec[np.arange(32), np.arange(32)[::-1]], label=labels[j])
+plt.title(titles[2])
+plt.legend()
+
+
+titles = ["F - X Center", "F - Y Center", "F - XY Center", "F - YX Center"]
+plt.subplot(2,4,5)
+for j, rec in enumerate(recsf):
+    plt.plot(rec[:,int(ny/2-1):int(ny/2+1)].mean(axis=1), label=labels[j])
+plt.title(titles[0])
+plt.legend()
+
+plt.subplot(2,4,6)
+for j, rec in enumerate(recsf):
+    plt.plot(rec[int(nx/2-1):int(nx/2+1),:].mean(axis=0), label=labels[j])
+plt.title(titles[1])
+plt.legend()
+
+plt.subplot(2,4,7)
+for j, rec in enumerate(recsf):
+    plt.plot(rec[np.arange(32),np.arange(32)], label=labels[j])
+plt.title(titles[2])
+plt.legend()
+
+plt.subplot(2,4,8)
+for j, rec in enumerate(recsf):
+    plt.plot(rec[np.arange(32), np.arange(32)[::-1]], label=labels[j])
+plt.title(titles[2])
+plt.legend()
 plt.show()
 
 
-
-plt.subplot(1,4,2)
-plt.title("Y Center")
-plt.plot(rec1p[15:17,:].mean(axis=0), label='DD P')
-plt.plot(rec1f[15:17,:].mean(axis=0), label='DD F')
-plt.plot(rec2p[15:17,:].mean(axis=0), label='SD P')
-plt.plot(rec2f[15:17,:].mean(axis=0), label='SD F')
-plt.plot(rec3p[15:17,:].mean(axis=0), label='JO P')
-plt.plot(rec3f[15:17,:].mean(axis=0), label='JO F')
-
-plt.subplot(1,4,3)
-plt.title("XY Center")
-plt.plot(rec1p[np.arange(32),np.arange(32)], label='DD P')
-plt.plot(rec1f[np.arange(32),np.arange(32)], label='DD F')
-plt.plot(rec2p[np.arange(32),np.arange(32)], label='SD P')
-plt.plot(rec2f[np.arange(32),np.arange(32)], label='SD F')
-plt.plot(rec3p[np.arange(32),np.arange(32)], label='JO P')
-plt.plot(rec3f[np.arange(32),np.arange(32)], label='JO F')
-
-plt.subplot(1,4,4)
-plt.title("YX Center")
-plt.plot(rec1p[np.arange(32), np.arange(32)[::-1]], label='DD P')
-plt.plot(rec1f[np.arange(32), np.arange(32)[::-1]], label='DD F')
-plt.plot(rec2p[np.arange(32), np.arange(32)[::-1]], label='SD P')
-plt.plot(rec2f[np.arange(32), np.arange(32)[::-1]], label='SD F')
-plt.plot(rec3p[np.arange(32), np.arange(32)[::-1]], label='JO P')
-plt.plot(rec3f[np.arange(32), np.arange(32)[::-1]], label='JO F')
-plt.show()
-
-
-print("Par Max:", rec1p.max())
-print("Fan Max:", rec1f.max())
-
-"""
