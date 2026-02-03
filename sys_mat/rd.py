@@ -136,7 +136,7 @@ def _fp_step_init(r0, ir, dr, adr, r_min, d_pix):
                     
 
 def _aw_fp_traverse_2d(img,t_entry,t_exit,tx_next,ty_next,tx_step,ty_step,
-                       ix_dir,iy_dir,ix,iy,nx,ny,d_pix):
+                       ix,iy,ix_dir,iy_dir,nx,ny):
     
     # Ensure first crossing occurs after entry point
     tx_next = max(tx_next, t_entry)
@@ -175,7 +175,7 @@ def _aw_fp_traverse_2d(img,t_entry,t_exit,tx_next,ty_next,tx_step,ty_step,
 
     
 def _aw_bp_traverse_2d(img,s_val,t_entry,t_exit,tx_next,ty_next,tx_step,ty_step,
-                       ix_dir,iy_dir,ix,iy,nx,ny,d_pix):
+                       ix,iy,ix_dir,iy_dir,nx,ny,):
 
     # Single ray: distribute sinogram to grid voxels 
     tx_next = max(tx_next, t_entry)
@@ -200,9 +200,9 @@ def _aw_bp_traverse_2d(img,s_val,t_entry,t_exit,tx_next,ty_next,tx_step,ty_step,
             iy += iy_dir
 
 
-def _aw_fp_traverse_3d(img,t_entry,t_exit,tx_next, ty_next, tz_next,
+def _aw_fp_traverse_3d(img,t_entry,t_exit,tx_next,ty_next,tz_next,
                        tx_step,ty_step,tz_step,
-                       ix,iy,iz,ix_dir,iy_dir,iz_dir,nx, ny, nz):
+                       ix,iy,iz,ix_dir,iy_dir,iz_dir,nx,ny,nz):
     
     t = t_entry
     acc = 0.0
@@ -377,6 +377,7 @@ def _joseph_bp(img, d_pix, s_val, ray_x_hat, ray_y_hat, ray_x_org, ray_y_org, x0
 
 
 
+
     
     
 
@@ -490,7 +491,7 @@ def aw_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0,joseph=False):
                 # Traverse the grid voxel-by-voxel
                 sino[ia, iu] = _aw_fp_traverse_2d(img,t_entry,t_exit,
                                      tx_next, ty_next, tx_step, ty_step,
-                                     ix_dir, iy_dir,ix_entry,iy_entry, nx, ny, d_pix)
+                                     ix_entry,iy_entry,ix_dir,iy_dir,nx,ny,)
 
     #Returns the sino
     return sino
@@ -610,7 +611,7 @@ def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0,joseph=Fa
                 # Store final line integral
                 sino[ia, iu] = _aw_fp_traverse_2d(img,t_entry,t_exit,
                                      tx_next,ty_next,tx_step,ty_step,
-                                     ix_dir,iy_dir,ix_entry,iy_entry,nx,ny,d_pix)
+                                     ix_entry,iy_entry,ix_dir,iy_dir,nx,ny)
                 
     return sino
 
@@ -784,9 +785,9 @@ def aw_bp_par_2d(sino, ang_arr, img_shape, du=1.0, su=0.0, d_pix=1.0, joseph=Fal
                 
                 ix_dir, tx_step, tx_next = _fp_step_init(ray_x_org, ix_entry, ray_x_hat, rx_abs, img_bnd_x_min, d_pix)
                 iy_dir, ty_step, ty_next = _fp_step_init(ray_y_org, iy_entry, ray_y_hat, ry_abs, img_bnd_y_min, d_pix)
-                _aw_bp_traverse_2d(img, sino[ia, iu], t_entry, t_exit,
-                            tx_next, ty_next, tx_step, ty_step, ix_dir, iy_dir,
-                            ix_entry,iy_entry, nx, ny, d_pix)
+                _aw_bp_traverse_2d(img, sino[ia, iu],t_entry,t_exit,
+                            tx_next,ty_next,tx_step,ty_step, 
+                            ix_entry,iy_entry,ix_dir,iy_dir,nx,ny)
                 
                 
     return img / na / d_pix / d_pix * du
@@ -860,7 +861,7 @@ def aw_bp_fan_2d(sino, ang_arr, img_shape, DSO, DSD, du=1.0, su=0.0, d_pix=1.0, 
   
                 _aw_bp_traverse_2d(img, sino[ia, iu],t_entry,t_exit,
                                    tx_next,ty_next,tx_step,ty_step,
-                                   ix_dir,iy_dir,ix_entry,iy_entry,nx,ny,d_pix)
+                                   ix_entry,iy_entry,ix_dir,iy_dir,nx,ny)
 
     return img / na / d_pix / d_pix * du
 
