@@ -174,8 +174,8 @@ def _aw_fp_traverse_2d(img,t_entry,t_exit,tx_next,ty_next,tx_step,ty_step,
     return acc
 
     
-def _aw_bp_traverse_2d(img,s_val,t_entry,t_exit,tx_next,ty_next,tx_step,ty_step,
-                       ix,iy,ix_dir,iy_dir,nx,ny,):
+def _aw_bp_traverse_2d(img,s_val,t_entry,t_exit,tx_next,ty_next,
+                       tx_step,ty_step,ix,iy,ix_dir,iy_dir,nx,ny):
 
     # Single ray: distribute sinogram to grid voxels 
     tx_next = max(tx_next, t_entry)
@@ -236,13 +236,49 @@ def _aw_fp_traverse_3d(img,t_entry,t_exit,tx_next,ty_next,tz_next,
 
     return acc
 
-def _joseph_fp_2d(img,d_pix,ray_x_hat,ray_y_hat,ray_x_org,ray_y_org,
-           x0,y0,t_enter,t_exit,step):
+
+def _aw_bp_traverse_3d(img,s_val,t_entry,t_exit,tx_next,ty_next,tz_next,
+                       tx_step,ty_step,tz_step,
+                       ix,iy,iz,ix_dir,iy_dir,iz_dir,nx,ny,nz):
+    
+    t = t_entry
+    acc = 0.0
+
+    while t < t_exit:
+
+        # Safety check (should rarely trigger)
+        if ix<0 or iy<0 or iz<0 or ix>=nx or iy>=ny or iz>=nz:
+            break
+
+        if tx_next <= ty_next and tx_next <= tz_next:
+            t_next = min(tx_next, t_exit)
+            img[ix,iy,iz] += s_val*(t_next - t)
+            t = t_next
+            tx_next += tx_step
+            ix += ix_dir
+
+        elif ty_next <= tz_next:
+            t_next = min(ty_next, t_exit)
+            img[ix,iy,iz] += s_val*(t_next - t)
+            t = t_next
+            ty_next += ty_step
+            iy += iy_dir
+
+        else:
+            t_next = min(tz_next, t_exit)
+            img[ix,iy,iz] += s_val*(t_next - t)
+            t = t_next
+            tz_next += tz_step
+            iz += iz_dir
+
+
+def _joseph_fp_2d(img,t_entry,t_exit,t_step,ray_x_org,ray_y_org,
+                  ray_x_hat,ray_y_hat,x0,y0,d_pix):
 
     nx, ny = img.shape
 
     acc = 0.0 
-    t = t_enter
+    t = t_entry
     while t <= t_exit:
         # Current position along ray
         x = ray_x_org + t*ray_x_hat 
@@ -272,21 +308,19 @@ def _joseph_fp_2d(img,d_pix,ray_x_hat,ray_y_hat,ray_x_org,ray_y_org,
                v01*(1-dx)*   dy  +
                v11*   dx *   dy)
         
-        acc += val*step
-        t += step
+        acc += val*t_step
+        t += t_step
 
     return acc
 
 
-def _joseph_fp_3d(img,ray_x_org,ray_y_org,ray_z_org,
-                  ray_x_hat,ray_y_hat,ray_z_hat,
-    x0, y0, z0,d_pix,
-    t_enter, t_exit,step):
+def _joseph_fp_3d(img,t_entry,t_exit,t_step,ray_x_org,ray_y_org,ray_z_org,
+                  ray_x_hat,ray_y_hat,ray_z_hat,x0,y0,z0,d_pix):
     
     nx, ny, nz = img.shape
 
     acc = 0.0 
-    t = t_enter
+    t = t_entry
     while t <= t_exit:
         x = ray_x_org + t*ray_x_hat
         y = ray_y_org + t*ray_y_hat
@@ -298,7 +332,7 @@ def _joseph_fp_3d(img,ray_x_org,ray_y_org,ray_z_org,
 
         if fx < 0 or fy < 0 or fz < 0 or \
            fx >= nx-1 or fy >= ny-1 or fz >= nz-1:
-            t += step
+            t += t_step
             continue
 
         ix = int(fx)
@@ -328,13 +362,13 @@ def _joseph_fp_3d(img,ray_x_org,ray_y_org,ray_z_org,
                c011*(1-dx)*   dy *   dz  +
                c111*   dx *   dy *   dz)
 
-        acc += val*step
-        t += step
+        acc += val*t_step
+        t += t_step
     
     return acc
 
 
-def _joseph_bp(img, d_pix, s_val, ray_x_hat, ray_y_hat, ray_x_org, ray_y_org, x0, y0, t_enter, t_exit, step):
+def _joseph_bp_2d(img, d_pix, s_val, ray_x_hat, ray_y_hat, ray_x_org, ray_y_org, x0, y0, t_enter, t_exit, step):
     nx, ny = img.shape
 
     t = t_enter
@@ -353,7 +387,6 @@ def _joseph_bp(img, d_pix, s_val, ray_x_hat, ray_y_hat, ray_x_org, ray_y_org, x0
         dx = fx - ix
         dy = fy - iy
 
-        print(t,ix,iy)
         # Bilinear splatting
         if ix>=0 and iy>=0 and ix<nx and iy<ny:
             img[ix, iy]     += s_val*step*(1-dx)*(1-dy) 
@@ -371,6 +404,61 @@ def _joseph_bp(img, d_pix, s_val, ray_x_hat, ray_y_hat, ray_x_org, ray_y_org, x0
 
 
 
+def _joseph_bp_3d(img,s_val,t_entry,t_exit,step,ray_x_org,ray_y_org,ray_z_org,
+                  ray_x_hat,ray_y_hat,ray_z_hat,x0,y0,z0,d_pix):
+    
+    nx, ny, nz = img.shape
+
+
+    t = t_entry
+    while t <= t_exit:
+        x = ray_x_org + t*ray_x_hat
+        y = ray_y_org + t*ray_y_hat
+        z = ray_z_org + t*ray_z_hat
+
+        fx = (x - x0) / d_pix
+        fy = (y - y0) / d_pix
+        fz = (z - z0) / d_pix
+
+
+
+        ix = int(fx)
+        iy = int(fy)
+        iz = int(fz)
+
+        dx = fx - ix
+        dy = fy - iy
+        dz = fz - iz
+
+        # Trilinear splatting
+
+        if ix>=0 and iy>=0 and iz>=0 and ix<nx and iy<ny and iz<nz:
+            img[ix,iy,iz] += s_val*step*(1-dx)*(1-dy)*(1-dz) 
+
+
+        if ix+1>=0 and iy>=0 and iz>=0 and ix+1<nx and iy<ny and iz<nz:
+            img[ix+1,iy,iz] += s_val*step*(dx)*(1-dy)*(1-dz) 
+
+        if ix>=0 and iy+1>=0 and iz>=0 and ix<nx and iy+1<ny and iz<nz:
+            img[ix,iy+1,iz] += s_val*step*(1-dx)*(dy)*(1-dz) 
+
+        if ix>=0 and iy>=0 and iz+1>=0 and ix<nx and iy<ny and iz+1<nz:
+            img[ix,iy,iz+1] += s_val*step*(1-dx)*(1-dy)*(dz) 
+
+
+        if ix>=0 and iy+1>=0 and iz+1>=0 and ix<nx and iy+1<ny and iz+1<nz:
+            img[ix,iy+1,iz+1] += s_val*step*(1-dx)*(dy)*(dz) 
+
+        if ix+1>=0 and iy>=0 and iz+1>=0 and ix+1<nx and iy<ny and iz+1<nz:
+            img[ix+1,iy,iz+1] += s_val*step*(dx)*(1-dy)*(dz) 
+
+        if ix+1>=0 and iy+1>=0 and iz>=0 and ix+1<nx and iy+1<ny and iz<nz:
+            img[ix+1,iy+1,iz] += s_val*step*(dx)*(dy)*(1-dz) 
+
+        if ix+1>=0 and iy+1>=0 and iz+1>=0 and ix+1<nx and iy+1<ny and iz+1<nz:
+            img[ix+1,iy+1,iz+1] += s_val*step*(dx)*(dy)*(dz) 
+
+        t += step
 
 
 
@@ -477,8 +565,10 @@ def aw_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0,joseph=False):
                 continue
 
             if joseph:
-                sino[ia, iu] = _joseph_fp_2d(img,d_pix,cos_ang,sin_ang,
-                       ray_x_org,ray_y_org,x0,y0,t_entry,t_exit,step)
+                sino[ia, iu] = _joseph_fp_2d(img,t_entry,t_exit,step,
+                                             ray_x_org,ray_y_org,
+                                             ray_x_hat,ray_y_hat,x0,y0,d_pix)
+
             else:
                 
                 ix_entry = _calc_ir0(ray_x_org,ray_x_hat,t_entry,img_bnd_x_min,img_bnd_x_max,d_pix)
@@ -596,8 +686,9 @@ def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0,joseph=Fa
                 continue
 
             if joseph:    
-                sino[ia, iu] = _joseph_fp_2d(img,d_pix,ray_x_hat,ray_y_hat,
-                       ray_x_org,ray_y_org,x0,y0,t_entry,t_exit,step)
+                sino[ia, iu] = _joseph_fp_2d(img,t_entry,t_exit,step,
+                                             ray_x_org,ray_y_org,
+                                             ray_x_hat,ray_y_hat,x0,y0,d_pix)
             else:
    
                 ix_entry = _calc_ir0(ray_x_org,ray_x_hat,t_entry,img_bnd_x_min,img_bnd_x_max,d_pix)
@@ -616,20 +707,16 @@ def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0,joseph=Fa
     return sino
 
 
-def aw_fp_cone_3d(img, ang_arr,
-    nu, nv,
-    DSO, DSD,
-    du=1.0, dv=1.0,
-    d_pix=1.0,
-    joseph=False
-):
+def aw_fp_cone_3d(img,ang_arr,nu,nv,DSO,DSD,
+                  du=1.0,dv=1.0,d_pix=1.0,joseph=False):
+
     nx, ny, nz = img.shape
     sino = np.zeros((ang_arr.size, nv, nu), dtype=np.float32)
 
     img_bnd_x_min, img_bnd_x_max, x0 = _img_bounds(nx,d_pix)
     img_bnd_y_min, img_bnd_y_max, y0 = _img_bounds(ny,d_pix)
     img_bnd_z_min, img_bnd_z_max, z0 = _img_bounds(nz,d_pix)
-
+    step=0.5
 
     u_arr = du*(np.arange(nu) - nu/2 + 0.5)
     v_arr = dv*(np.arange(nv) - nv/2 + 0.5)
@@ -674,9 +761,9 @@ def aw_fp_cone_3d(img, ang_arr,
                 ray_y_hat = ray_y_vec/ray_mag
                 ray_z_hat = ray_z_vec/ray_mag
 
-                tx_entry, tx_exit = _intersect_bounding(ray_x_org, ray_x_hat, abs(ray_x_hat), img_bnd_x_min, img_bnd_x_max)
-                ty_entry, ty_exit = _intersect_bounding(ray_y_org, ray_y_hat, abs(ray_y_hat), img_bnd_y_min, img_bnd_y_max)
-                tz_entry, tz_exit = _intersect_bounding(ray_z_org, ray_z_hat, abs(ray_z_hat), img_bnd_z_min, img_bnd_z_max)
+                tx_entry,tx_exit = _intersect_bounding(ray_x_org, ray_x_hat, abs(ray_x_hat), img_bnd_x_min, img_bnd_x_max)
+                ty_entry,ty_exit = _intersect_bounding(ray_y_org, ray_y_hat, abs(ray_y_hat), img_bnd_y_min, img_bnd_y_max)
+                tz_entry,tz_exit = _intersect_bounding(ray_z_org, ray_z_hat, abs(ray_z_hat), img_bnd_z_min, img_bnd_z_max)
 
                 t_entry = max(tx_entry, ty_entry, tz_entry)
                 t_exit  = min(tx_exit, ty_exit, tz_exit)
@@ -685,18 +772,22 @@ def aw_fp_cone_3d(img, ang_arr,
                     continue
 
                 if joseph:
-                    sino[ia, iu, iv] =  _joseph_fp_3d(img,
-                                      ray_x_org, ray_y_org, ray_z_org,ray_x_hat, ray_y_hat, ray_z_hat,
-                        x0, y0, z0,d_pix,t_entry, t_exit,step=0.5)
+                    sino[ia,iu,iv] = _joseph_fp_3d(img,t_entry,t_exit,step,
+                                                   ray_x_org,ray_y_org,ray_z_org,
+                                                   ray_x_hat,ray_y_hat,ray_z_hat,
+                                                   x0,y0,z0,d_pix)
                 else:
 
-                    ix_entry = _calc_ir0(ray_x_org,ray_x_hat,t_entry,img_bnd_x_min,img_bnd_x_max,d_pix)
-                    iy_entry = _calc_ir0(ray_y_org,ray_y_hat,t_entry,img_bnd_y_min,img_bnd_y_max,d_pix)
-                    iz_entry = _calc_ir0(ray_z_org,ray_z_hat,t_entry,img_bnd_z_min,img_bnd_z_max,d_pix)
+                    ix_entry = _calc_ir0(ray_x_org,ray_x_hat,t_entry,
+                                         img_bnd_x_min,img_bnd_x_max,d_pix)
+                    iy_entry = _calc_ir0(ray_y_org,ray_y_hat,t_entry,
+                                         img_bnd_y_min,img_bnd_y_max,d_pix)
+                    iz_entry = _calc_ir0(ray_z_org,ray_z_hat,t_entry,
+                                         img_bnd_z_min,img_bnd_z_max,d_pix)
 
-                    ix_dir, tx_step, tx_next = _fp_step_init(ray_x_org, ix_entry, ray_x_hat, abs(ray_x_hat), img_bnd_x_min, d_pix)
-                    iy_dir, ty_step, ty_next = _fp_step_init(ray_y_org, iy_entry, ray_y_hat, abs(ray_y_hat), img_bnd_y_min, d_pix)
-                    iz_dir, tz_step, tz_next = _fp_step_init(ray_z_org, iz_entry, ray_z_hat, abs(ray_z_hat), img_bnd_z_min, d_pix)
+                    ix_dir,tx_step,tx_next = _fp_step_init(ray_x_org,ix_entry, ray_x_hat, abs(ray_x_hat), img_bnd_x_min, d_pix)
+                    iy_dir,ty_step,ty_next = _fp_step_init(ray_y_org,iy_entry, ray_y_hat, abs(ray_y_hat), img_bnd_y_min, d_pix)
+                    iz_dir,tz_step,tz_next = _fp_step_init(ray_z_org,iz_entry, ray_z_hat, abs(ray_z_hat), img_bnd_z_min, d_pix)
 
 
                     sino[ia,iu,iv] = _aw_fp_traverse_3d(img,t_entry, t_exit,
@@ -729,8 +820,6 @@ def aw_fp_cone_3d(img, ang_arr,
                 sino[ia, iu, iv]= sino[ia, iu, iv]*ray_scale
                     
     return sino
-
-
 
 
 def aw_bp_par_2d(sino, ang_arr, img_shape, du=1.0, su=0.0, d_pix=1.0, joseph=False):
@@ -776,7 +865,9 @@ def aw_bp_par_2d(sino, ang_arr, img_shape, du=1.0, su=0.0, d_pix=1.0, joseph=Fal
 
 
             if joseph:
-                _joseph_bp(img, d_pix, sino[ia,iu], cos_ang, sin_ang, ray_x_org, ray_y_org,
+                
+                
+                _joseph_bp_2d(img, d_pix, sino[ia,iu], cos_ang, sin_ang, ray_x_org, ray_y_org,
                            x0, y0, t_entry, t_exit, step)
             else:
                 
@@ -848,7 +939,7 @@ def aw_bp_fan_2d(sino, ang_arr, img_shape, DSO, DSD, du=1.0, su=0.0, d_pix=1.0, 
                 continue
 
             if joseph:
-                _joseph_bp(img, d_pix, sino[ia,iu], ray_x_hat, ray_y_hat, ray_x_org, ray_y_org,
+                _joseph_bp_2d(img, d_pix, sino[ia,iu], ray_x_hat, ray_y_hat, ray_x_org, ray_y_org,
                            x0, y0, t_entry, t_exit, step)
             else:
                 
@@ -864,6 +955,123 @@ def aw_bp_fan_2d(sino, ang_arr, img_shape, DSO, DSD, du=1.0, su=0.0, d_pix=1.0, 
                                    ix_entry,iy_entry,ix_dir,iy_dir,nx,ny)
 
     return img / na / d_pix / d_pix * du
+
+
+
+
+def aw_bp_cone_3d(img,ang_arr,nu,nv,DSO,DSD,
+                  du=1.0,dv=1.0,d_pix=1.0,joseph=False):
+
+    nx, ny, nz = img.shape
+    sino = np.zeros((ang_arr.size, nv, nu), dtype=np.float32)
+
+    img_bnd_x_min, img_bnd_x_max, x0 = _img_bounds(nx,d_pix)
+    img_bnd_y_min, img_bnd_y_max, y0 = _img_bounds(ny,d_pix)
+    img_bnd_z_min, img_bnd_z_max, z0 = _img_bounds(nz,d_pix)
+    step=0.5
+
+    u_arr = du*(np.arange(nu) - nu/2 + 0.5)
+    v_arr = dv*(np.arange(nv) - nv/2 + 0.5)
+
+
+    # Precompute ray direction for all angles
+    cos_ang_arr = np.cos(ang_arr)
+    sin_ang_arr = np.sin(ang_arr)
+
+    # Main loops: angles → detectors → voxel traversal
+    for ia, (cos_ang,sin_ang) in enumerate(zip(cos_ang_arr,sin_ang_arr)):
+
+        # Ray origin (located at the source)
+        ray_x_org = DSO*cos_ang
+        ray_y_org = DSO*sin_ang
+        ray_z_org = 0.0
+        
+        # Detector origin point
+        det_x_org = -(DSD - DSO)*cos_ang
+        det_y_org = -(DSD - DSO)*sin_ang
+        det_z_org = 0.0
+
+        # Detector basis orientation (unit vectors)
+        det_u_orn = (-sin_ang, cos_ang, 0)
+        det_v_orn = (0, 0, 1)
+
+        for iv, v in enumerate(v_arr):
+            for iu, u in enumerate(u_arr):
+
+                #Detector positions
+                det_x = det_x_org + u*det_u_orn[0] + v*det_v_orn[0]
+                det_y = det_y_org + u*det_u_orn[1] + v*det_v_orn[1]
+                det_z = det_z_org + u*det_u_orn[2] + v*det_v_orn[2]
+
+                #Ray vector 
+                ray_x_vec = det_x - ray_x_org
+                ray_y_vec = det_y - ray_y_org
+                ray_z_vec = det_z - ray_z_org
+
+                ray_mag = np.sqrt(ray_x_vec**2 + ray_y_vec**2 + ray_z_vec**2)
+                ray_x_hat = ray_x_vec/ray_mag
+                ray_y_hat = ray_y_vec/ray_mag
+                ray_z_hat = ray_z_vec/ray_mag
+
+                tx_entry,tx_exit = _intersect_bounding(ray_x_org, ray_x_hat, abs(ray_x_hat), img_bnd_x_min, img_bnd_x_max)
+                ty_entry,ty_exit = _intersect_bounding(ray_y_org, ray_y_hat, abs(ray_y_hat), img_bnd_y_min, img_bnd_y_max)
+                tz_entry,tz_exit = _intersect_bounding(ray_z_org, ray_z_hat, abs(ray_z_hat), img_bnd_z_min, img_bnd_z_max)
+
+                t_entry = max(tx_entry, ty_entry, tz_entry)
+                t_exit  = min(tx_exit, ty_exit, tz_exit)
+
+                if t_exit <= t_entry:
+                    continue
+
+                if joseph:
+                    _joseph_bp_3d(img,sino[ia,iu,iv],t_entry,t_exit,step,
+                                                   ray_x_org,ray_y_org,ray_z_org,
+                                                   ray_x_hat,ray_y_hat,ray_z_hat,
+                                                   x0,y0,z0,d_pix)
+                else:
+
+                    ix_entry = _calc_ir0(ray_x_org,ray_x_hat,t_entry,
+                                         img_bnd_x_min,img_bnd_x_max,d_pix)
+                    iy_entry = _calc_ir0(ray_y_org,ray_y_hat,t_entry,
+                                         img_bnd_y_min,img_bnd_y_max,d_pix)
+                    iz_entry = _calc_ir0(ray_z_org,ray_z_hat,t_entry,
+                                         img_bnd_z_min,img_bnd_z_max,d_pix)
+
+                    ix_dir,tx_step,tx_next = _fp_step_init(ray_x_org,ix_entry, ray_x_hat, abs(ray_x_hat), img_bnd_x_min, d_pix)
+                    iy_dir,ty_step,ty_next = _fp_step_init(ray_y_org,iy_entry, ray_y_hat, abs(ray_y_hat), img_bnd_y_min, d_pix)
+                    iz_dir,tz_step,tz_next = _fp_step_init(ray_z_org,iz_entry, ray_z_hat, abs(ray_z_hat), img_bnd_z_min, d_pix)
+
+
+                    _aw_bp_traverse_3d(img,sino[ia,iu,iv],t_entry,t_exit,
+                        tx_next,ty_next,tz_next,tx_step, ty_step, tz_step,
+                        ix_entry, iy_entry, iz_entry,
+                        ix_dir,iy_dir,iz_dir,nx,ny,nz)
+                    
+                    # Footprint stretch (separable)
+                    #ray_norm = ray_norm_xy / (abs(z_c) + denom / DSD)
+                    #denom = DSO - (ox_c + oy_c)
+                    #p_c = px_c + py_c
+
+                    #ray_norm_xy = np.cos(np.arctan(p_c / (DSO - (ox_c + oy_c))))
+
+                    #ray_norm_z = denom/np.sqrt(denom**2 +z_c**2)
+                    #ray_norm_xy = denom/np.sqrt(denom**2 +p_c**2)
+
+                    #ray_norm = ray_norm_xy * ray_norm_z
+
+                    #pix_scale = 1.0 / (abs(s) + abs(c))
+                    
+                    pix_scale = 1.0
+                    ray_norm_xy = 1.0
+                    ray_norm_z = 1.0
+                    
+                    ray_norm = pix_scale/ray_norm_xy / ray_norm_z
+                    
+                ray_scale = DSD/np.sqrt(DSD**2 + u**2 + v**2)
+                #ray_scale = DSD**2/ pow(DSD*DSD + u*u + v*v, 1.5);
+                sino[ia, iu, iv]= sino[ia, iu, iv]*ray_scale
+                    
+    return sino
 
 
 
