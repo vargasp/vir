@@ -76,6 +76,7 @@ plt.show()
 """
 
 
+"""
 sino1p = dd.dd_fp_par_2d(img2d, ang_arr, nu, du=du, su=su, d_pix=d_pix)
 sino2p = rd.aw_fp_par_2d(img2d, ang_arr, nu, du=du, su=su, d_pix=d_pix)
 sino3p = rd.aw_fp_par_2d(img2d, ang_arr, nu, du=du, su=su, d_pix=d_pix,joseph=True)
@@ -124,48 +125,44 @@ for i, fraction in enumerate(fractions):
     plt.plot(sino3p[int(fraction*na),:].clip(2*r*clip_percent), label='JO')
     plt.plot(sino4p[int(fraction*na),:].clip(2*r*clip_percent), label='PD')
     plt.legend()
-    plt.title("Angle "+ str(int(fraction*360))+" profile - Parallel")
+    plt.title("Angle "+ str(int(fraction*360))+": u profile - Parallel")
     if i == 0: plt.ylabel("Intensity")
     
 for i, fraction in enumerate(fractions):
-    plt.subplot(2,len(fractions),i+1+5)
+    plt.subplot(2,len(fractions),i+6)
     plt.plot(sino1f[int(fraction*na),:].clip(2*r*clip_percent), label='DD')
     plt.plot(sino2f[int(fraction*na),:].clip(2*r*clip_percent), label='AW')
     plt.plot(sino3f[int(fraction*na),:].clip(2*r*clip_percent), label='JO')
     plt.plot(sino4f[int(fraction*na),:].clip(2*r*clip_percent), label='PD')
     plt.xlabel("Detector Bin")
     plt.legend()
-    plt.title("Angle "+ str(int(fraction*360))+" profile - Fanbeam")
+    plt.title("Angle "+ str(int(fraction*360))+": u profile - Fanbeam")
     if i == 0: plt.ylabel("Intensity")
 plt.show()
-
 
 
 fractions = [0, 1/8, 1/4, 3/8,1/2]
 #fractions = [0, 1/16, 1/8, 3/16,1/4]
 plt.figure(figsize=(20,8))
 for i, fraction in enumerate(fractions):
-    plt.subplot(1,len(fractions),i+1)
+    plt.subplot(2,len(fractions),i+1)
     plt.plot(sino1c[int(fraction*na),:,int(nv/2+z0)], label='C DD')
     plt.plot(sino2c[int(fraction*na),:,int(nv/2+z0)], label='C AW')
     plt.plot(sino3c[int(fraction*na),:,int(nv/2+z0)], label='C JO')
-    plt.xlabel("Detector Bin")
     plt.legend()
+    plt.title("Angle "+ str(int(fraction*360))+": u profile - Conebeam ")
     if i == 0: plt.ylabel("Intensity")
 
 for i, fraction in enumerate(fractions):
-    plt.subplot(1,len(fractions),i+1)
-    plt.plot(sino1c[int(fraction*na),int(nv/2+z0),:], label='C DD')
-    plt.plot(sino2c[int(fraction*na),int(nv/2+z0),:], label='C AW')
-    plt.plot(sino3c[int(fraction*na),int(nv/2+z0),:], label='C JO')
+    plt.subplot(2,len(fractions),i+6)
+    plt.plot(sino1c[int(fraction*na),int(nu/2+z0),:], label='C DD')
+    plt.plot(sino2c[int(fraction*na),int(nu/2+z0),:], label='C AW')
+    plt.plot(sino3c[int(fraction*na),int(nu/2+z0),:], label='C JO')
     plt.xlabel("Detector Bin")
     plt.legend()
+    plt.title("Angle "+ str(int(fraction*360))+": v profile - Conebeam ")
     if i == 0: plt.ylabel("Intensity")
-
-
 plt.show()
-
-
 
 
 fractions = [0, 1/8, 1/4, 3/8,1/2]
@@ -181,6 +178,8 @@ for i, fraction in enumerate(fractions):
     plt.plot(sino3c[int(fraction*na),:,int(nv/2)], label='C JO')
     plt.xlabel("Detector Bin")
     plt.legend()
+    plt.title("Angle "+ str(int(fraction*360))+": u profile")
+
     if i == 0: plt.ylabel("Intensity")
 plt.show()
 
@@ -206,32 +205,45 @@ plt.show()
 
 
 rec1p = dd.dd_bp_par_2d(sinoP, ang_arr, (nx,ny), d_pix=d_pix, du=du,su=su)
-rec1f = dd.dd_bp_fan_2d(sinoF, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su=su)
 rec2p = rd.aw_bp_par_2d(sinoP, ang_arr, (nx,ny), d_pix=d_pix, du=du,su=su)
-rec2f = rd.aw_bp_fan_2d(sinoF, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su=su)
 rec3p = rd.aw_bp_par_2d(sinoP, ang_arr, (nx,ny), d_pix=d_pix, du=du,su=su,joseph=True)
+rec4p = pd.pd_bp_par_2d(sinoP, ang_arr, (nx,ny), d_pix=d_pix, du=du,su=su)
+
+rec1f = dd.dd_bp_fan_2d(sinoF, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su=su)
+rec2f = rd.aw_bp_fan_2d(sinoF, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su=su)
 rec3f = rd.aw_bp_fan_2d(sinoF, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su=su, joseph=True)
-rec4p = dd.dd_bp_par_2d(sinoP, ang_arr, (nx,ny), d_pix=d_pix, du=du,su=su)
-rec4f = dd.dd_bp_fan_2d(sinoF, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su=su)
+#rec4f = pd.dd_bp_fan_2d(sinoF, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su=su)
 
-rec4p[:,:] = 0.0
-rec4f[:,:] = 0.0
+#rec1c = dd.aw_bp_cone_3d(sinoC,ang_arr,nu,nv,DSO,DSD,du=du,d_pix=d_pix)
+rec2c = rd.aw_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),nu,nv,DSO,DSD,du=du,d_pix=d_pix)
+rec3c = rd.aw_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),nu,nv,DSO,DSD,du=du,d_pix=d_pix,joseph=True)
+#rec4c = pd.aw_bp_cone_3d(sinoC,ang_arr,nu,nv,DSO,DSD,du=du,d_pix=d_pix)
 
 
 
-recs = [rec1p,rec2p,rec3p,rec4p,rec1f,rec2f,rec3f,rec4f]
+rec4p = np.zeros((nx,ny))
+rec4f = np.zeros((nx,ny))
+rec1c = np.zeros((nx,ny,nz))
+rec4c = np.zeros((nx,ny,nz))
+
+
+
+recs = [rec1p,rec2p,rec3p,rec4p,
+        rec1f,rec2f,rec3f,rec4f,
+        rec1c[:,:,int(nz/2)],rec2c[:,:,int(nz/2)],rec3c[:,:,int(nz/2)],rec4c[:,:,int(nz/2)]]
 titles = ["DD Parallel","SD Parallel","JO Parallel","PD Parallel",
-          "DD Fanbeam","SD Fanbeam","JO Fanbeam","PD Fanbeam"]
-plt.figure(figsize=(16,8))
+          "DD Fanbeam","SD Fanbeam","JO Fanbeam","PD Fanbeam",
+          "DD Conebeam","SD Conebeam","JO Conebeam","PD Conebeam"]
+
+plt.figure(figsize=(16,12))
 for i, (rec,title) in enumerate(zip(recs,titles)):
-    plt.subplot(2,4,i+1)
-    plt.imshow(rec, cmap='gray', aspect='auto', origin='lower')
+    plt.subplot(3,4,i+1)
+    plt.imshow(rec.T, cmap='gray', aspect='auto', origin='lower')
     plt.title(title)
     if i % 4 ==0: 
         plt.ylabel("Pixels")
-    if i > 3:
+    if i > 7:
         plt.xlabel("Pixels")
- 
 plt.show()
 
 
@@ -292,5 +304,4 @@ plt.legend()
 plt.show()
 
 
-"""
 

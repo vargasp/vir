@@ -242,7 +242,6 @@ def _aw_bp_traverse_3d(img,s_val,t_entry,t_exit,tx_next,ty_next,tz_next,
                        ix,iy,iz,ix_dir,iy_dir,iz_dir,nx,ny,nz):
     
     t = t_entry
-    acc = 0.0
 
     while t < t_exit:
 
@@ -959,11 +958,11 @@ def aw_bp_fan_2d(sino, ang_arr, img_shape, DSO, DSD, du=1.0, su=0.0, d_pix=1.0, 
 
 
 
-def aw_bp_cone_3d(img,ang_arr,nu,nv,DSO,DSD,
+def aw_bp_cone_3d(sino,ang_arr,img_shape,nu,nv,DSO,DSD,
                   du=1.0,dv=1.0,d_pix=1.0,joseph=False):
 
-    nx, ny, nz = img.shape
-    sino = np.zeros((ang_arr.size, nv, nu), dtype=np.float32)
+    nx, ny, nz = img_shape
+    img = np.zeros((nx, ny,nz), dtype=np.float32)
 
     img_bnd_x_min, img_bnd_x_max, x0 = _img_bounds(nx,d_pix)
     img_bnd_y_min, img_bnd_y_max, y0 = _img_bounds(ny,d_pix)
@@ -1067,11 +1066,11 @@ def aw_bp_cone_3d(img,ang_arr,nu,nv,DSO,DSD,
                     
                     ray_norm = pix_scale/ray_norm_xy / ray_norm_z
                     
-                ray_scale = DSD/np.sqrt(DSD**2 + u**2 + v**2)
+                #ray_scale = DSD/np.sqrt(DSD**2 + u**2 + v**2)
                 #ray_scale = DSD**2/ pow(DSD*DSD + u*u + v*v, 1.5);
-                sino[ia, iu, iv]= sino[ia, iu, iv]*ray_scale
+                #sino[ia, iu, iv]= sino[ia, iu, iv]*ray_scale
                     
-    return sino
+    return img
 
 
 
