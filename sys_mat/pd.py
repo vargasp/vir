@@ -15,7 +15,7 @@ def proj_object2det_par(px, py):
     return px + py
 
 
-def accumuate(sino, val, ia, p_min, p_max, u_bnd, du, nu, su):
+def accumuate_forward(sino, val, ia, p_min, p_max, u_bnd, du, nu, su):
     # Overlapping detector bins
     iu0 = max(0,  int(np.floor(p_min / du + nu/2 - su)))
     iu1 = min(nu, int(np.ceil (p_max / du + nu/2 - su)))
@@ -27,7 +27,7 @@ def accumuate(sino, val, ia, p_min, p_max, u_bnd, du, nu, su):
             sino[ia, iu] += val * (right - left) / du
 
 
-def accumuate_adj(img, sino, ix, iy, ia, p_min, p_max, u_bnd, du, nu, su):
+def accumuate_back(img, sino, ix, iy, ia, p_min, p_max, u_bnd, du, nu, su):
     # Overlapping detector bins (same logic!)
     iu0 = max(0,  int(np.floor(p_min / du + nu/2 - su)))
     iu1 = min(nu, int(np.ceil (p_max / du + nu/2 - su)))
@@ -39,10 +39,24 @@ def accumuate_adj(img, sino, ix, iy, ia, p_min, p_max, u_bnd, du, nu, su):
             img[ix, iy] += sino[ia, iu] * (right - left) / du
 
 
-
-
-
 def pd_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0):
+   nx, ny = img.shape
+   sino = np.zeros((ang_arr.size, nu), dtype=np.float32)
+   
+   return pd_p_par_2d(img,sino,ang_arr,nx,ny,nu, 
+               du=du,su=su,d_pix=d_pix, proj='forward')
+
+def pd_bp_par_2d(sino, ang_arr, img_shape, du=1.0, su=0.0, d_pix=1.0):
+    nx, ny = img_shape
+    na, nu = sino.shape
+    img = np.zeros((nx, ny), dtype=np.float32)
+
+    return pd_p_par_2d(img,sino,ang_arr,nx,ny,nu, 
+                       du=du,su=su,d_pix=d_pix, proj='back')
+
+
+def pd_p_par_2d(img,sino,ang_arr,nx,ny,nu, 
+                du,su,d_pix,proj):
     """
     Separable footprints forward projector for 2D parallel-beam CT.
 
@@ -117,7 +131,8 @@ def pd_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0):
                 p_min = min([p0, p1, p2, p3])
                 p_max = max([p0, p1, p2, p3])
 
-                accumuate(sino, val, ia, p_min, p_max, u_bnd_arr, du, nu, su)
+        
+                accumuate_forward(sino, val, ia, p_min, p_max, u_bnd_arr, du, nu, su)
 
 
                 py_bnd_l = py_bnd_r
@@ -166,7 +181,7 @@ def pd_bp_par_2d(sino, ang_arr, img_shape, du=1.0, su=0.0, d_pix=1.0):
                 p_min = min(p0, p1, p2, p3)
                 p_max = max(p0, p1, p2, p3)
 
-                accumuate_adj(
+                accumuate_back(
                     img, sino, ix, iy, ia,
                     p_min, p_max, u_bnd_arr, du, nu, su)
 
@@ -419,92 +434,3 @@ def pd_fp_cone_3d(img, ang_arr,
             ox_l = ox_r
     return sino
 
-
-
-def pd_bp_par_2d(sino, img_shape, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0):
-    """
-    Separable footprints forward projector for 2D parallel-beam CT.
-
-    Implements the separable footprint model where each pixel is projected
-    as an axis-aligned rectangle (“footprint”) onto the detector array.
-
-    Parameters:
-        img     : ndarray shape (nX, nY)
-        Angs  : ndarray of projection angles (radians)
-        nDets   : number of detector bins
-        d_pix    : pixel width
-        d_det    : detector bin width
-
-    Returns:
-        sino    : ndarray shape (len(angles), nDets)
-    """
-    nx, ny = img_shape
-    na, nu = sino.shape
-    img = np.zeros((nx, ny), dtype=np.float32)
-
-
-    # Pixel boundaries (image centered at origin)
-    x_bnd_arr = d_pix*(np.arange(nx+1, dtype=np.float32) - nx/2)
-    y_bnd_arr = d_pix*(np.arange(ny+1, dtype=np.float32) - ny/2)
-
-    # Detector bin boundaries (u)
-    u_bnd_arr = du*(np.arange(nu + 1, dtype=np.float32) - nu/2 + su)
-
-    # Precompute trig functions for all angles
-    cos_ang_arr = np.cos(ang_arr)
-    sin_ang_arr = np.sin(ang_arr)
-
-    for ia, (cos_ang,sin_ang) in enumerate(zip(cos_ang_arr,sin_ang_arr)):
-
-        #Normaliz by footprint stretch factor
-        pix_scale = 1/ (abs(sin_ang) + abs(cos_ang)) 
-        
-        #Rotates the x,y coordinate system to o,p (orthogonal and parallel to
-        #the detector)
-        #In parallel beam these coordinates will projection directly on the 
-        #detector with p(x,y) = -sin_ang*x + cos_ang*y
-
-        #Precomputes the components
-        px_bnd_arr = -sin_ang*x_bnd_arr
-        py_bnd_arr =  cos_ang*y_bnd_arr
-        
-        #Loops through the precomputed x cooridnates  
-        px_bnd_l = px_bnd_arr[0]
-        for ix, px_bnd_r in enumerate(px_bnd_arr[1:]):
-                                    
-            # Initalize first boundary
-            py_bnd_l = py_bnd_arr[0]    
-            
-            #Calulates the first two pixel corners projected on detector
-            p0 = py_bnd_l + px_bnd_l
-            p1 = py_bnd_l + px_bnd_r
-            
-            #Loops through the precomputed y cooridnates  
-            for iy, py_bnd_r in enumerate(py_bnd_arr[1:]):
-                #Calulates the second two pixel corners projected on detector
-                p2 = py_bnd_r + px_bnd_l
-                p3 = py_bnd_r + px_bnd_r
-
-
-                #If image pixel is 0 advance to next pixel
-                val = img[ix, iy]*pix_scale
-                if img[ix, iy] == 0:
-                    py_bnd_l = py_bnd_r
-                    p0 = p2
-                    p1 = p3
-                    continue
-
-                #min and 
-                p_min = min([p0, p1, p2, p3])
-                p_max = max([p0, p1, p2, p3])
-
-                accumuate(sino, val, ia, p_min, p_max, u_bnd_arr, du, nu)
-
-
-                py_bnd_l = py_bnd_r
-                p0 = p2
-                p1 = p3
-
-            px_bnd_l = px_bnd_r
-
-    return sino

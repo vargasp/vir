@@ -221,7 +221,6 @@ rec3c = rd.aw_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),nu,nv,DSO,DSD,du=du,d_pix=d_pi
 
 
 
-rec4p = np.zeros((nx,ny))
 rec4f = np.zeros((nx,ny))
 rec1c = np.zeros((nx,ny,nz))
 rec4c = np.zeros((nx,ny,nz))
