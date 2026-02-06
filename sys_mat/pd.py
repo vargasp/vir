@@ -31,6 +31,21 @@ def _accumuate_forward(sino, val, ia, p_min, p_max, u_bnd, du, nu, su):
             sino[ia, iu] += val * (right - left) / du
 
 
+def _accumuate_back_2d(sino, ia, p_min, p_max, u_bnd, du, nu, su, scale):
+    # Overlapping detector bins (same logic!)
+    iu0 = max(0,  int(np.floor(p_min / du + nu/2 - su)))
+    iu1 = min(nu, int(np.ceil (p_max / du + nu/2 - su)))
+
+    acc = 0.0
+    for iu in range(iu0, iu1):
+        left = max(p_min, u_bnd[iu])
+        right = min(p_max, u_bnd[iu + 1])
+        if right > left:
+            acc += sino[ia, iu] * (right - left) / du *scale
+
+    return acc
+
+
 def _accumuate_forward_3d(sino,val,ia, u_bnd,v_bnd,u_min,v_min,u_max,v_max, 
                           du,dv, nu, nv,su):
     iu0 = np.searchsorted(u_bnd, u_min, side="right") - 1
@@ -51,13 +66,14 @@ def _accumuate_forward_3d(sino,val,ia, u_bnd,v_bnd,u_min,v_min,u_max,v_max,
                 sino[ia,iu,iv] += val*(ur - ul)/du*(vr - vl)/dv
                 
 
-def _accumuate_back_3d(img,sino,ix,iy,iz,ia,u_bnd,v_bnd,u_min,v_min,u_max,v_max, 
+def _accumuate_back_3d(sino,ia,u_bnd,v_bnd,u_min,v_min,u_max,v_max, 
                           du,dv, nu, nv,su,scale):
     iu0 = np.searchsorted(u_bnd, u_min, side="right") - 1
     iu1 = np.searchsorted(u_bnd, u_max, side="left")
     iv0 = np.searchsorted(v_bnd, v_min, side="right") - 1
     iv1 = np.searchsorted(v_bnd, v_max, side="left")
 
+    acc = 0.0
     for iv in range(max(0, iv0), min(nv, iv1)):
         vl = max(v_min, v_bnd[iv])
         vr = min(v_max, v_bnd[iv + 1])
@@ -68,19 +84,9 @@ def _accumuate_back_3d(img,sino,ix,iy,iz,ia,u_bnd,v_bnd,u_min,v_min,u_max,v_max,
             ul = max(u_min, u_bnd[iu])
             ur = min(u_max, u_bnd[iu + 1])
             if ur > ul:
-                img[ix,iy,iz] += sino[ia,iu,iv]*(ur - ul)/du*(vr - vl)/dv*scale
+                acc += sino[ia,iu,iv]*(ur - ul)/du*(vr - vl)/dv*scale
 
-
-def _accumuate_back(img, sino, ix, iy, ia, p_min, p_max, u_bnd, du, nu, su, scale):
-    # Overlapping detector bins (same logic!)
-    iu0 = max(0,  int(np.floor(p_min / du + nu/2 - su)))
-    iu1 = min(nu, int(np.ceil (p_max / du + nu/2 - su)))
-
-    for iu in range(iu0, iu1):
-        left = max(p_min, u_bnd[iu])
-        right = min(p_max, u_bnd[iu + 1])
-        if right > left:
-            img[ix, iy] += sino[ia, iu] * (right - left) / du *scale
+    return acc
 
 
 def pd_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0):
@@ -164,9 +170,8 @@ def pd_p_par_2d(img,sino,ang_arr,nx,ny,nu,
                 p_max = max([p0, p1, p2, p3])
 
                 if bp:
-                    _accumuate_back(
-                    img, sino, ix, iy, ia,
-                    p_min, p_max, u_bnd_arr, du, nu, su,pix_scale)
+                    img[ix,iy] += _accumuate_back_2d(sino,ia,p_min,p_max,
+                                                     u_bnd_arr,du,nu,su,pix_scale)
                 else:
                     if img[ix, iy] == 0:
                         py_bnd_l = py_bnd_r
@@ -174,7 +179,7 @@ def pd_p_par_2d(img,sino,ang_arr,nx,ny,nu,
                         p1 = p3
                         continue
             
-                    _accumuate_forward(sino, img[ix, iy]*pix_scale, ia, p_min, p_max, u_bnd_arr, du, nu, su)
+                    _accumuate_forward(sino,img[ix, iy]*pix_scale,ia,p_min,p_max,u_bnd_arr, du, nu, su)
         
 
                 py_bnd_l = py_bnd_r
@@ -262,7 +267,6 @@ def pd_p_fan_2d(img,sino,ang_arr,nx,ny,nu,DSO,DSD,du,su,d_pix,bp):
                 oy_c = (oy_bnd_l + oy_bnd_r)/2
 
                 u_c = DSD * (px_c + py_c) / (DSO - (ox_c + oy_c))
-
                 gamma = np.arctan(u_c / DSD)
                 
                 rx = np.cos(ang_arr[ia] + gamma)
@@ -278,9 +282,8 @@ def pd_p_fan_2d(img,sino,ang_arr,nx,ny,nu,DSO,DSD,du,su,d_pix,bp):
                 p_max = max([p0,p1,p2,p3])
 
                 if bp:
-                    _accumuate_back(
-                    img, sino, ix, iy, ia,
-                    p_min, p_max, u_bnd_arr, du, nu, su, ray_norm3)
+                    img[ix,iy] += _accumuate_back_2d(sino,ia,p_min,p_max,
+                                                     u_bnd_arr,du,nu,su,ray_norm3)
                 else:
                     if img[ix, iy] == 0:
                         py_bnd_l = py_bnd_r
@@ -412,7 +415,7 @@ def pd_p_cone_3d(img,sino,ang_arr,nx,ny,nz,nu,nv,DSO,DSD,
 
 
                     if bp:
-                        _accumuate_back_3d(img,sino,ix,iy,iz,ia,u_bnd_arr,v_bnd_arr,
+                        img[ix,iy,iz] += _accumuate_back_3d(sino,ia,u_bnd_arr,v_bnd_arr,
                                            u_min,v_min,u_max,v_max,
                                            du,dv, nu, nv,su,ray_norm)
                     else:

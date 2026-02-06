@@ -17,7 +17,7 @@ import vir.sys_mat.analytic_sino as asino
 
 
 #Image params - Pixels
-nx, ny, nz = 32, 32, 32
+nx, ny, nz = 16, 16, 16
 d_pix = 1
 
 #Fan Beam Geometry - Parallel
@@ -29,8 +29,8 @@ DSD = 1e8 + max(nx,ny)/2
 #DSD = DSO*2
 
 #Sino params 
-na = 128
-nu, nv = 64, 64
+na = 32
+nu, nv = 16, 16
 du, dv = 1., 1.
 su, sv = 0., 0.
 na_lets, nu_lets, nv_lets = 5, 5, 5
@@ -48,7 +48,7 @@ v_arr_lets = dv*(np.arange(nv*nv_lets) - nv/2.0*nv_lets + 0.5 + sv).reshape(nv,n
 
 
 #Phantom Paramters Sino
-r = 1
+r = 2
 x0 = 0
 y0 = 0
 z0 = 0
@@ -77,7 +77,6 @@ plt.show()
 
 
 
-"""
 sino1p = dd.dd_fp_par_2d(img2d, ang_arr, nu, du=du, su=su, d_pix=d_pix)
 sino2p = rd.aw_fp_par_2d(img2d, ang_arr, nu, du=du, su=su, d_pix=d_pix)
 sino3p = rd.aw_fp_par_2d(img2d, ang_arr, nu, du=du, su=su, d_pix=d_pix,joseph=True)
@@ -188,8 +187,6 @@ for i, fraction in enumerate(fractions):
 plt.show()
 
 
-"""
-
 
 
 #print("Siddons/AW Diff:", (sino1-sino4).max())
@@ -215,14 +212,12 @@ rec2f = rd.aw_bp_fan_2d(sinoF, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su
 rec3f = rd.aw_bp_fan_2d(sinoF, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su=su, joseph=True)
 rec4f = pd.pd_bp_fan_2d(sinoF, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su=su)
 
-#rec1c = dd.aw_bp_cone_3d(sinoC,ang_arr,nu,nv,DSO,DSD,du=du,d_pix=d_pix)
+rec1c = dd.dd_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),DSO,DSD,du=du,dv=dv,d_pix=d_pix)
 rec2c = rd.aw_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),nu,nv,DSO,DSD,du=du,d_pix=d_pix)
 rec3c = rd.aw_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),nu,nv,DSO,DSD,du=du,d_pix=d_pix,joseph=True)
 rec4c = pd.pd_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),DSO,DSD,du=du,d_pix=d_pix)
 
 
-
-rec1c = np.zeros((nx,ny,nz))
 
 
 
@@ -266,13 +261,13 @@ plt.legend()
 
 plt.subplot(3,4,3)
 for j, rec in enumerate(recsp):
-    plt.plot(rec[np.arange(32),np.arange(32)], label=labels[j])
+    plt.plot(rec[np.arange(nx),np.arange(ny)], label=labels[j])
 plt.title(titles[2])
 plt.legend()
 
 plt.subplot(3,4,4)
 for j, rec in enumerate(recsp):
-    plt.plot(rec[np.arange(32), np.arange(32)[::-1]], label=labels[j])
+    plt.plot(rec[np.arange(nx), np.arange(ny)[::-1]], label=labels[j])
 plt.title(titles[2])
 plt.legend()
 
@@ -292,13 +287,13 @@ plt.legend()
 
 plt.subplot(3,4,7)
 for j, rec in enumerate(recsf):
-    plt.plot(rec[np.arange(32),np.arange(32)], label=labels[j])
+    plt.plot(rec[np.arange(nx),np.arange(ny)], label=labels[j])
 plt.title(titles[2])
 plt.legend()
 
 plt.subplot(3,4,8)
 for j, rec in enumerate(recsf):
-    plt.plot(rec[np.arange(32), np.arange(32)[::-1]], label=labels[j])
+    plt.plot(rec[np.arange(nx), np.arange(ny)[::-1]], label=labels[j])
 plt.title(titles[2])
 plt.legend()
 
@@ -317,13 +312,13 @@ plt.legend()
 
 plt.subplot(3,4,11)
 for j, rec in enumerate(recsc):
-    plt.plot(rec[np.arange(32),np.arange(32),int(nz/2)], label=labels[j])
+    plt.plot(rec[np.arange(nx),np.arange(ny),int(nz/2)], label=labels[j])
 plt.title(titles[2])
 plt.legend()
 
 plt.subplot(3,4,12)
 for j, rec in enumerate(recsc):
-    plt.plot(rec[np.arange(32), np.arange(32)[::-1],int(nz/2)], label=labels[j])
+    plt.plot(rec[np.arange(nx), np.arange(ny)[::-1],int(nz/2)], label=labels[j])
 plt.title(titles[2])
 plt.legend()
 plt.show()
