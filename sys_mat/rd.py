@@ -1070,7 +1070,7 @@ def aw_bp_cone_3d(sino,ang_arr,img_shape,nu,nv,DSO,DSD,
                 #ray_scale = DSD**2/ pow(DSD*DSD + u*u + v*v, 1.5);
                 #sino[ia, iu, iv]= sino[ia, iu, iv]*ray_scale
                     
-    return img
+    return img/ang_arr.size
 
 
 

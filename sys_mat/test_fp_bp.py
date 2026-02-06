@@ -48,8 +48,8 @@ v_arr_lets = dv*(np.arange(nv*nv_lets) - nv/2.0*nv_lets + 0.5 + sv).reshape(nv,n
 
 
 #Phantom Paramters Sino
-r = 2
-x0 = 5
+r = 1
+x0 = 0
 y0 = 0
 z0 = 0
 
@@ -74,6 +74,7 @@ plt.xlabel("X Pixels")
 plt.ylabel("Y Pixels")
 plt.show()
 """
+
 
 
 """
@@ -149,6 +150,7 @@ for i, fraction in enumerate(fractions):
     plt.plot(sino1c[int(fraction*na),:,int(nv/2+z0)], label='C DD')
     plt.plot(sino2c[int(fraction*na),:,int(nv/2+z0)], label='C AW')
     plt.plot(sino3c[int(fraction*na),:,int(nv/2+z0)], label='C JO')
+    plt.plot(sino4c[int(fraction*na),:,int(nv/2+z0)], label='C PD')
     plt.legend()
     plt.title("Angle "+ str(int(fraction*360))+": u profile - Conebeam ")
     if i == 0: plt.ylabel("Intensity")
@@ -158,6 +160,7 @@ for i, fraction in enumerate(fractions):
     plt.plot(sino1c[int(fraction*na),int(nu/2+z0),:], label='C DD')
     plt.plot(sino2c[int(fraction*na),int(nu/2+z0),:], label='C AW')
     plt.plot(sino3c[int(fraction*na),int(nu/2+z0),:], label='C JO')
+    plt.plot(sino4c[int(fraction*na),int(nu/2+z0),:], label='C PD')
     plt.xlabel("Detector Bin")
     plt.legend()
     plt.title("Angle "+ str(int(fraction*360))+": v profile - Conebeam ")
@@ -176,15 +179,13 @@ for i, fraction in enumerate(fractions):
     plt.plot(sino1c[int(fraction*na),:,int(nv/2)], label='C DD')
     plt.plot(sino2c[int(fraction*na),:,int(nv/2)], label='C AW')
     plt.plot(sino3c[int(fraction*na),:,int(nv/2)], label='C JO')
+    plt.plot(sino4c[int(fraction*na),:,int(nv/2)], label='C PD')
     plt.xlabel("Detector Bin")
     plt.legend()
     plt.title("Angle "+ str(int(fraction*360))+": u profile")
 
     if i == 0: plt.ylabel("Intensity")
 plt.show()
-
-
-
 
 
 """
@@ -212,18 +213,16 @@ rec4p = pd.pd_bp_par_2d(sinoP, ang_arr, (nx,ny), d_pix=d_pix, du=du,su=su)
 rec1f = dd.dd_bp_fan_2d(sinoF, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su=su)
 rec2f = rd.aw_bp_fan_2d(sinoF, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su=su)
 rec3f = rd.aw_bp_fan_2d(sinoF, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su=su, joseph=True)
-#rec4f = pd.dd_bp_fan_2d(sinoF, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su=su)
+rec4f = pd.pd_bp_fan_2d(sinoF, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su=su)
 
 #rec1c = dd.aw_bp_cone_3d(sinoC,ang_arr,nu,nv,DSO,DSD,du=du,d_pix=d_pix)
 rec2c = rd.aw_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),nu,nv,DSO,DSD,du=du,d_pix=d_pix)
 rec3c = rd.aw_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),nu,nv,DSO,DSD,du=du,d_pix=d_pix,joseph=True)
-#rec4c = pd.aw_bp_cone_3d(sinoC,ang_arr,nu,nv,DSO,DSD,du=du,d_pix=d_pix)
+rec4c = pd.pd_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),DSO,DSD,du=du,d_pix=d_pix)
 
 
 
-rec4f = np.zeros((nx,ny))
 rec1c = np.zeros((nx,ny,nz))
-rec4c = np.zeros((nx,ny,nz))
 
 
 
@@ -248,28 +247,30 @@ plt.show()
 
 recsp = [rec1p,rec2p,rec3p,rec4p]
 recsf = [rec1f,rec2f,rec3f,rec4f]
+recsc = [rec1c,rec2c,rec3c,rec4c]
+
 labels = ["DD","SD","JO","PD"]
 titles = ["P - X Center", "P - Y Center", "P - XY Center", "P  -YX Center"]
-plt.figure(figsize=(16,8))
-plt.subplot(2,4,1)
+plt.figure(figsize=(16,12))
+plt.subplot(3,4,1)
 for j, rec in enumerate(recsp):
     plt.plot(rec[:,int(ny/2-1):int(ny/2+1)].mean(axis=1), label=labels[j])
 plt.title(titles[0])
 plt.legend()
 
-plt.subplot(2,4,2)
+plt.subplot(3,4,2)
 for j, rec in enumerate(recsp):
     plt.plot(rec[int(nx/2-1):int(nx/2+1),:].mean(axis=0), label=labels[j])
 plt.title(titles[1])
 plt.legend()
 
-plt.subplot(2,4,3)
+plt.subplot(3,4,3)
 for j, rec in enumerate(recsp):
     plt.plot(rec[np.arange(32),np.arange(32)], label=labels[j])
 plt.title(titles[2])
 plt.legend()
 
-plt.subplot(2,4,4)
+plt.subplot(3,4,4)
 for j, rec in enumerate(recsp):
     plt.plot(rec[np.arange(32), np.arange(32)[::-1]], label=labels[j])
 plt.title(titles[2])
@@ -277,30 +278,80 @@ plt.legend()
 
 
 titles = ["F - X Center", "F - Y Center", "F - XY Center", "F - YX Center"]
-plt.subplot(2,4,5)
+plt.subplot(3,4,5)
 for j, rec in enumerate(recsf):
     plt.plot(rec[:,int(ny/2-1):int(ny/2+1)].mean(axis=1), label=labels[j])
 plt.title(titles[0])
 plt.legend()
 
-plt.subplot(2,4,6)
+plt.subplot(3,4,6)
 for j, rec in enumerate(recsf):
     plt.plot(rec[int(nx/2-1):int(nx/2+1),:].mean(axis=0), label=labels[j])
 plt.title(titles[1])
 plt.legend()
 
-plt.subplot(2,4,7)
+plt.subplot(3,4,7)
 for j, rec in enumerate(recsf):
     plt.plot(rec[np.arange(32),np.arange(32)], label=labels[j])
 plt.title(titles[2])
 plt.legend()
 
-plt.subplot(2,4,8)
+plt.subplot(3,4,8)
 for j, rec in enumerate(recsf):
     plt.plot(rec[np.arange(32), np.arange(32)[::-1]], label=labels[j])
 plt.title(titles[2])
 plt.legend()
+
+titles = ["C - X Center", "C - Y Center", "C - XY Center", "C - YX Center"]
+plt.subplot(3,4,9)
+for j, rec in enumerate(recsc):
+    plt.plot(rec[:,int(ny/2-1):int(ny/2+1),int(nz/2)].mean(axis=1), label=labels[j])
+plt.title(titles[0])
+plt.legend()
+
+plt.subplot(3,4,10)
+for j, rec in enumerate(recsc):
+    plt.plot(rec[int(nx/2-1):int(nx/2+1),:,int(nz/2)].mean(axis=0), label=labels[j])
+plt.title(titles[1])
+plt.legend()
+
+plt.subplot(3,4,11)
+for j, rec in enumerate(recsc):
+    plt.plot(rec[np.arange(32),np.arange(32),int(nz/2)], label=labels[j])
+plt.title(titles[2])
+plt.legend()
+
+plt.subplot(3,4,12)
+for j, rec in enumerate(recsc):
+    plt.plot(rec[np.arange(32), np.arange(32)[::-1],int(nz/2)], label=labels[j])
+plt.title(titles[2])
+plt.legend()
 plt.show()
+
+
+
+titles = ["C - X Center", "C - Y Center", "C - Z Center"]
+plt.figure(figsize=(12,4))
+plt.subplot(1,3,1)
+for j, rec in enumerate(recsc):
+    plt.plot(rec[:,int(ny/2),int(nz/2)], label=labels[j])
+plt.title(titles[0])
+plt.legend()
+
+plt.subplot(1,3,2)
+for j, rec in enumerate(recsc):
+    plt.plot(rec[int(nx/2),:,int(nz/2)], label=labels[j])
+plt.title(titles[1])
+plt.legend()
+
+plt.subplot(1,3,3)
+for j, rec in enumerate(recsc):
+    plt.plot(rec[int(nx/2),int(ny/2),:], label=labels[j])
+plt.title(titles[2])
+plt.legend()
+plt.show
+
+
 
 
 
