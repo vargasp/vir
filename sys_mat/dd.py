@@ -13,10 +13,6 @@ def proj_img2det_fan(p_term1, p_term2, o_term1, o_term2, DSO, DSD):
     return DSD * (p_term1 + p_term2) / (DSO - (o_term1 + o_term2))
 
 
-   
-
-
-
 def _accumulate_3d(sino, img_val, ray_scl,p_bnd_l, p_bnd_r,u_bnd_l,u_bnd_r,
                ia, iu, iv, ip,ov_r,ov_l):
     
@@ -43,7 +39,7 @@ def _accumulate_3d(sino, img_val, ray_scl,p_bnd_l, p_bnd_r,u_bnd_l,u_bnd_r,
     return ip, iu
 
 
-def _dd_fp_par_sweep(sino,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
+def _dd_fp_par_sweep(sino_vec,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
                      u_bnd_arr,ray_scl,ia):
     """
     Distance-driven sweep kernel for 2D parallel or fanbeam forward projection.
@@ -85,7 +81,6 @@ def _dd_fp_par_sweep(sino,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
     - Contributions outside the detector range are implicitly discarded.
     - This function does not allocate memory and updates `sino` in-place.
     """
-    
     np, no = img_trm.shape
     nu = u_bnd_arr.size - 1
 
@@ -94,7 +89,6 @@ def _dd_fp_par_sweep(sino,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
 
         #Hoisting pointers for explicit LICM
         p_orth_trm = p_orth_arr_trm[io]
-
         img_vec = img_trm[:, io]
 
         ip = 0
@@ -110,8 +104,6 @@ def _dd_fp_par_sweep(sino,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
             # Actual projected pixel boundaries for this pixel row/column
             u_bnd_l = u_bnd_arr[iu]
             u_bnd_r = u_bnd_arr[iu + 1]
-
-
         
             #This should never happen in parallel beam
             #It may occur in fan/cone beam
@@ -119,13 +111,13 @@ def _dd_fp_par_sweep(sino,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
             if p_bnd_r < p_bnd_l:
                 p_bnd_l, p_bnd_r = p_bnd_r, p_bnd_l
         
-        
             overlap_l = max(p_bnd_l, u_bnd_l)
             overlap_r = min(p_bnd_r, u_bnd_r)
         
             # Accumulate overlap contribution
             if overlap_r > overlap_l:
-                sino[ia, iu] += (img_vec[ip]* (overlap_r - overlap_l)*ray_scl)
+                #sino[ia, iu] += (img_vec[ip]* (overlap_r - overlap_l)*ray_scl)
+                sino_vec[iu] += (img_vec[ip]* (overlap_r - overlap_l)*ray_scl)
         
             # Advance whichever interval ends first
             if p_bnd_r < u_bnd_r:
@@ -134,12 +126,8 @@ def _dd_fp_par_sweep(sino,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
                 iu += 1
 
 
-
-
-
-
-
-def _dd_bp_par_sweep(img_out, sino, p_drv_bnd_arr_trm, p_orth_arr_trm, u_bnd_arr, ray_scl, ia):
+def _dd_bp_par_sweep(img_out,sino_vec,p_drv_bnd_arr_trm,p_orth_arr_trm, 
+                     u_bnd_arr,ray_scl,ia):
     """
     Distance-driven sweep kernel for 2D parallel or fanbeam back-projection.
 
@@ -170,11 +158,9 @@ def _dd_bp_par_sweep(img_out, sino, p_drv_bnd_arr_trm, p_orth_arr_trm, u_bnd_arr
     np_, no = img_out.shape
     nu = u_bnd_arr.size - 1
 
-    sino_vec = sino[ia]
     # Loop over orthogonal pixel lines
     for io in range(no):
         p_orth_trm = p_orth_arr_trm[io]
-
         img_vec = img_out[:, io]
 
         ip = 0
@@ -183,10 +169,11 @@ def _dd_bp_par_sweep(img_out, sino, p_drv_bnd_arr_trm, p_orth_arr_trm, u_bnd_arr
             # Compute overlap as in FP
             p_bnd_l = p_drv_bnd_arr_trm[ip] + p_orth_trm
             u_bnd_l = u_bnd_arr[iu]
-            overlap_l = max(p_bnd_l, u_bnd_l)
 
             p_bnd_r = p_drv_bnd_arr_trm[ip + 1] + p_orth_trm
             u_bnd_r = u_bnd_arr[iu + 1]
+
+            overlap_l = max(p_bnd_l, u_bnd_l)
             overlap_r = min(p_bnd_r, u_bnd_r)
 
             if overlap_r > overlap_l:
@@ -199,10 +186,7 @@ def _dd_bp_par_sweep(img_out, sino, p_drv_bnd_arr_trm, p_orth_arr_trm, u_bnd_arr
                 iu += 1
                 
 
-
-
-
-def _dd_fp_fan_sweep(sino,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
+def _dd_fp_fan_sweep(sino_vec,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
                      o_drv_bnd_arr_trm,o_orth_arr_trm,u_bnd_arr,
                      ray_scl_arr,ia,DSO,DSD):
     """
@@ -283,7 +267,7 @@ def _dd_fp_fan_sweep(sino,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
         
             # Accumulate overlap contribution
             if overlap_r > overlap_l:
-                sino[ia, iu] += (img_vec[ip]* (overlap_r - overlap_l)*ray_scl)
+                sino_vec[iu] += (img_vec[ip]* (overlap_r - overlap_l)*ray_scl)
                 
             # Advance whichever interval ends first
             if p_bnd_r < u_bnd_r:
@@ -300,9 +284,7 @@ def _dd_fp_fan_sweep(sino,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
                 u_bnd_r = u_bnd_arr[iu+1]
 
 
-
-
-def _dd_bp_fan_sweep(sino,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
+def _dd_bp_fan_sweep(sino_vec,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
                      o_drv_bnd_arr_trm,o_orth_arr_trm,
                      u_bnd_arr,ray_scl_arr,ia,DSO,DSD):
 
@@ -310,7 +292,7 @@ def _dd_bp_fan_sweep(sino,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
     np, no = img_trm.shape
     nu = u_bnd_arr.size - 1
 
-    sino_vec = sino[ia]
+    #sino_vec = sino[ia]
     # Loop over orthogonal pixel lines
     for io in range(no):
         
@@ -359,16 +341,14 @@ def _dd_bp_fan_sweep(sino,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
 
 
 
-def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm, p_orth_arr_trm,
-                      z_bnd_arr, z_arr,
-                      o_drv_bnd_arr_trm, o_orth_arr_trm,
-                      u_bnd_arr, v_bnd_arr,ray_scl_arr,ia, DSO, DSD):
+def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
+                      z_bnd_arr,z_arr,o_drv_bnd_arr_trm,o_orth_arr_trm,
+                      u_bnd_arr, v_bnd_arr,ray_scl_arr,ia,DSO,DSD):
     nP, nz, no = vol.shape
     nu = u_bnd_arr.size - 1
     nv = v_bnd_arr.size - 1
 
     for io in range(no):
-
         p_orth_trm = p_orth_arr_trm[io]
         o_orth_trm = o_orth_arr_trm[io]
         ray_scl = ray_scl_arr[io]
@@ -434,7 +414,7 @@ def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm, p_orth_arr_trm,
                 # ---- fan-style u sweep (IDENTICAL to fan code) ----
                 ip = 0
                 iu = 0
-                while ip < nP-1 and iu < nu-1:
+                while True:
                     overlap_u_l = max(p_bnd_prj_u_l, u_bnd_l)
                     overlap_u_r = min(p_bnd_prj_u_r, u_bnd_r)
 
@@ -445,29 +425,27 @@ def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm, p_orth_arr_trm,
                     # Advance whichever interval ends first
                     if p_bnd_prj_u_r < u_bnd_r:
                         ip += 1
+                        if ip==np: break
                         p_bnd_prj_u_l = p_bnd_prj_u_r
                         p_bnd_prj_u_r = p_bnd_arr_prj_u[ip+1]
                         
                     else:
                         iu += 1
+                        if iu==nu: break
                         u_bnd_l = u_bnd_r
                         u_bnd_r = u_bnd_arr[iu+1]
 
 
 
-def _dd_bp_cone_sweep(sino, vol,
-                      p_drv_bnd_arr_trm, p_orth_arr_trm,
-                      z_bnd_arr, z_arr,
-                      o_drv_bnd_arr_trm, o_orth_arr_trm,
-                      u_bnd_arr, v_bnd_arr,
-                      ray_scl_arr, ia, DSO, DSD):
+def _dd_bp_cone_sweep(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
+                      z_bnd_arr,z_arr,o_drv_bnd_arr_trm,o_orth_arr_trm,
+                      u_bnd_arr,v_bnd_arr,ray_scl_arr,ia,DSO,DSD):
 
     nP, nz, no = vol.shape
     nu = u_bnd_arr.size - 1
     nv = v_bnd_arr.size - 1
 
     for io in range(no):
-
         p_orth_trm = p_orth_arr_trm[io]
         o_orth_trm = o_orth_arr_trm[io]
         ray_scl = ray_scl_arr[io]
@@ -519,7 +497,7 @@ def _dd_bp_cone_sweep(sino, vol,
                 iu = 0
 
                 # ---- fan-style u sweep ----
-                while ip < nP - 1 and iu < nu - 1:
+                while True:
 
                     overlap_u_l = max(p_bnd_prj_u_l, u_bnd_l)
                     overlap_u_r = min(p_bnd_prj_u_r, u_bnd_r)
@@ -531,10 +509,12 @@ def _dd_bp_cone_sweep(sino, vol,
                     # advance interval
                     if p_bnd_prj_u_r < u_bnd_r:
                         ip += 1
+                        if ip==np: break
                         p_bnd_prj_u_l = p_bnd_prj_u_r
                         p_bnd_prj_u_r = p_bnd_arr_prj_u[ip + 1]
                     else:
                         iu += 1
+                        if iu==nu: break
                         u_bnd_l = u_bnd_r
                         u_bnd_r = u_bnd_arr[iu + 1]
 
@@ -973,16 +953,17 @@ def dd_p_par_2d(img,sino,ang_arr,du,su,d_pix,bp):
 
     #Loop through projection angles
     for ia, (cos_ang,sin_ang) in enumerate(zip(cos_ang_arr,sin_ang_arr)):
+        sino_vec = sino[ia]
         
         img_trm, p_drv_bnd_arr_trm, p_orth_arr_trm, ray_scale = \
             _dd_par_geom(img_x,img_y,x_bnd_arr,y_bnd_arr,x_arr,y_arr,
                          cos_ang,sin_ang)
     
         if bp:
-            _dd_bp_par_sweep(img_trm,sino,p_drv_bnd_arr_trm,p_orth_arr_trm,
+            _dd_bp_par_sweep(img_trm,sino_vec,p_drv_bnd_arr_trm,p_orth_arr_trm,
                              u_bnd_arr,ray_scale,ia)
         else:
-            _dd_fp_par_sweep(sino,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
+            _dd_fp_par_sweep(sino_vec,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
                              u_bnd_arr,ray_scale,ia)
 
     #Return sino normalized with pixel and detector size
@@ -1074,17 +1055,19 @@ def dd_p_fan_2d(img,sino,ang_arr,DSO,DSD,du,su,d_pix,bp):
 
     #Loop through projection angles
     for ia, (cos_ang,sin_ang) in enumerate(zip(cos_ang_arr,sin_ang_arr)):
-
+        sino_vec = sino[ia]
+        
         img_trm, p1_bnd_arr, p2_arr, o1_bnd_arr, o2_arr, ray_scl = \
             _dd_fan_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
                  cos_ang, sin_ang, DSO, DSD)
 
+
         if bp:
-            _dd_bp_fan_sweep(sino,img_trm,p1_bnd_arr,p2_arr,o1_bnd_arr,o2_arr,
+            _dd_bp_fan_sweep(sino_vec,img_trm,p1_bnd_arr,p2_arr,o1_bnd_arr,o2_arr,
                          u_bnd_arr,ray_scl,ia,DSO,DSD)
             
         else:
-            _dd_fp_fan_sweep(sino, img_trm, p1_bnd_arr,p2_arr,o1_bnd_arr,o2_arr,
+            _dd_fp_fan_sweep(sino_vec, img_trm, p1_bnd_arr,p2_arr,o1_bnd_arr,o2_arr,
                          u_bnd_arr, ray_scl, ia, DSO, DSD)
 
     #Return sino normalized with pixel and detector size
@@ -1110,7 +1093,7 @@ def dd_fp_cone_3d(img,ang_arr,nu,nv,DSO,DSD,du=1.0,dv=1.0,su=0.0,sv=1.0,d_pix=1.
     return dd_p_cone_3d(img,sino,ang_arr,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix,bp=False)
 
 
-def dd_bp_cone_3d(sino,ang_arr,img_shape,DSO,DSD,du=1.0,dv=1.0,su=0.0,sv=1.0,d_pix=1.0):
+def dd_bp_cone_3d(sino,ang_arr,img_shape,DSO,DSD,du=1.0,dv=1.0,su=0.0,sv=0.0,d_pix=1.0):
     img = np.zeros(img_shape, dtype=np.float32)
 
     return dd_p_cone_3d(img,sino,ang_arr,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix,bp=True)
