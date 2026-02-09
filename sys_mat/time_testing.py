@@ -17,9 +17,9 @@ plt.rcParams['figure.dpi'] = 600
 import numpy as np
 import time
 
-import vir.sys_mat.dd as dd
+#import vir.sys_mat.dd as dd
 import vir.sys_mat.rd as rd
-import vir.sys_mat.pd as pd
+#import vir.sys_mat.pd as pd
 import vir.sys_mat.analytic_sino as asino
 
 
@@ -37,7 +37,7 @@ DSD = 1e8 + max(nx,ny)/2
 
 #Sino params 
 na = 64
-nu, nv = 64, 128
+nu, nv = 64, 64
 du, dv = 1., 1.
 su, sv = 0., 0.
 na_lets, nu_lets, nv_lets = 5, 5, 5
@@ -55,7 +55,7 @@ v_arr_lets = dv*(np.arange(nv*nv_lets) - nv/2.0*nv_lets + 0.5 + sv).reshape(nv,n
 
 
 #Phantom Paramters Sino
-r = 20
+r = 10
 x0 = 0
 y0 = 0
 z0 = 0
@@ -72,12 +72,13 @@ sinoC = asino.analytic_sphere_sino_cone_3d((x0,y0,z0,r,1), ang_arr, u_arr, v_arr
 
 
 
-sino1c = dd.dd_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=1.0)
+sino2c = rd.aw_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,d_pix=d_pix)
+sino3c = rd.aw_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,d_pix=d_pix,joseph=True)
 
 n_runs = 10
 t0 = time.perf_counter()
 for _ in range(n_runs):
-    sino1c = dd.dd_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=1.0)
+    sino2c = rd.aw_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,d_pix=d_pix)
 t1 = time.perf_counter()
 
 print(f"avg time: {(t1 - t0)/n_runs*1e3:.3f} ms")
@@ -85,8 +86,26 @@ print(f"avg time: {(t1 - t0)/n_runs*1e3:.3f} ms")
 n_runs = 10
 t0 = time.perf_counter()
 for _ in range(n_runs):
-    sino1c = dd.dd_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=1.0)
+    sino2c = rd.aw_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,d_pix=d_pix)
 t1 = time.perf_counter()
 
 print(f"avg time: {(t1 - t0)/n_runs*1e3:.3f} ms")
+
+
+n_runs = 10
+t0 = time.perf_counter()
+for _ in range(n_runs):
+    sino3c = rd.aw_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,d_pix=d_pix,joseph=True)
+t1 = time.perf_counter()
+
+print(f"avg time: {(t1 - t0)/n_runs*1e3:.3f} ms")
+
+n_runs = 10
+t0 = time.perf_counter()
+for _ in range(n_runs):
+    sino3c = rd.aw_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,d_pix=d_pix,joseph=True)
+t1 = time.perf_counter()
+
+print(f"avg time: {(t1 - t0)/n_runs*1e3:.3f} ms")
+
 

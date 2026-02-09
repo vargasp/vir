@@ -5,18 +5,33 @@ Created on Sat Jan 10 21:38:08 2026
 @author: varga
 """
 
+
+def _identity_decorator(func):
+    return func
+
+try:
+    from numba import njit
+except ImportError:
+    def njit(*args, **kwargs):
+        if args and callable(args[0]):
+            return args[0]      # @njit
+        return _identity_decorator  # @njit(...)
+
+
 import numpy as np
 
 # Small epsilon to avoid numerical problems when a ray lies exactly
 # on a grid line or boundary.
-eps = 1e-6
+eps = np.float32(1e-6)
 
 
+@njit(fastmath=True,inline='always',cache=True)
 def _img_bounds(nr,dr):
     #Returns the image boundaries and center of first voxel
-    return -dr*nr/2, dr*nr/2, -dr*(nr/2 - 0.5)
+    return -dr*np.float32(nr)/2, dr*np.float32(nr)/2, -dr*(np.float32(nr)/2 - 0.5)
 
 
+@njit(fastmath=True,inline='always',cache=True)
 def _intersect_bounding(r0, dr, adr, r_min, r_max):
     # Intersect ray with image bounding box
     #
@@ -31,7 +46,7 @@ def _intersect_bounding(r0, dr, adr, r_min, r_max):
         # Ray is (almost) vertical → no x-bound intersection
         return -np.inf, np.inf
 
-
+@njit(fastmath=True,inline='always',cache=True)
 def _calc_ir0(ray_r_org,ray_r_hat,t_entry,img_bnd_r_min,img_bnd_r_max,d_pix):
     
     r = ray_r_org + t_entry*ray_r_hat
@@ -41,6 +56,7 @@ def _calc_ir0(ray_r_org,ray_r_hat,t_entry,img_bnd_r_min,img_bnd_r_max,d_pix):
     return int(np.floor((r - img_bnd_r_min) / d_pix))
                     
 
+@njit(fastmath=True,inline='always',cache=True)
 def _fp_step_init(r0, ir, dr, adr, r_min, d_pix):
     """
     Initialize Amanatides–Woo traversal parameters for ONE axis (x, y, or z).
@@ -148,7 +164,7 @@ def _aw_fp_traverse_2d(img,t_entry,t_exit,tx_next,ty_next,tx_step,ty_step,
     #   - Accumulate voxel value × segment length
     #   - Advance to the next voxel
     t = t_entry
-    acc = 0.0
+    acc = np.float32(0.0)
 
     while t <= t_exit:
 
@@ -200,12 +216,13 @@ def _aw_bp_traverse_2d(img,s_val,t_entry,t_exit,tx_next,ty_next,
             iy += iy_dir
 
 
+@njit(fastmath=True,cache=True)
 def _aw_fp_traverse_3d(img,t_entry,t_exit,tx_next,ty_next,tz_next,
                        tx_step,ty_step,tz_step,
                        ix,iy,iz,ix_dir,iy_dir,iz_dir,nx,ny,nz):
     
     t = t_entry
-    acc = 0.0
+    acc = np.float32(0.0)
 
     while t < t_exit:
 
@@ -313,6 +330,7 @@ def _joseph_fp_2d(img,t_entry,t_exit,t_step,ray_x_org,ray_y_org,
     return acc
 
 
+@njit(fastmath=True,cache=True)
 def _joseph_fp_3d(img,t_entry,t_exit,t_step,ray_x_org,ray_y_org,ray_z_org,
                   ray_x_hat,ray_y_hat,ray_z_hat,x0,y0,z0,d_pix):
     
@@ -329,41 +347,66 @@ def _joseph_fp_3d(img,t_entry,t_exit,t_step,ray_x_org,ray_y_org,ray_z_org,
         fy = (y - y0) / d_pix
         fz = (z - z0) / d_pix
 
+        """
         if fx < 0 or fy < 0 or fz < 0 or \
            fx >= nx-1 or fy >= ny-1 or fz >= nz-1:
             t += t_step
             continue
-
+        """
+        
         ix = int(fx)
         iy = int(fy)
         iz = int(fz)
 
-        dx = fx - ix
-        dy = fy - iy
-        dz = fz - iz
+        
+        if 0 <= ix < nx-1 and 0 <= iy < ny-1 and 0 <= iz < nz-1:
+        # interpolate
 
-        # Trilinear interpolation
-        c000 = img[ix  , iy  , iz  ]
-        c100 = img[ix+1, iy  , iz  ]
-        c010 = img[ix  , iy+1, iz  ]
-        c110 = img[ix+1, iy+1, iz  ]
-        c001 = img[ix  , iy  , iz+1]
-        c101 = img[ix+1, iy  , iz+1]
-        c011 = img[ix  , iy+1, iz+1]
-        c111 = img[ix+1, iy+1, iz+1]
-
-        val = (c000*(1-dx)*(1-dy)*(1-dz) +
-               c100*   dx *(1-dy)*(1-dz) +
-               c010*(1-dx)*   dy *(1-dz) +
-               c110*   dx *   dy *(1-dz) +
-               c001*(1-dx)*(1-dy)*   dz  +
-               c101*   dx *(1-dy)*   dz  +
-               c011*(1-dx)*   dy *   dz  +
-               c111*   dx *   dy *   dz)
-
+    
+    
+            dx = fx - ix
+            dy = fy - iy
+            dz = fz - iz
+    
+            # Trilinear interpolation
+            c000 = img[ix  , iy  , iz  ]
+            c100 = img[ix+1, iy  , iz  ]
+            c010 = img[ix  , iy+1, iz  ]
+            c110 = img[ix+1, iy+1, iz  ]
+            c001 = img[ix  , iy  , iz+1]
+            c101 = img[ix+1, iy  , iz+1]
+            c011 = img[ix  , iy+1, iz+1]
+            c111 = img[ix+1, iy+1, iz+1]
+    
+    
+            # x interpolation
+            c00 = c000 + dx * (c100 - c000)
+            c10 = c010 + dx * (c110 - c010)
+            c01 = c001 + dx * (c101 - c001)
+            c11 = c011 + dx * (c111 - c011)
+            
+            # y interpolation
+            c0 = c00 + dy * (c10 - c00)
+            c1 = c01 + dy * (c11 - c01)
+            
+            # z interpolation
+            val = c0 + dz * (c1 - c0)
+    
+    
+            """
+            val = (c000*(1-dx)*(1-dy)*(1-dz) +
+                   c100*   dx *(1-dy)*(1-dz) +
+                   c010*(1-dx)*   dy *(1-dz) +
+                   c110*   dx *   dy *(1-dz) +
+                   c001*(1-dx)*(1-dy)*   dz  +
+                   c101*   dx *(1-dy)*   dz  +
+                   c011*(1-dx)*   dy *   dz  +
+                   c111*   dx *   dy *   dz)
+            """
+        
         acc += val*t_step
         t += t_step
-    
+
     return acc
 
 
@@ -706,24 +749,34 @@ def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0,joseph=Fa
     return sino
 
 
+@njit(fastmath=True,cache=True)
 def aw_fp_cone_3d(img,ang_arr,nu,nv,DSO,DSD,
                   du=1.0,dv=1.0,d_pix=1.0,joseph=False):
 
+    img     = img.astype(np.float32)
+    ang_arr = ang_arr.astype(np.float32)
+    
+    DSO   = np.float32(DSO)
+    DSD   = np.float32(DSD)
+    du    = np.float32(du)
+    dv    = np.float32(dv)
+    d_pix = np.float32(d_pix)
+    
     nx, ny, nz = img.shape
     sino = np.zeros((ang_arr.size, nv, nu), dtype=np.float32)
 
     img_bnd_x_min, img_bnd_x_max, x0 = _img_bounds(nx,d_pix)
     img_bnd_y_min, img_bnd_y_max, y0 = _img_bounds(ny,d_pix)
     img_bnd_z_min, img_bnd_z_max, z0 = _img_bounds(nz,d_pix)
-    step=0.5
+    step = np.float32(0.5)
 
-    u_arr = du*(np.arange(nu) - nu/2 + 0.5)
-    v_arr = dv*(np.arange(nv) - nv/2 + 0.5)
-
+    u_arr = du*(np.arange(nu,dtype=np.float32) - np.float32(nu)/2 + 0.5)
+    v_arr = dv*(np.arange(nv,dtype=np.float32) - np.float32(nu)/2 + 0.5)
 
     # Precompute ray direction for all angles
     cos_ang_arr = np.cos(ang_arr)
     sin_ang_arr = np.sin(ang_arr)
+
 
     # Main loops: angles → detectors → voxel traversal
     for ia, (cos_ang,sin_ang) in enumerate(zip(cos_ang_arr,sin_ang_arr)):
@@ -731,24 +784,39 @@ def aw_fp_cone_3d(img,ang_arr,nu,nv,DSO,DSD,
         # Ray origin (located at the source)
         ray_x_org = DSO*cos_ang
         ray_y_org = DSO*sin_ang
-        ray_z_org = 0.0
+        ray_z_org = np.float32(0.0)
         
         # Detector origin point
         det_x_org = -(DSD - DSO)*cos_ang
         det_y_org = -(DSD - DSO)*sin_ang
-        det_z_org = 0.0
+        det_z_org = np.float32(0.0)
 
         # Detector basis orientation (unit vectors)
-        det_u_orn = (-sin_ang, cos_ang, 0)
-        det_v_orn = (0, 0, 1)
+        #det_u_orn = (-sin_ang, cos_ang, 0)
+        #det_v_orn = (0, 0, 1)
+
+        #det_x_u = det_x_org + u_arr * det_u_orn[0]
+        #det_y_u = det_y_org + u_arr * det_u_orn[1]
+
+        det_x_u = det_x_org + u_arr * -sin_ang
+        det_y_u = det_y_org + u_arr * cos_ang
 
         for iv, v in enumerate(v_arr):
+            det_z = det_z_org + v
+
             for iu, u in enumerate(u_arr):
 
                 #Detector positions
-                det_x = det_x_org + u*det_u_orn[0] + v*det_v_orn[0]
-                det_y = det_y_org + u*det_u_orn[1] + v*det_v_orn[1]
-                det_z = det_z_org + u*det_u_orn[2] + v*det_v_orn[2]
+                #det_x = det_x_org + u*det_u_orn[0] + v*det_v_orn[0]
+                #det_y = det_y_org + u*det_u_orn[1] + v*det_v_orn[1]
+                #det_z = det_z_org + u*det_u_orn[2] + v*det_v_orn[2]
+                
+
+                # inside v-loop
+                det_x = det_x_u[iu]
+                det_y = det_y_u[iu]
+
+                
 
                 #Ray vector 
                 ray_x_vec = det_x - ray_x_org
@@ -788,6 +856,13 @@ def aw_fp_cone_3d(img,ang_arr,nu,nv,DSO,DSD,
                     iy_dir,ty_step,ty_next = _fp_step_init(ray_y_org,iy_entry, ray_y_hat, abs(ray_y_hat), img_bnd_y_min, d_pix)
                     iz_dir,tz_step,tz_next = _fp_step_init(ray_z_org,iz_entry, ray_z_hat, abs(ray_z_hat), img_bnd_z_min, d_pix)
 
+                    #print(tx_next.dtype)
+                    #print(ty_next.dtype)
+                    #print(tz_next.dtype)
+
+                    #print(type(ray_x_hat))
+                    #print(type(ray_y_hat))
+                    #print(type(ray_z_hat))
 
                     sino[ia,iu,iv] = _aw_fp_traverse_3d(img,t_entry, t_exit,
                         tx_next,ty_next,tz_next,tx_step, ty_step, tz_step,
@@ -808,11 +883,11 @@ def aw_fp_cone_3d(img,ang_arr,nu,nv,DSO,DSD,
 
                     #pix_scale = 1.0 / (abs(s) + abs(c))
                     
-                    pix_scale = 1.0
-                    ray_norm_xy = 1.0
-                    ray_norm_z = 1.0
+                    #pix_scale = 1.0
+                    #ray_norm_xy = 1.0
+                    #ray_norm_z = 1.0
                     
-                    ray_norm = pix_scale/ray_norm_xy / ray_norm_z
+                    #ray_norm = pix_scale/ray_norm_xy / ray_norm_z
                     
                 ray_scale = DSD/np.sqrt(DSD**2 + u**2 + v**2)
                 #ray_scale = DSD**2/ pow(DSD*DSD + u*u + v*v, 1.5);
