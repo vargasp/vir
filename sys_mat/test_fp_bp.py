@@ -17,21 +17,21 @@ import vir.sys_mat.analytic_sino as asino
 
 
 #Image params - Pixels
-nx, ny, nz = 16, 16, 16
-d_pix = 1
+nx, ny, nz = 64, 64, 64
+d_pix = 1.0
 
 #Fan Beam Geometry - Parallel
-DSO = 1e8
-DSD = 1e8 + max(nx,ny)/2
+DSO = 1e5
+DSD = 1e5 + max(nx,ny)/2
 
 #Fan Beam Geometry - Parallel
 #DSO = max(nx,ny)*np.sqrt(2)/2 
 #DSD = DSO*2
 
 #Sino params 
-na = 32
-nu, nv = 16, 16
-du, dv = 1., 1.
+na = 64
+nu, nv = 64, 64
+du, dv = 1., 1
 su, sv = 0., 0.
 na_lets, nu_lets, nv_lets = 5, 5, 5
 
@@ -75,22 +75,22 @@ plt.ylabel("Y Pixels")
 plt.show()
 """
 
+"""
 
+sino1p = dd.dd_fp_par_2d(img2d,ang_arr,nu,du=du,su=su,d_pix=d_pix)
+sino2p = rd.aw_fp_par_2d(img2d,ang_arr,nu,du=du,su=su,d_pix=d_pix)
+sino3p = rd.aw_fp_par_2d(img2d,ang_arr,nu,du=du,su=su,d_pix=d_pix,joseph=True)
+sino4p = pd.pd_fp_par_2d(img2d,ang_arr,nu,du=du,su=su,d_pix=d_pix)
 
-sino1p = dd.dd_fp_par_2d(img2d, ang_arr, nu, du=du, su=su, d_pix=d_pix)
-sino2p = rd.aw_fp_par_2d(img2d, ang_arr, nu, du=du, su=su, d_pix=d_pix)
-sino3p = rd.aw_fp_par_2d(img2d, ang_arr, nu, du=du, su=su, d_pix=d_pix,joseph=True)
-sino4p = pd.pd_fp_par_2d(img2d, ang_arr, nu, du=du, su=su, d_pix=d_pix)
+sino1f = dd.dd_fp_fan_2d(img2d,ang_arr,nu,DSO,DSD,du=du,su=su,d_pix=d_pix)
+sino2f = rd.aw_fp_fan_2d(img2d,ang_arr,nu,DSO,DSD,du=du,su=su,d_pix=d_pix)
+sino3f = rd.aw_fp_fan_2d(img2d,ang_arr,nu,DSO,DSD,du=du,su=su,d_pix=d_pix,joseph=True)
+sino4f = pd.pd_fp_fan_2d(img2d,ang_arr,nu,DSO,DSD,du=du,su=su,d_pix=d_pix)
 
-sino1f = dd.dd_fp_fan_2d(img2d, ang_arr, nu, DSO, DSD, du=du, su=su, d_pix=d_pix)
-sino2f = rd.aw_fp_fan_2d(img2d, ang_arr, nu, DSO, DSD, du=du, su=su, d_pix=d_pix)
-sino3f = rd.aw_fp_fan_2d(img2d, ang_arr, nu, DSO, DSD, du=du, su=su, d_pix=d_pix,joseph=True)
-sino4f = pd.pd_fp_fan_2d(img2d, ang_arr, nu, DSO, DSD, du=du, su=su, d_pix=d_pix)
-
-sino1c = dd.dd_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=1.0)
-sino2c = rd.aw_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,d_pix=d_pix)
-sino3c = rd.aw_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,d_pix=d_pix,joseph=True)
-sino4c = pd.pd_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=1.0)
+sino1c = dd.dd_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
+sino2c = rd.aw_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
+sino3c = rd.aw_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix,joseph=True)
+sino4c = pd.pd_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
 
 
 
@@ -193,7 +193,7 @@ plt.show()
 #print("Siddons/Joe Diff:", (sino1-sino2).max())
 #print("Siddons/DD Diff:", (sino1-sino3).max())
 
-
+"""
 
 
 
@@ -202,20 +202,20 @@ plt.show()
 #ang_arr = [ang_arr[8]]
 
 
-rec1p = dd.dd_bp_par_2d(sinoP, ang_arr, (nx,ny), d_pix=d_pix, du=du,su=su)
-rec2p = rd.aw_bp_par_2d(sinoP, ang_arr, (nx,ny), d_pix=d_pix, du=du,su=su)
-rec3p = rd.aw_bp_par_2d(sinoP, ang_arr, (nx,ny), d_pix=d_pix, du=du,su=su,joseph=True)
-rec4p = pd.pd_bp_par_2d(sinoP, ang_arr, (nx,ny), d_pix=d_pix, du=du,su=su)
+rec1p = dd.dd_bp_par_2d(sinoP,ang_arr,(nx,ny),du=du,su=su,d_pix=d_pix)
+rec2p = rd.aw_bp_par_2d(sinoP,ang_arr,(nx,ny),du=du,su=su,d_pix=d_pix)
+rec3p = rd.aw_bp_par_2d(sinoP,ang_arr,(nx,ny),du=du,su=su,d_pix=d_pix,joseph=True)
+rec4p = pd.pd_bp_par_2d(sinoP,ang_arr,(nx,ny),du=du,su=su,d_pix=d_pix)
 
-rec1f = dd.dd_bp_fan_2d(sinoF, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su=su)
-rec2f = rd.aw_bp_fan_2d(sinoF, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su=su)
-rec3f = rd.aw_bp_fan_2d(sinoF, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su=su, joseph=True)
-rec4f = pd.pd_bp_fan_2d(sinoF, ang_arr, (nx,ny), DSO, DSD, d_pix=d_pix, du=du,su=su)
+rec1f = dd.dd_bp_fan_2d(sinoF,ang_arr,(nx,ny),DSO,DSD,du=du,su=su,d_pix=d_pix)
+rec2f = rd.aw_bp_fan_2d(sinoF,ang_arr,(nx,ny),DSO,DSD,du=du,su=su,d_pix=d_pix)
+rec3f = rd.aw_bp_fan_2d(sinoF,ang_arr,(nx,ny),DSO,DSD,du=du,su=su,d_pix=d_pix,joseph=True)
+rec4f = pd.pd_bp_fan_2d(sinoF,ang_arr,(nx,ny),DSO,DSD,du=du,su=su,d_pix=d_pix)
 
 rec1c = dd.dd_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),DSO,DSD,du=du,dv=dv,d_pix=d_pix)
-rec2c = rd.aw_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),nu,nv,DSO,DSD,du=du,d_pix=d_pix)
-rec3c = rd.aw_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),nu,nv,DSO,DSD,du=du,d_pix=d_pix,joseph=True)
-rec4c = pd.pd_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),DSO,DSD,du=du,d_pix=d_pix)
+rec2c = rd.aw_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),DSO,DSD,du=du,dv=dv,d_pix=d_pix)
+rec3c = rd.aw_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),DSO,DSD,du=du,dv=dv,d_pix=d_pix,joseph=True)
+rec4c = pd.pd_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),DSO,DSD,du=du,dv=dv,d_pix=d_pix)
 
 
 

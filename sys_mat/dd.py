@@ -7,13 +7,43 @@ Created on Mon Jan  5 06:34:23 2026
 """
 
 import numpy as np
-#from numba import njit, prange
+
+
+def _identity_decorator(func):
+    return func
+
+try:
+    from numbas import njit
+except ImportError:
+    def njit(*args, **kwargs):
+        if args and callable(args[0]):
+            return args[0]      # @njit
+        return _identity_decorator  # @njit(...)
+    
+
+def as_float32(*args):
+    out = []
+    for x in args:
+        if np.isscalar(x):
+            out.append(np.float32(x))
+        else:
+            out.append(np.asarray(x, dtype=np.float32))
+    return out
+
+
+def as_int32(x):
+    if np.isscalar(x):
+        return np.int32(x)
+    return np.asarray(x, dtype=np.int32)
+
+
 
 @njit(fastmath=True,inline='always',cache=True)
 def proj_img2det_fan(p_term1, p_term2, o_term1, o_term2, DSO, DSD):
     return DSD * (p_term1 + p_term2) / (DSO - (o_term1 + o_term2))
 
 
+@njit(fastmath=True,inline='always',cache=True)
 def _accumulate_3d(sino, img_val, ray_scl,p_bnd_l, p_bnd_r,u_bnd_l,u_bnd_r,
                ia, iu, iv, ip,ov_r,ov_l):
     
@@ -40,6 +70,7 @@ def _accumulate_3d(sino, img_val, ray_scl,p_bnd_l, p_bnd_r,u_bnd_l,u_bnd_r,
     return ip, iu
 
 
+@njit(fastmath=True,cache=True)
 def _dd_fp_par_sweep(sino_vec,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
                      u_bnd_arr,ray_scl,ia):
     """
@@ -127,6 +158,7 @@ def _dd_fp_par_sweep(sino_vec,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
                 iu += 1
 
 
+@njit(fastmath=True,cache=True)
 def _dd_bp_par_sweep(img_out,sino_vec,p_drv_bnd_arr_trm,p_orth_arr_trm, 
                      u_bnd_arr,ray_scl,ia):
     """
@@ -187,6 +219,7 @@ def _dd_bp_par_sweep(img_out,sino_vec,p_drv_bnd_arr_trm,p_orth_arr_trm,
                 iu += 1
                 
 
+@njit(fastmath=True,cache=True)
 def _dd_fp_fan_sweep(sino_vec,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
                      o_drv_bnd_arr_trm,o_orth_arr_trm,u_bnd_arr,
                      ray_scl_arr,ia,DSO,DSD):
@@ -231,7 +264,7 @@ def _dd_fp_fan_sweep(sino_vec,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
     - This function does not allocate memory and updates `sino` in-place.
     """
     
-    
+    """
     print(sino_vec.dtype)
     print(img_trm.dtype)
     print(p_drv_bnd_arr_trm.dtype)
@@ -243,6 +276,7 @@ def _dd_fp_fan_sweep(sino_vec,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
     print(ia.dtype)
     print(DSO.dtype)
     print(DSD.dtype)
+    """
     
     np, no = img_trm.shape
     nu = u_bnd_arr.size - 1
@@ -298,10 +332,12 @@ def _dd_fp_fan_sweep(sino_vec,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
                 u_bnd_r = u_bnd_arr[iu+1]
 
 
+@njit(fastmath=True,cache=True)
 def _dd_bp_fan_sweep(sino_vec,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
                      o_drv_bnd_arr_trm,o_orth_arr_trm,
                      u_bnd_arr,ray_scl_arr,ia,DSO,DSD):
 
+    """
     print(sino_vec.dtype)
     print(img_trm.dtype)
     print(p_drv_bnd_arr_trm.dtype)
@@ -313,7 +349,7 @@ def _dd_bp_fan_sweep(sino_vec,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
     print(ia.dtype)
     print(DSO.dtype)
     print(DSD.dtype)
-    
+    """
     
     np, no = img_trm.shape
     nu = u_bnd_arr.size - 1
@@ -376,7 +412,7 @@ def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
     nu = u_bnd_arr.size - 1
     nv = v_bnd_arr.size - 1
 
-
+    """
     print(sino.dtype)
     print(vol.dtype)
     print(p_drv_bnd_arr_trm.dtype)
@@ -392,7 +428,7 @@ def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
     print(ia.dtype)
     print(DSO.dtype)
     print(DSD.dtype)
-    
+    """
 
     v0 = v_bnd_arr[0]
 
@@ -479,11 +515,13 @@ def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
 @njit(fastmath=True,cache=True)
 def _dd_bp_cone_sweep(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
                       z_bnd_arr,z_arr,o_drv_bnd_arr_trm,o_orth_arr_trm,
-                      u_bnd_arr,v_bnd_arr,ray_scl_arr,ia,DSO,DSD):
+                      u_bnd_arr,v_bnd_arr,dv,ray_scl_arr,ia,DSO,DSD):
 
     nP, nz, no = vol.shape
     nu = u_bnd_arr.size - 1
     nv = v_bnd_arr.size - 1
+
+    v0 = v_bnd_arr[0]
 
     for io in range(no):
         p_orth_trm = p_orth_arr_trm[io]
@@ -507,13 +545,16 @@ def _dd_bp_cone_sweep(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
             z_bnd_prj_v_l = z_bnd_arr_prj_v[iz]
             z_bnd_prj_v_r = z_bnd_arr_prj_v[iz + 1]
 
-            iv = np.searchsorted(v_bnd_arr[1:], z_bnd_prj_v_l, side="right")
-            iv_end = np.searchsorted(v_bnd_arr, z_bnd_prj_v_r, side="left")
+            iv = int(np.floor((z_bnd_prj_v_l - v0)/dv))
+            iv_end = int(np.ceil ((z_bnd_prj_v_r - v0)/dv))
+
+            iv = max(iv, 0)
+            iv_end = min(iv_end, nv)
 
             img_vec = vol[:, io, iz]
 
             # ---- sweep v ----
-            for iv in range(iv, min(iv_end, nv)):
+            for iv in range(iv, iv_end):
 
                 v_bnd_l = v_bnd_arr[iv]
                 v_bnd_r = v_bnd_arr[iv + 1]
@@ -557,7 +598,7 @@ def _dd_bp_cone_sweep(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
                         u_bnd_r = u_bnd_arr[iu + 1]
 
 
-
+@njit(fastmath=True,cache=True)
 def _dd_par_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
                   cos_ang, sin_ang):
     
@@ -699,6 +740,7 @@ def _dd_par_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
     return img_trm, p_drv_bnd_arr_trm, p_orth_arr_trm, ray_scale
 
 
+@njit(fastmath=True,cache=True)
 def _dd_fan_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
                   cos_ang, sin_ang, DSO, DSD):
     
@@ -916,17 +958,24 @@ def _dd_fp_cone_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
 
 
 def dd_fp_par_2d(img,ang_arr,nu,du=1.0,su=0.0,d_pix=1.0):
-   sino = np.zeros((ang_arr.size, nu), dtype=np.float32)
+    img,ang_arr,du,su,d_pix = \
+        as_float32(img,ang_arr,du,su,d_pix)
+ 
+    sino = np.zeros((ang_arr.size, nu), dtype=np.float32)
    
-   return dd_p_par_2d(img,sino,ang_arr,du=du,su=su,d_pix=d_pix,bp=False)
+    return dd_p_par_2d(img,sino,ang_arr,du=du,su=su,d_pix=d_pix,bp=False)
+
 
 def dd_bp_par_2d(sino,ang_arr,img_shape,du=1.0,su=0.0,d_pix=1.0):
+    sino,ang_arr,du,su,d_pix = \
+        as_float32(sino,ang_arr,du,su,d_pix)
+
     img = np.zeros(img_shape, dtype=np.float32)
 
     return dd_p_par_2d(img,sino,ang_arr,du=du,su=su,d_pix=d_pix,bp=True)
 
 
-
+@njit(fastmath=True,cache=True)
 def dd_p_par_2d(img,sino,ang_arr,du,su,d_pix,bp):
     """
     Distance-driven forward projection for 2D parallel-beam CT.
@@ -970,8 +1019,11 @@ def dd_p_par_2d(img,sino,ang_arr,du,su,d_pix,bp):
     na, nu = sino.shape
 
     #Creates two images where the driving axis is contigious
-    img_x = np.ascontiguousarray(img)
-    img_y = np.ascontiguousarray(img.T)
+    #img_x = np.ascontiguousarray(img)
+    #img_y = np.ascontiguousarray(img.T)
+    img_x = img.copy()
+    img_y = img.T.copy()
+
 
     # Define pixel boundaries and centers in image space
     # Centered at origin (0,0)
@@ -1008,23 +1060,33 @@ def dd_p_par_2d(img,sino,ang_arr,du,su,d_pix,bp):
 
     #Return sino normalized with pixel and detector size
     if bp:
-        return (img_x+img_y.T) / na  / d_pix
+        img_y_t = img_y.T.copy()
+        return (img_x+img_y_t) / na  / d_pix
     else:    
         return sino*d_pix/du
 
 
 
+
 def dd_fp_fan_2d(img,ang_arr,nu,DSO,DSD,du=1.0,su=0.0,d_pix=1.0):
+    img,ang_arr,DSO,DSD,du,su,d_pix = \
+        as_float32(img,ang_arr,DSO,DSD,du,su,d_pix)
+ 
     sino = np.zeros((ang_arr.size, nu), dtype=np.float32)
 
     return dd_p_fan_2d(img,sino,ang_arr,DSO,DSD,du=du,su=su,d_pix=d_pix,bp=False)
 
+
 def dd_bp_fan_2d(sino,ang_arr,img_shape,DSO,DSD,du=1.0,su=0.0,d_pix=1.0):
+    sino,ang_arr,DSO,DSD,du,su,d_pix = \
+        as_float32(sino,ang_arr,DSO,DSD,du,su,d_pix)
+
     img = np.zeros(img_shape, dtype=np.float32)
 
     return dd_p_fan_2d(img,sino,ang_arr,DSO,DSD,du=du,su=su,d_pix=d_pix,bp=True)
 
 
+@njit(fastmath=True,cache=True)
 def dd_p_fan_2d(img,sino,ang_arr,DSO,DSD,du,su,d_pix,bp):
     """
     Distance-driven fan-beam forward projection for 2D CT.
@@ -1072,8 +1134,11 @@ def dd_p_fan_2d(img,sino,ang_arr,DSO,DSD,du,su,d_pix,bp):
 
 
     #Creates two images where the driving axis is contigious
-    img_x = np.ascontiguousarray(img)
-    img_y = np.ascontiguousarray(img.T)
+    #img_x = np.ascontiguousarray(img)
+    #img_y = np.ascontiguousarray(img.T)
+    img_x = img.copy()
+    img_y = img.T.copy()
+
 
     # Define pixel boundaries and centers in image space
     # Centered at origin (0,0)
@@ -1113,48 +1178,65 @@ def dd_p_fan_2d(img,sino,ang_arr,DSO,DSD,du,su,d_pix,bp):
     #Return sino normalized with pixel and detector size
     
     if bp:
-        return (img_x+img_y.T) / na / d_pix 
+        img_y_t = img_y.T.copy()
+        return (img_x+img_y_t) / na / d_pix 
     else:   
         return sino*d_pix/du
 
 
 
-
+@njit(fastmath=True,cache=True)
 def proj_img2det_cone(p, o, z, DSO, DSD):
     t = -DSD / (o - DSO)
     u = t * p
     v = t * z
     return u, v
 
+
 def dd_fp_cone_3d(img,ang_arr,nu,nv,DSO,DSD,du=1.0,dv=1.0,su=0.0,sv=1.0,d_pix=1.0):
+    img,ang_arr,DSO,DSD,du,dv,su,sv,d_pix = \
+        as_float32(img,ang_arr,DSO,DSD,du,dv,su,sv,d_pix)
+    
     sino = np.zeros((ang_arr.size, nu, nv), dtype=np.float32)
 
     return dd_p_cone_3d(img,sino,ang_arr,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix,bp=False)
 
 
+
 def dd_bp_cone_3d(sino,ang_arr,img_shape,DSO,DSD,du=1.0,dv=1.0,su=0.0,sv=0.0,d_pix=1.0):
+    sino,ang_arr,DSO,DSD,du,dv,su,sv,d_pix = \
+        as_float32(sino,ang_arr,DSO,DSD,du,dv,su,sv,d_pix)
+
     img = np.zeros(img_shape, dtype=np.float32)
 
     return dd_p_cone_3d(img,sino,ang_arr,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix,bp=True)
 
+
 @njit(fastmath=True,cache=True)
 def dd_p_cone_3d(img,sino,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,bp):
+    
+   
     nx, ny, nz = img.shape
     na, nu, nv = sino.shape
 
-    img_x = np.ascontiguousarray(img)
-    img_y = np.ascontiguousarray(img.transpose(1, 0, 2))
+    #img_x = np.ascontiguousarray(img)
+    #img_y = np.ascontiguousarray(img.transpose(1, 0, 2))
+    img_x = img.copy()
+    img_y = img.transpose(1, 0, 2).copy()
 
-    x_bnd_arr = d_pix*(np.arange(nx + 1) - nx/2)
-    y_bnd_arr = d_pix*(np.arange(ny + 1) - ny/2)
-    z_bnd_arr = d_pix*(np.arange(nz + 1) - nz/2)
+
+
+    x_bnd_arr = d_pix*(np.arange(nx + 1) - nx/2).astype(np.float32)
+    y_bnd_arr = d_pix*(np.arange(ny + 1) - ny/2).astype(np.float32)
+    z_bnd_arr = d_pix*(np.arange(nz + 1) - nz/2).astype(np.float32)
 
     x_arr = (x_bnd_arr[:-1] + x_bnd_arr[1:]) / 2
     y_arr = (y_bnd_arr[:-1] + y_bnd_arr[1:]) / 2
     z_arr = (z_bnd_arr[:-1] + z_bnd_arr[1:]) / 2
 
-    u_bnd_arr = du*(np.arange(nu + 1) - nu/2 + su)
-    v_bnd_arr = dv*(np.arange(nv + 1) - nv/2 + sv)
+
+    u_bnd_arr = du*(np.arange(nu + 1) - nu/2 + su).astype(np.float32)
+    v_bnd_arr = dv*(np.arange(nv + 1) - nv/2 + sv).astype(np.float32)
 
     cos_ang_arr = np.cos(ang_arr)
     sin_ang_arr = np.sin(ang_arr)
@@ -1164,19 +1246,21 @@ def dd_p_cone_3d(img,sino,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,bp):
         img_trm, p1_bnd_arr, p2_arr, o1_bnd_arr, o2_arr, ray_scl = \
             _dd_fp_cone_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr, 
                              cos_ang, sin_ang, DSO, DSD)      
+
+
         
         if bp:
             _dd_bp_cone_sweep(sino, img_trm,p1_bnd_arr, p2_arr, 
                               z_bnd_arr, z_arr, o1_bnd_arr, o2_arr, 
-                              u_bnd_arr, v_bnd_arr, ray_scl, ia, DSO, DSD)
+                              u_bnd_arr, v_bnd_arr, dv, ray_scl, ia, DSO, DSD)
         else:
             _dd_fp_cone_sweep(sino, img_trm, p1_bnd_arr, p2_arr, 
                               z_bnd_arr, z_arr, o1_bnd_arr, o2_arr, 
                               u_bnd_arr, v_bnd_arr, dv, ray_scl, ia, DSO, DSD)
 
-
     if bp:
-        return (img_x+img_y.transpose(1, 0, 2)) / na / d_pix
+        img_y_t = img_y.transpose(1, 0, 2).copy()
+        return (img_x+img_y_t) / na / d_pix
     else:
         return sino * (d_pix**2) / (du * dv)
 

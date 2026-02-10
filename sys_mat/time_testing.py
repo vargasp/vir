@@ -17,8 +17,8 @@ plt.rcParams['figure.dpi'] = 600
 import numpy as np
 import time
 
-#import vir.sys_mat.dd as dd
-import vir.sys_mat.rd as rd
+import vir.sys_mat.dd as dd
+#import vir.sys_mat.rd as rd
 #import vir.sys_mat.pd as pd
 import vir.sys_mat.analytic_sino as asino
 
@@ -72,8 +72,10 @@ sinoC = asino.analytic_sphere_sino_cone_3d((x0,y0,z0,r,1), ang_arr, u_arr, v_arr
 
 
 
-sino2c = rd.aw_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,d_pix=d_pix)
-sino3c = rd.aw_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,d_pix=d_pix,joseph=True)
+sino1c = dd.dd_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
+#sino2c = rd.aw_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
+#sino3c = rd.aw_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix,joseph=True)
+#sino4c = pd.pd_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
 
 n_runs = 10
 t0 = time.perf_counter()

@@ -151,6 +151,7 @@ def _fp_step_init(r0, ir, dr, adr, r_min, d_pix):
     return idir, tr_step, tr_next
                     
 
+@njit(fastmath=True,inline='always',cache=True)
 def _aw_fp_traverse_2d(img,t_entry,t_exit,tx_next,ty_next,tx_step,ty_step,
                        ix,iy,ix_dir,iy_dir,nx,ny):
     
@@ -190,6 +191,7 @@ def _aw_fp_traverse_2d(img,t_entry,t_exit,tx_next,ty_next,tx_step,ty_step,
     return acc
 
     
+@njit(fastmath=True,inline='always',cache=True)
 def _aw_bp_traverse_2d(img,s_val,t_entry,t_exit,tx_next,ty_next,
                        tx_step,ty_step,ix,iy,ix_dir,iy_dir,nx,ny):
 
@@ -216,7 +218,7 @@ def _aw_bp_traverse_2d(img,s_val,t_entry,t_exit,tx_next,ty_next,
             iy += iy_dir
 
 
-@njit(fastmath=True,cache=True)
+@njit(fastmath=True,inline='always',cache=True)
 def _aw_fp_traverse_3d(img,t_entry,t_exit,tx_next,ty_next,tz_next,
                        tx_step,ty_step,tz_step,
                        ix,iy,iz,ix_dir,iy_dir,iz_dir,nx,ny,nz):
@@ -253,7 +255,7 @@ def _aw_fp_traverse_3d(img,t_entry,t_exit,tx_next,ty_next,tz_next,
 
     return acc
 
-
+@njit(fastmath=True,inline='always',cache=True)
 def _aw_bp_traverse_3d(img,s_val,t_entry,t_exit,tx_next,ty_next,tz_next,
                        tx_step,ty_step,tz_step,
                        ix,iy,iz,ix_dir,iy_dir,iz_dir,nx,ny,nz):
@@ -288,6 +290,7 @@ def _aw_bp_traverse_3d(img,s_val,t_entry,t_exit,tx_next,ty_next,tz_next,
             iz += iz_dir
 
 
+@njit(fastmath=True,cache=True)
 def _joseph_fp_2d(img,t_entry,t_exit,t_step,ray_x_org,ray_y_org,
                   ray_x_hat,ray_y_hat,x0,y0,d_pix):
 
@@ -357,13 +360,8 @@ def _joseph_fp_3d(img,t_entry,t_exit,t_step,ray_x_org,ray_y_org,ray_z_org,
         ix = int(fx)
         iy = int(fy)
         iz = int(fz)
-
         
         if 0 <= ix < nx-1 and 0 <= iy < ny-1 and 0 <= iz < nz-1:
-        # interpolate
-
-    
-    
             dx = fx - ix
             dy = fy - iy
             dz = fz - iz
@@ -378,7 +376,6 @@ def _joseph_fp_3d(img,t_entry,t_exit,t_step,ray_x_org,ray_y_org,ray_z_org,
             c011 = img[ix  , iy+1, iz+1]
             c111 = img[ix+1, iy+1, iz+1]
     
-    
             # x interpolation
             c00 = c000 + dx * (c100 - c000)
             c10 = c010 + dx * (c110 - c010)
@@ -391,25 +388,15 @@ def _joseph_fp_3d(img,t_entry,t_exit,t_step,ray_x_org,ray_y_org,ray_z_org,
             
             # z interpolation
             val = c0 + dz * (c1 - c0)
-    
-    
-            """
-            val = (c000*(1-dx)*(1-dy)*(1-dz) +
-                   c100*   dx *(1-dy)*(1-dz) +
-                   c010*(1-dx)*   dy *(1-dz) +
-                   c110*   dx *   dy *(1-dz) +
-                   c001*(1-dx)*(1-dy)*   dz  +
-                   c101*   dx *(1-dy)*   dz  +
-                   c011*(1-dx)*   dy *   dz  +
-                   c111*   dx *   dy *   dz)
-            """
-        
-        acc += val*t_step
+            
+            acc += val*t_step
+            
         t += t_step
 
     return acc
 
 
+@njit(fastmath=True,cache=True)
 def _joseph_bp_2d(img, d_pix, s_val, ray_x_hat, ray_y_hat, ray_x_org, ray_y_org, x0, y0, t_enter, t_exit, step):
     nx, ny = img.shape
 
@@ -445,7 +432,7 @@ def _joseph_bp_2d(img, d_pix, s_val, ray_x_hat, ray_y_hat, ray_x_org, ray_y_org,
         t += step
 
 
-
+@njit(fastmath=True,cache=True)
 def _joseph_bp_3d(img,s_val,t_entry,t_exit,step,ray_x_org,ray_y_org,ray_z_org,
                   ray_x_hat,ray_y_hat,ray_z_hat,x0,y0,z0,d_pix):
     
@@ -503,16 +490,7 @@ def _joseph_bp_3d(img,s_val,t_entry,t_exit,step,ray_x_org,ray_y_org,ray_z_org,
         t += step
 
 
-
-
-
-
-
-    
-    
-
-
-
+@njit(fastmath=True,cache=True)
 def aw_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0,joseph=False):
     """
     2D parallel-beam forward projection using Amanatides–Woo ray traversal.
@@ -629,9 +607,7 @@ def aw_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0,joseph=False):
     return sino
 
                     
-                    
-
-
+@njit(fastmath=True,cache=True)
 def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0,joseph=False):
     """
     2D flat-panel fan-beam forward projection using Amanatides–Woo traversal.
@@ -751,7 +727,7 @@ def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0,joseph=Fa
 
 @njit(fastmath=True,cache=True)
 def aw_fp_cone_3d(img,ang_arr,nu,nv,DSO,DSD,
-                  du=1.0,dv=1.0,d_pix=1.0,joseph=False):
+                  du=1.0,dv=1.0,su=0.0,sv=0.0,d_pix=1.0,joseph=False):
 
     img     = img.astype(np.float32)
     ang_arr = ang_arr.astype(np.float32)
@@ -795,28 +771,19 @@ def aw_fp_cone_3d(img,ang_arr,nu,nv,DSO,DSD,
         #det_u_orn = (-sin_ang, cos_ang, 0)
         #det_v_orn = (0, 0, 1)
 
-        #det_x_u = det_x_org + u_arr * det_u_orn[0]
-        #det_y_u = det_y_org + u_arr * det_u_orn[1]
-
-        det_x_u = det_x_org + u_arr * -sin_ang
-        det_y_u = det_y_org + u_arr * cos_ang
+        #Detector positions
+        #det_x = det_x_org + u*det_u_orn[0] + v*det_v_orn[0]
+        det_x_arr = det_x_org + u_arr * -sin_ang
+        det_y_arr = det_y_org + u_arr * cos_ang
 
         for iv, v in enumerate(v_arr):
+            #Detector position z
             det_z = det_z_org + v
 
             for iu, u in enumerate(u_arr):
-
-                #Detector positions
-                #det_x = det_x_org + u*det_u_orn[0] + v*det_v_orn[0]
-                #det_y = det_y_org + u*det_u_orn[1] + v*det_v_orn[1]
-                #det_z = det_z_org + u*det_u_orn[2] + v*det_v_orn[2]
-                
-
-                # inside v-loop
-                det_x = det_x_u[iu]
-                det_y = det_y_u[iu]
-
-                
+                #Detector position x,y
+                det_x = det_x_arr[iu]
+                det_y = det_y_arr[iu]
 
                 #Ray vector 
                 ray_x_vec = det_x - ray_x_org
@@ -896,6 +863,7 @@ def aw_fp_cone_3d(img,ang_arr,nu,nv,DSO,DSD,
     return sino
 
 
+@njit(fastmath=True,cache=True)
 def aw_bp_par_2d(sino, ang_arr, img_shape, du=1.0, su=0.0, d_pix=1.0, joseph=False):
     """
     2D parallel-beam ray-driven back-projection.
@@ -958,6 +926,7 @@ def aw_bp_par_2d(sino, ang_arr, img_shape, du=1.0, su=0.0, d_pix=1.0, joseph=Fal
     return img / na / d_pix / d_pix * du
 
 
+@njit(fastmath=True,cache=True)
 def aw_bp_fan_2d(sino, ang_arr, img_shape, DSO, DSD, du=1.0, su=0.0, d_pix=1.0, joseph=False):
     """
     2D fan-beam ray-driven back-projection with flat panel geometry.
@@ -1032,11 +1001,12 @@ def aw_bp_fan_2d(sino, ang_arr, img_shape, DSO, DSD, du=1.0, su=0.0, d_pix=1.0, 
 
 
 
-
-def aw_bp_cone_3d(sino,ang_arr,img_shape,nu,nv,DSO,DSD,
+@njit(fastmath=True,cache=True)
+def aw_bp_cone_3d(sino,ang_arr,img_shape,DSO,DSD,
                   du=1.0,dv=1.0,d_pix=1.0,joseph=False):
 
     nx, ny, nz = img_shape
+    na, nu, nv = sino.shape
     img = np.zeros((nx, ny,nz), dtype=np.float32)
 
     img_bnd_x_min, img_bnd_x_max, x0 = _img_bounds(nx,d_pix)
@@ -1145,7 +1115,7 @@ def aw_bp_cone_3d(sino,ang_arr,img_shape,nu,nv,DSO,DSD,
                 #ray_scale = DSD**2/ pow(DSD*DSD + u*u + v*v, 1.5);
                 #sino[ia, iu, iv]= sino[ia, iu, iv]*ray_scale
                     
-    return img/ang_arr.size
+    return img/ang_arr.size*du*dv
 
 
 

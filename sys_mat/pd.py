@@ -5,20 +5,37 @@ Created on Mon Jan 19 15:27:50 2026
 @author: varga
 """
 
+
+def _identity_decorator(func):
+    return func
+
+try:
+    from numba import njit
+except ImportError:
+    def njit(*args, **kwargs):
+        if args and callable(args[0]):
+            return args[0]      # @njit
+        return _identity_decorator  # @njit(...)
+
 import numpy as np
 
+
+@njit(fastmath=True,inline='always',cache=True)
 def proj_img2det_fan(px, py, ox, oy, DSO, DSD):
     return DSD * (px + py) / (DSO - (ox + oy))
 
 
+@njit(fastmath=True,inline='always',cache=True)
 def proj_img2det_fan_mag(px, py, ox, oy, DSO, DSD):
     return DSD * (px + py) / (DSO - (ox + oy))
 
 
+@njit(fastmath=True,inline='always',cache=True)
 def proj_object2det_par(px, py):
     return px + py
 
 
+@njit(fastmath=True,inline='always',cache=True)
 def _accumuate_forward(sino, val, ia, p_min, p_max, u_bnd, du, nu, su):
     # Overlapping detector bins
     iu0 = max(0,  int(np.floor(p_min / du + nu/2 - su)))
@@ -31,6 +48,7 @@ def _accumuate_forward(sino, val, ia, p_min, p_max, u_bnd, du, nu, su):
             sino[ia, iu] += val * (right - left) / du
 
 
+@njit(fastmath=True,inline='always',cache=True)
 def _accumuate_back_2d(sino, ia, p_min, p_max, u_bnd, du, nu, su, scale):
     # Overlapping detector bins (same logic!)
     iu0 = max(0,  int(np.floor(p_min / du + nu/2 - su)))
@@ -46,6 +64,7 @@ def _accumuate_back_2d(sino, ia, p_min, p_max, u_bnd, du, nu, su, scale):
     return acc
 
 
+@njit(fastmath=True,inline='always',cache=True)
 def _accumuate_forward_3d(sino,val,ia, u_bnd,v_bnd,u_min,v_min,u_max,v_max, 
                           du,dv, nu, nv,su):
     iu0 = np.searchsorted(u_bnd, u_min, side="right") - 1
@@ -66,6 +85,7 @@ def _accumuate_forward_3d(sino,val,ia, u_bnd,v_bnd,u_min,v_min,u_max,v_max,
                 sino[ia,iu,iv] += val*(ur - ul)/du*(vr - vl)/dv
                 
 
+@njit(fastmath=True,inline='always',cache=True)
 def _accumuate_back_3d(sino,ia,u_bnd,v_bnd,u_min,v_min,u_max,v_max, 
                           du,dv, nu, nv,su,scale):
     iu0 = np.searchsorted(u_bnd, u_min, side="right") - 1
@@ -89,6 +109,7 @@ def _accumuate_back_3d(sino,ia,u_bnd,v_bnd,u_min,v_min,u_max,v_max,
     return acc
 
 
+@njit(fastmath=True,cache=True)
 def pd_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0):
    nx, ny = img.shape
    sino = np.zeros((ang_arr.size, nu), dtype=np.float32)
@@ -96,6 +117,7 @@ def pd_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0):
    return pd_p_par_2d(img,sino,ang_arr,nx,ny,nu, 
                du=du,su=su,d_pix=d_pix, bp=False)
 
+@njit(fastmath=True,cache=True)
 def pd_bp_par_2d(sino, ang_arr, img_shape, du=1.0, su=0.0, d_pix=1.0):
     nx, ny = img_shape
     na, nu = sino.shape
@@ -105,6 +127,7 @@ def pd_bp_par_2d(sino, ang_arr, img_shape, du=1.0, su=0.0, d_pix=1.0):
                        du=du,su=su,d_pix=d_pix, bp=True)
 
 
+@njit(fastmath=True,cache=True)
 def pd_p_par_2d(img,sino,ang_arr,nx,ny,nu, 
                 du,su,d_pix,bp):
     """
@@ -189,11 +212,12 @@ def pd_p_par_2d(img,sino,ang_arr,nx,ny,nu,
             px_bnd_l = px_bnd_r
     
     if bp:
-        return img/ang_arr.size
+        return img/ang_arr.size/d_pix*du
     else:
-        return sino
+        return sino*d_pix
 
 
+@njit(fastmath=True,cache=True)
 def pd_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
    nx, ny = img.shape
    sino = np.zeros((ang_arr.size, nu), dtype=np.float32)
@@ -201,6 +225,7 @@ def pd_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
    return pd_p_fan_2d(img,sino,ang_arr,nx,ny,nu, DSO, DSD, 
                du=du,su=su,d_pix=d_pix, bp=False)
 
+@njit(fastmath=True,cache=True)
 def pd_bp_fan_2d(sino, ang_arr, img_shape, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
     nx, ny = img_shape
     na, nu = sino.shape
@@ -210,7 +235,7 @@ def pd_bp_fan_2d(sino, ang_arr, img_shape, DSO, DSD, du=1.0, su=0.0, d_pix=1.0):
                        du=du,su=su,d_pix=d_pix, bp=True)
 
 
-
+@njit(fastmath=True,cache=True)
 def pd_p_fan_2d(img,sino,ang_arr,nx,ny,nu,DSO,DSD,du,su,d_pix,bp):
     """
     Pixel-driven separable-footprint fan-beam forward projector (2D).
@@ -303,11 +328,12 @@ def pd_p_fan_2d(img,sino,ang_arr,nx,ny,nu,DSO,DSD,du,su,d_pix,bp):
             ox_bnd_l = ox_bnd_r
 
     if bp:
-        return img/ang_arr.size
+        return img/ang_arr.size/d_pix*du
     else:
-        return sino
+        return sino*d_pix
 
 
+@njit(fastmath=True,cache=True)
 def pd_fp_cone_3d(img,ang_arr,nu,nv,DSO,DSD,du=1.0,dv=1.0,su=0.0,sv=0.0,d_pix=1.0):
    nx, ny, nz  = img.shape
    sino = np.zeros((ang_arr.size, nu, nv), dtype=np.float32)
@@ -316,6 +342,7 @@ def pd_fp_cone_3d(img,ang_arr,nu,nv,DSO,DSD,du=1.0,dv=1.0,su=0.0,sv=0.0,d_pix=1.
                         du=du,dv=dv,su=su,sv=sv,d_pix=d_pix,bp=False)
 
 
+@njit(fastmath=True,cache=True)
 def pd_bp_cone_3d(sino,ang_arr,img_shape,DSO,DSD,du=1.0,dv=1.0,su=0.0,sv=0.0,d_pix=1.0):
     nx, ny, nz = img_shape
     na, nu, nv = sino.shape
@@ -324,6 +351,7 @@ def pd_bp_cone_3d(sino,ang_arr,img_shape,DSO,DSD,du=1.0,dv=1.0,su=0.0,sv=0.0,d_p
     return pd_p_cone_3d(img,sino,ang_arr,nx,ny,nz,nu,nv,DSO,DSD,
                         du=du,dv=dv,su=su,sv=sv,d_pix=d_pix,bp=True)
 
+@njit(fastmath=True,cache=True)
 def pd_p_cone_3d(img,sino,ang_arr,nx,ny,nz,nu,nv,DSO,DSD,
                  du,dv,su,sv,d_pix,bp):
     """
@@ -435,7 +463,7 @@ def pd_p_cone_3d(img,sino,ang_arr,nx,ny,nz,nu,nv,DSO,DSD,
             px_bnd_l = px_bnd_r
             ox_bnd_l = ox_bnd_r
     if bp:
-        return img/ang_arr.size
+        return img/ang_arr.size/d_pix*du*dv
     else:
-        return sino
+        return sino*d_pix
 
