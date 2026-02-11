@@ -13,7 +13,7 @@ def _identity_decorator(func):
     return func
 
 try:
-    from numbas import njit
+    from numba import njit
 except ImportError:
     def njit(*args, **kwargs):
         if args and callable(args[0]):
@@ -36,6 +36,7 @@ def as_int32(x):
         return np.int32(x)
     return np.asarray(x, dtype=np.int32)
 
+eps = np.float32(1e-6)
 
 
 @njit(fastmath=True,inline='always',cache=True)
@@ -403,32 +404,15 @@ def _dd_bp_fan_sweep(sino_vec,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
 
 
 
-
+"""
 @njit(fastmath=True,cache=True)
-def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
+def _dd_fp_cone_sweepO(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
                       z_bnd_arr,z_arr,o_drv_bnd_arr_trm,o_orth_arr_trm,
                       u_bnd_arr,v_bnd_arr,dv,ray_scl_arr,ia,DSO,DSD):
     nP, nz, no = vol.shape
     nu = u_bnd_arr.size - 1
     nv = v_bnd_arr.size - 1
 
-    """
-    print(sino.dtype)
-    print(vol.dtype)
-    print(p_drv_bnd_arr_trm.dtype)
-    print(p_orth_arr_trm.dtype)
-    print(z_bnd_arr.dtype)
-    print(z_arr.dtype)
-    print(o_drv_bnd_arr_trm.dtype)
-    print(o_orth_arr_trm.dtype)
-    print(u_bnd_arr.dtype)
-    print(v_bnd_arr.dtype)
-    print(dv.dtype)
-    print(ray_scl_arr.dtype)
-    print(ia.dtype)
-    print(DSO.dtype)
-    print(DSD.dtype)
-    """
 
     v0 = v_bnd_arr[0]
 
@@ -510,6 +494,113 @@ def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
                         iu += 1
                         u_bnd_l = u_bnd_r
                         u_bnd_r = u_bnd_arr[iu+1]
+"""
+
+@njit(fastmath=True, cache=True)
+def _dd_fp_cone_sweep(sino, vol,
+    p_drv_bnd_arr_trm, p_orth_arr_trm,
+    z_bnd_arr, z_arr,
+    o_drv_bnd_arr_trm, o_orth_arr_trm,
+    u_bnd_arr, v_bnd_arr, dv,
+    ray_scl_arr, ia, DSO, DSD
+):
+    nP, nz, no = vol.shape
+    nu = u_bnd_arr.size - 1
+    nv = v_bnd_arr.size - 1
+
+    v0 = v_bnd_arr[0]
+    inv_dv = 1.0/dv
+    
+    
+    # temporary buffer for u sweep
+    tmp_u = np.zeros(nu, dtype=np.float32)
+
+    for io in range(no):
+        p_orth_trm = p_orth_arr_trm[io]
+        o_orth_trm = o_orth_arr_trm[io]
+        ray_scl = ray_scl_arr[io]
+
+        # project z boundaries → v (depends only on io)
+        z_bnd_arr_prj_v = z_bnd_arr * DSD / (DSO - o_orth_trm)
+
+        # project p boundaries → u (depends only on io)
+        p_bnd_arr_prj_u = (DSD*(p_drv_bnd_arr_trm + p_orth_trm) /
+                           (DSO - (o_drv_bnd_arr_trm + o_orth_trm)))
+        
+        p_u_min = p_bnd_arr_prj_u[0]
+        p_u_max = p_bnd_arr_prj_u[-1]
+
+        iu_min = int((p_u_min - u_bnd_arr[0]) / (u_bnd_arr[1] - u_bnd_arr[0]))
+        iu_max = int((p_u_max - u_bnd_arr[0]) / (u_bnd_arr[1] - u_bnd_arr[0])) + 1
+
+        iu_min = max(iu_min, 0)
+        iu_max = min(iu_max, nu)
+
+        for iz in range(nz):
+            z_bnd_prj_v_l = z_bnd_arr_prj_v[iz]
+            z_bnd_prj_v_r = z_bnd_arr_prj_v[iz + 1]
+
+            #iv0 = int((z_bnd_prj_v_l - v0) // dv)
+            #iv1 = int((z_bnd_prj_v_r - v0 + dv - 1e-6) // dv)
+
+            iv0 = int((z_bnd_prj_v_l - v0) * inv_dv)
+            iv1 = int((z_bnd_prj_v_r - v0) * inv_dv) + 1
+
+            if iv1 <= 0 or iv0 >= nv:
+                continue
+
+            iv0 = max(iv0, 0)
+            iv1 = min(iv1, nv)
+
+            img_vec = vol[:, io, iz]
+
+            # -------------------------------------------------
+            # 1) sweep u ONCE
+            # -------------------------------------------------
+            for iu in range(iu_min, iu_max):
+                tmp_u[iu] = 0.0
+
+            ip = 0
+            iu = iu_min
+            u_l = u_bnd_arr[iu]
+            u_r = u_bnd_arr[iu + 1]
+
+            p_l = p_bnd_arr_prj_u[0]
+            p_r = p_bnd_arr_prj_u[1]
+
+            while ip < nP - 1 and iu < iu_max-1:
+                overlap_l = p_l if p_l > u_l else u_l
+                overlap_r = p_r if p_r < u_r else u_r
+
+                if overlap_r > overlap_l:
+                    tmp_u[iu] += img_vec[ip] * (overlap_r - overlap_l) * ray_scl
+
+                if p_r < u_r:
+                    ip += 1
+                    p_l = p_r
+                    p_r = p_bnd_arr_prj_u[ip + 1]
+                else:
+                    iu += 1
+                    u_l = u_r
+                    u_r = u_bnd_arr[iu + 1]
+
+            # -------------------------------------------------
+            # 2) distribute over v bins
+            # -------------------------------------------------
+            for iv in range(iv0, iv1):
+                v_l = v_bnd_arr[iv]
+                v_r = v_bnd_arr[iv + 1]
+
+                ov_l = z_bnd_prj_v_l if z_bnd_prj_v_l > v_l else v_l
+                ov_r = z_bnd_prj_v_r if z_bnd_prj_v_r < v_r else v_r
+
+                if ov_r <= ov_l:
+                    continue
+
+                overlap_v = ov_r - ov_l
+                sino[ia, :, iv] += tmp_u * overlap_v
+
+
 
 
 @njit(fastmath=True,cache=True)
@@ -946,10 +1037,10 @@ def _dd_fp_cone_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
 
 
     # Fan-beam  correction:
-    r = np.sqrt((DSO - o_orth_arr_trm)**2 + p_orth_arr_trm**2)
-    rays_scale = r / ((DSO - o_orth_arr_trm) * ray_scale)
+    #r = np.sqrt((DSO - o_orth_arr_trm)**2 + p_orth_arr_trm**2)
+    #rays_scale = r / ((DSO - o_orth_arr_trm) * ray_scale)
     
-    rays_scale = np.ones(p_drv_bnd_arr_trm.size) * (abs(sin_ang) + abs(cos_ang))
+    rays_scale = np.ones(p_drv_bnd_arr_trm.size, dtype=np.float32) * (abs(sin_ang) + abs(cos_ang))
 
     return img_trm, p_drv_bnd_arr_trm, p_orth_arr_trm, o_drv_bnd_arr_trm, o_orth_arr_trm, rays_scale
 
