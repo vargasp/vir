@@ -404,111 +404,21 @@ def _dd_bp_fan_sweep(sino_vec,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
 
 
 
-"""
-@njit(fastmath=True,cache=True)
-def _dd_fp_cone_sweepO(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
-                      z_bnd_arr,z_arr,o_drv_bnd_arr_trm,o_orth_arr_trm,
-                      u_bnd_arr,v_bnd_arr,dv,ray_scl_arr,ia,DSO,DSD):
-    nP, nz, no = vol.shape
-    nu = u_bnd_arr.size - 1
-    nv = v_bnd_arr.size - 1
 
 
-    v0 = v_bnd_arr[0]
-
-    for io in range(no):
-        p_orth_trm = p_orth_arr_trm[io]
-        o_orth_trm = o_orth_arr_trm[io]
-        ray_scl = ray_scl_arr[io]
-
-        #1st Order Approximation of of projection. Ignores depth dependency
-        #to improve speed
-        z_bnd_arr_prj_v = z_bnd_arr * DSD / (DSO - o_orth_trm)
-        
-        p_bnd_arr_prj_u = proj_img2det_fan(p_drv_bnd_arr_trm,p_orth_trm,
-                                           o_drv_bnd_arr_trm,o_orth_trm,
-                                           DSO, DSD)
-
-        #This should never happen in parallel beam
-        #It may occur in fan/cone beam
-        #This should be moved to a higher loop if possible
-        if p_bnd_arr_prj_u[1] < p_bnd_arr_prj_u[0]:
-            print("OH NO")
-
-
-        # ---- project z boundaries → v ----
-        for iz in range(nz):
-            #Project z_bnd on detector
-            z_bnd_prj_v_l = z_bnd_arr_prj_v[iz]
-            z_bnd_prj_v_r = z_bnd_arr_prj_v[iz+1]
-            
-
-            iv = int(np.floor((z_bnd_prj_v_l - v0)/dv))
-            iv_end = int(np.ceil ((z_bnd_prj_v_r - v0)/dv))
-
-            iv = max(iv, 0)
-            iv_end = min(iv_end, nv)
-
-
-    
-            img_vec = vol[:, io, iz]
-            
-            # ---- sweep overlapping v bins ----
-            for iv in range(iv,iv_end):
-
-                v_bnd_l = v_bnd_arr[iv]
-                v_bnd_r = v_bnd_arr[iv+1]
-
-                overlap_v_l = max(z_bnd_prj_v_l, v_bnd_l)
-                overlap_v_r = min(z_bnd_prj_v_r, v_bnd_r)
-
-                if overlap_v_r <= overlap_v_l:
-                    continue
-
-                overlap_v = overlap_v_r - overlap_v_l
-                
-                p_bnd_prj_u_l = p_bnd_arr_prj_u[0]
-                p_bnd_prj_u_r = p_bnd_arr_prj_u[1]
-                
-                u_bnd_l = u_bnd_arr[0]
-                u_bnd_r = u_bnd_arr[1]
-
-                # ---- fan-style u sweep (IDENTICAL to fan code) ----
-                ip = 0
-                iu = 0
-                while ip < nP-1 and iu < nu-1:
-                    overlap_u_l = max(p_bnd_prj_u_l, u_bnd_l)
-                    overlap_u_r = min(p_bnd_prj_u_r, u_bnd_r)
-
-                    # Accumulate overlap contribution
-                    if overlap_u_r > overlap_u_l:
-                        sino[ia,iu,iv] += (img_vec[ip] * (overlap_u_r - overlap_u_l)*overlap_v*ray_scl)
-
-                    # Advance whichever interval ends first
-                    if p_bnd_prj_u_r < u_bnd_r:
-                        ip += 1
-                        p_bnd_prj_u_l = p_bnd_prj_u_r
-                        p_bnd_prj_u_r = p_bnd_arr_prj_u[ip+1]
-                        
-                    else:
-                        iu += 1
-                        u_bnd_l = u_bnd_r
-                        u_bnd_r = u_bnd_arr[iu+1]
-"""
 
 @njit(fastmath=True, cache=True)
-def _dd_fp_cone_sweep(sino, vol,
-    p_drv_bnd_arr_trm, p_orth_arr_trm,
-    z_bnd_arr, z_arr,
-    o_drv_bnd_arr_trm, o_orth_arr_trm,
-    u_bnd_arr, v_bnd_arr, dv,
-    ray_scl_arr, ia, DSO, DSD
-):
+def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
+                      z_bnd_arr,z_arr,o_drv_bnd_arr_trm,o_orth_arr_trm, 
+                      u_bnd_arr,v_bnd_arr,du,dv,ray_scl_arr,ia,DSO,DSD):
+
     nP, nz, no = vol.shape
     nu = u_bnd_arr.size - 1
     nv = v_bnd_arr.size - 1
 
     v0 = v_bnd_arr[0]
+    u0 = u_bnd_arr[0]
+    inv_du = 1.0/du
     inv_dv = 1.0/dv
     
     
@@ -530,8 +440,8 @@ def _dd_fp_cone_sweep(sino, vol,
         p_u_min = p_bnd_arr_prj_u[0]
         p_u_max = p_bnd_arr_prj_u[-1]
 
-        iu_min = int((p_u_min - u_bnd_arr[0]) / (u_bnd_arr[1] - u_bnd_arr[0]))
-        iu_max = int((p_u_max - u_bnd_arr[0]) / (u_bnd_arr[1] - u_bnd_arr[0])) + 1
+        iu_min = int((p_u_min - u0)*inv_du)
+        iu_max = int((p_u_max - u0)*inv_du) + 1
 
         iu_min = max(iu_min, 0)
         iu_max = min(iu_max, nu)
@@ -540,17 +450,14 @@ def _dd_fp_cone_sweep(sino, vol,
             z_bnd_prj_v_l = z_bnd_arr_prj_v[iz]
             z_bnd_prj_v_r = z_bnd_arr_prj_v[iz + 1]
 
-            #iv0 = int((z_bnd_prj_v_l - v0) // dv)
-            #iv1 = int((z_bnd_prj_v_r - v0 + dv - 1e-6) // dv)
+            iv_min = int((z_bnd_prj_v_l - v0) * inv_dv)
+            iv_max = int((z_bnd_prj_v_r - v0) * inv_dv) + 1
 
-            iv0 = int((z_bnd_prj_v_l - v0) * inv_dv)
-            iv1 = int((z_bnd_prj_v_r - v0) * inv_dv) + 1
-
-            if iv1 <= 0 or iv0 >= nv:
+            if iv_max <= 0 or iv_min >= nv:
                 continue
 
-            iv0 = max(iv0, 0)
-            iv1 = min(iv1, nv)
+            iv_min = max(iv_min, 0)
+            iv_max = min(iv_max, nv)
 
             img_vec = vol[:, io, iz]
 
@@ -562,32 +469,32 @@ def _dd_fp_cone_sweep(sino, vol,
 
             ip = 0
             iu = iu_min
-            u_l = u_bnd_arr[iu]
-            u_r = u_bnd_arr[iu + 1]
+            u_bnd_l = u_bnd_arr[iu]
+            u_bnd_r = u_bnd_arr[iu + 1]
 
             p_l = p_bnd_arr_prj_u[0]
             p_r = p_bnd_arr_prj_u[1]
 
             while ip < nP - 1 and iu < iu_max-1:
-                overlap_l = p_l if p_l > u_l else u_l
-                overlap_r = p_r if p_r < u_r else u_r
+                overlap_l = p_l if p_l > u_bnd_l else u_bnd_l
+                overlap_r = p_r if p_r < u_bnd_r else u_bnd_r
 
                 if overlap_r > overlap_l:
                     tmp_u[iu] += img_vec[ip] * (overlap_r - overlap_l) * ray_scl
 
-                if p_r < u_r:
+                if p_r < u_bnd_r:
                     ip += 1
                     p_l = p_r
                     p_r = p_bnd_arr_prj_u[ip + 1]
                 else:
                     iu += 1
-                    u_l = u_r
-                    u_r = u_bnd_arr[iu + 1]
+                    u_bnd_l = u_bnd_r
+                    u_bnd_r = u_bnd_arr[iu + 1]
 
             # -------------------------------------------------
             # 2) distribute over v bins
             # -------------------------------------------------
-            for iv in range(iv0, iv1):
+            for iv in range(iv_min, iv_max):
                 v_l = v_bnd_arr[iv]
                 v_r = v_bnd_arr[iv + 1]
 
@@ -991,9 +898,6 @@ def _dd_fp_cone_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
     if abs(sin_ang) >= abs(cos_ang):
         # X-driven
         
-        # Scales projected pixel overlap along X for oblique rays
-        ray_scale = abs(sin_ang)
-
         #Rotates the x,y coordinate system to o,p (orthogonal and parallel to
         #the detector)
         #In parallel beam these coordinates will projection directly on the 
@@ -1010,12 +914,11 @@ def _dd_fp_cone_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
 
         #No transformation need  
         img_trm = img_x
+        
+        ray_scale = abs(sin_ang)
     else:
         # Y-driven
         
-        # Scales projected pixel overlap along Y for oblique rays
-        ray_scale = abs(cos_ang)
-
         # Project pixel boundaries along driving axis onto detector
         # Each pixel y component at the boundary and x component at the center
         #is projected along detetector space
@@ -1027,7 +930,9 @@ def _dd_fp_cone_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
 
         # Transposes image so axis 0 correspondsto the driving (sweep) axis
         img_trm = img_y 
-
+        ray_scale = abs(cos_ang)
+        
+        
     # Ensure monotonic increasing for sweep
     if p_drv_bnd_arr_trm[1] < p_drv_bnd_arr_trm[0]:
         p_drv_bnd_arr_trm = p_drv_bnd_arr_trm[::-1]
@@ -1037,10 +942,10 @@ def _dd_fp_cone_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
 
 
     # Fan-beam  correction:
-    #r = np.sqrt((DSO - o_orth_arr_trm)**2 + p_orth_arr_trm**2)
-    #rays_scale = r / ((DSO - o_orth_arr_trm) * ray_scale)
+    r = np.sqrt((DSO - o_orth_arr_trm)**2 + p_orth_arr_trm**2)
+    rays_scale = r / ((DSO - o_orth_arr_trm) * ray_scale)
     
-    rays_scale = np.ones(p_drv_bnd_arr_trm.size, dtype=np.float32) * (abs(sin_ang) + abs(cos_ang))
+    #rays_scale = np.ones(p_drv_bnd_arr_trm.size, dtype=np.float32) * (abs(sin_ang) + abs(cos_ang))
 
     return img_trm, p_drv_bnd_arr_trm, p_orth_arr_trm, o_drv_bnd_arr_trm, o_orth_arr_trm, rays_scale
 
@@ -1347,7 +1252,7 @@ def dd_p_cone_3d(img,sino,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,bp):
         else:
             _dd_fp_cone_sweep(sino, img_trm, p1_bnd_arr, p2_arr, 
                               z_bnd_arr, z_arr, o1_bnd_arr, o2_arr, 
-                              u_bnd_arr, v_bnd_arr, dv, ray_scl, ia, DSO, DSD)
+                              u_bnd_arr, v_bnd_arr, du, dv, ray_scl, ia, DSO, DSD)
 
     if bp:
         img_y_t = img_y.transpose(1, 0, 2).copy()

@@ -16,7 +16,7 @@ import vir.sys_mat.rd as rd
 import vir.sys_mat.pd as pd
 import vir.sys_mat.analytic_sino as asino
 from vir.sys_mat.test_orientation import p_images, p_run
-from vir.sys_mat.time_testing import p_time
+from vir.sys_mat.time_testing import p_time, p_time_single 
 
 #Image params - Pixels
 nx, ny, nz = 64, 64, 64
@@ -31,7 +31,7 @@ DSD = 1e3 + max(nx,ny)/2
 #DSD = DSO*2
 
 #Sino params 
-na = 64
+na = 180
 nu, nv = 64, 64
 du, dv = 1., 1
 su, sv = 0., 0.
@@ -66,13 +66,15 @@ sinoF = asino.analytic_circle_sino_fan_2d((x0,y0,r,1), ang_arr_lets, u_arr_lets,
 sinoC = asino.analytic_sphere_sino_cone_3d((x0,y0,z0,r,1), ang_arr, u_arr, v_arr,DSO, DSD)
 
 
-#p_images(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,
-#             ph=False,fp=True,bp=True)
+p_images(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,
+             ph=False,fp=True,bp=True)
 
 
-p_time(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,
+#p_time(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,
+#              fp=True,bp=False,n_runs=10)
+
+p_time_single(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,
               fp=True,bp=False,n_runs=10)
-
 
 #p_run(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,
 #           fp=True,bp=True)

@@ -23,6 +23,37 @@ import vir.sys_mat.pd as pd
 
 
 
+def p_time_single(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,
+           fp=True,bp=True,n_runs=10):
+    nx, ny, nz = img3d.shape
+    na, nu, nv = sinoC.shape
+
+    img2d = img3d[:,:,int(nz/2)]
+
+
+    if fp:
+        sino1c = dd.dd_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
+    
+        t0 = time.perf_counter()
+        for _ in range(n_runs):
+            sino1c = dd.dd_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
+        t1 = time.perf_counter()
+        print(f"FP Conebeam - PD: avg time: {(t1 - t0)/n_runs*1e3:.3f} ms")    
+        
+        t0 = time.perf_counter()
+        for _ in range(n_runs):
+            sino1c = dd.dd_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
+        t1 = time.perf_counter()
+        print(f"FP Conebeam - PD: avg time: {(t1 - t0)/n_runs*1e3:.3f} ms")    
+    
+        t0 = time.perf_counter()
+        for _ in range(n_runs):
+            sino1c = dd.dd_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
+        t1 = time.perf_counter()
+        print(f"FP Conebeam - PD: avg time: {(t1 - t0)/n_runs*1e3:.3f} ms")    
+
+
+
 def p_time(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,
            fp=True,bp=True,n_runs=10):
 
