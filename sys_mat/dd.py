@@ -505,7 +505,12 @@ def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
                     continue
 
                 overlap_v = ov_r - ov_l
-                sino[ia, :, iv] += tmp_u * overlap_v
+                
+                #sino[ia, :, iv] += tmp_u * overlap_v
+
+                for iu in range(iu_min, iu_max):
+                    sino[ia, iu, iv] += tmp_u[iu] * overlap_v
+
 
 
 
