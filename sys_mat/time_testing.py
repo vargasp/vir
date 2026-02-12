@@ -76,7 +76,7 @@ def p_time_single(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y
 
 
     if fp:
-        benchmark(dd.dd_fp_cone_3d, img3d,ang_arr,nu,nv,DSO,DSD,du,dv,su,sv,d_pix)
+        benchmark(rd.aw_fp_cone_3d, img3d,ang_arr,nu,nv,DSO,DSD,du,dv,su,sv,d_pix)
 
     if bp:
         benchmark(pd.pd_bp_cone_3d, sinoC,ang_arr,(nx,ny,nz),DSO,DSD,du,dv,d_pix)

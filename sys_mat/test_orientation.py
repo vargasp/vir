@@ -213,7 +213,10 @@ def p_images(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,
         rec4c = pd.pd_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),DSO,DSD,du=du,dv=dv,d_pix=d_pix)
         
         
-        
+        print(rec1c[int(nx/2),int(nx/2),int(nz/2)])
+        print(rec2c[int(nx/2),int(nx/2),int(nz/2)])
+        print(rec3c[int(nx/2),int(nx/2),int(nz/2)])
+        print(rec4c[int(nx/2),int(nx/2),int(nz/2)])
         
         
         recs = [rec1p,rec2p,rec3p,rec4p,

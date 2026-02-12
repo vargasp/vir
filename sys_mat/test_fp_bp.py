@@ -19,7 +19,7 @@ from vir.sys_mat.test_orientation import p_images, p_run
 from vir.sys_mat.time_testing import p_time, p_time_single 
 
 #Image params - Pixels
-nx, ny, nz = 32, 32, 32
+nx, ny, nz = 64, 64, 64
 d_pix = 1.0
 
 #Fan Beam Geometry - Parallel
@@ -31,8 +31,8 @@ DSD = 1e3 + max(nx,ny)/2
 #DSD = DSO*2
 
 #Sino 32 
-na = 32
-nu, nv = 32, 32
+na = 64
+nu, nv = 64, 64
 du, dv = 1., 1
 su, sv = 0, 0.
 na_lets, nu_lets, nv_lets = 5, 5, 5
@@ -50,7 +50,7 @@ v_arr_lets = dv*(np.arange(nv*nv_lets) - nv/2.0*nv_lets + 0.5 + sv).reshape(nv,n
 
 
 #Phantom Paramters Sino
-r = 15
+r = 30
 x0 = 0
 y0 = 0
 z0 = 0
@@ -66,15 +66,15 @@ sinoF = asino.analytic_circle_sino_fan_2d((x0,y0,r,1), ang_arr_lets, u_arr_lets,
 sinoC = asino.analytic_sphere_sino_cone_3d((x0,y0,z0,r,1), ang_arr, u_arr, v_arr,DSO, DSD)
 
 
-p_images(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,
-             ph=False,fp=True,bp=True)
+#p_images(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,
+#             ph=False,fp=True,bp=True)
 
 
 #p_time(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,
 #              fp=True,bp=False,n_runs=10)
 
-#p_time_single(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,
-#              fp=True,bp=False,n_runs=10)
+p_time_single(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,
+              fp=True,bp=False,n_runs=10)
 
 #p_run(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,
 #           fp=True,bp=True)
