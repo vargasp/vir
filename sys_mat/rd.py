@@ -448,9 +448,6 @@ def _joseph_bp_3d(img,s_val,t_entry,t_exit,step,ray_x_org,ray_y_org,ray_z_org,
         fx = (x - x0) / d_pix
         fy = (y - y0) / d_pix
         fz = (z - z0) / d_pix
-
-
-
         ix = int(fx)
         iy = int(fy)
         iz = int(fz)

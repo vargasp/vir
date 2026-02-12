@@ -19,7 +19,7 @@ from vir.sys_mat.test_orientation import p_images, p_run
 from vir.sys_mat.time_testing import p_time, p_time_single 
 
 #Image params - Pixels
-nx, ny, nz = 128, 128, 128
+nx, ny, nz = 32, 32, 32
 d_pix = 1.0
 
 #Fan Beam Geometry - Parallel
@@ -30,11 +30,11 @@ DSD = 1e3 + max(nx,ny)/2
 #DSO = max(nx,ny)*np.sqrt(2)/2 
 #DSD = DSO*2
 
-#Sino params 
-na = 512
-nu, nv = 256, 256
+#Sino 32 
+na = 32
+nu, nv = 32, 32
 du, dv = 1., 1
-su, sv = 0.25, 0.
+su, sv = 0, 0.
 na_lets, nu_lets, nv_lets = 5, 5, 5
 
 
@@ -50,7 +50,7 @@ v_arr_lets = dv*(np.arange(nv*nv_lets) - nv/2.0*nv_lets + 0.5 + sv).reshape(nv,n
 
 
 #Phantom Paramters Sino
-r = 60
+r = 15
 x0 = 0
 y0 = 0
 z0 = 0
