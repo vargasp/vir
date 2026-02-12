@@ -512,6 +512,7 @@ def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
                     continue
 
                 overlap_v = ov_r - ov_l
+
                 sino[ia, :, iv] += tmp_u * overlap_v
             
             """
@@ -528,6 +529,7 @@ def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
                     if ov_r > ov_l:
                         sino[ia, iu, iv] += val_u * ov_r - ov_l
             """
+
 
 
 @njit(fastmath=True,cache=True)
