@@ -431,11 +431,12 @@ def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
         ray_scl = ray_scl_arr[io]
 
         # project z boundaries → v (depends only on io)
-        z_bnd_arr_prj_v = z_bnd_arr * DSD / (DSO - o_orth_trm)
+        #z_bnd_arr_prj_v = z_bnd_arr * DSD / (DSO - o_orth_trm)
+        z_magnification =  DSD/(DSO - o_orth_trm)
+        p_magnification =  DSD/(DSO - (o_drv_bnd_arr_trm + o_orth_trm))
 
         # project p boundaries → u (depends only on io)
-        p_bnd_arr_prj_u = (DSD*(p_drv_bnd_arr_trm + p_orth_trm) /
-                           (DSO - (o_drv_bnd_arr_trm + o_orth_trm)))
+        p_bnd_arr_prj_u = p_magnification*(p_drv_bnd_arr_trm + p_orth_trm)
         
         p_u_min = p_bnd_arr_prj_u[0]
         p_u_max = p_bnd_arr_prj_u[-1]
@@ -447,8 +448,12 @@ def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
         iu_max = min(iu_max, nu)
 
         for iz in range(nz):
-            z_bnd_prj_v_l = z_bnd_arr_prj_v[iz]
-            z_bnd_prj_v_r = z_bnd_arr_prj_v[iz + 1]
+            #z_bnd_prj_v_l = z_bnd_arr_prj_v[iz]
+            #z_bnd_prj_v_r = z_bnd_arr_prj_v[iz + 1]
+
+            z_bnd_prj_v_l = z_magnification*z_bnd_arr[iz]
+            z_bnd_prj_v_r = z_magnification*z_bnd_arr[iz + 1]
+
 
             iv_min = int((z_bnd_prj_v_l - v0) * inv_dv)
             iv_max = int((z_bnd_prj_v_r - v0) * inv_dv) + 1
@@ -464,8 +469,7 @@ def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
             # -------------------------------------------------
             # 1) sweep u ONCE
             # -------------------------------------------------
-            for iu in range(iu_min, iu_max):
-                tmp_u[iu] = 0.0
+            tmp_u[iu_min:iu_max] = 0.0
 
             ip = 0
             iu = iu_min
@@ -494,6 +498,9 @@ def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
             # -------------------------------------------------
             # 2) distribute over v bins
             # -------------------------------------------------
+            
+            
+            
             for iv in range(iv_min, iv_max):
                 v_l = v_bnd_arr[iv]
                 v_r = v_bnd_arr[iv + 1]
@@ -506,8 +513,21 @@ def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
 
                 overlap_v = ov_r - ov_l
                 sino[ia, :, iv] += tmp_u * overlap_v
-
-
+            
+            """
+            for iu in range(iu_min, iu_max):
+                val_u = tmp_u[iu]
+                
+                for iv in range(iv_min, iv_max):
+                    v_l = v_bnd_arr[iv]
+                    v_r = v_bnd_arr[iv + 1]
+    
+                    ov_l = z_bnd_prj_v_l if z_bnd_prj_v_l > v_l else v_l
+                    ov_r = z_bnd_prj_v_r if z_bnd_prj_v_r < v_r else v_r
+    
+                    if ov_r > ov_l:
+                        sino[ia, iu, iv] += val_u * ov_r - ov_l
+            """
 
 
 @njit(fastmath=True,cache=True)
