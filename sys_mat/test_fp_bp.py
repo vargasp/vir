@@ -11,33 +11,30 @@ from sys import path
 path.append('/Users/pvargas21/Codebase/Libraries')
 
 import numpy as np
-import vir.sys_mat.dd as dd
-import vir.sys_mat.rd as rd
-import vir.sys_mat.pd as pd
 import vir.sys_mat.analytic_sino as asino
-from vir.sys_mat.test_orientation import p_images, p_run
-from vir.sys_mat.time_testing import p_time, p_time_single 
+from vir.sys_mat.test_orientation import p_images, p_run, p_run_single
+from vir.sys_mat.time_testing import p_time, p_time_single
 
 #Image params - Pixels
-nx, ny, nz = 64, 64, 64
+nx, ny, nz = 32, 32, 32
 d_pix = 1.0
 
 #Fan Beam Geometry - Parallel
-DSO = 1e3
-DSD = 1e3 + max(nx,ny)/2
+DSO = 1e5
+DSD = 1e5 + max(nx,ny)/2
 
 #Fan Beam Geometry - Fanbeam
 #DSO = max(nx,ny)*np.sqrt(2)/2 
 #DSD = DSO*2
 
 #Sino 32 
-na = 64
-nu, nv = 64, 64
+na = 32
+nu, nv = 32, 32
 du, dv = 1., 1
 su, sv = 0, 0.
 na_lets, nu_lets, nv_lets = 5, 5, 5
 
-
+#
 ang_arr = np.linspace(0, np.pi*2, na, endpoint=False)#, dtype=np.float32)
 ang_arr_lets = np.linspace(0, np.pi*2, na*na_lets, endpoint=False).reshape(na,na_lets)#, dtype=np.float32)
 ang_arr_lets - ang_arr_lets[0,2]
@@ -50,7 +47,7 @@ v_arr_lets = dv*(np.arange(nv*nv_lets) - nv/2.0*nv_lets + 0.5 + sv).reshape(nv,n
 
 
 #Phantom Paramters Sino
-r = 30
+r = 15
 x0 = 0
 y0 = 0
 z0 = 0
@@ -65,9 +62,19 @@ sinoFi = asino.analytic_circle_sino_fan_2d((x0,y0,r,1), ang_arr, u_arr, DSO, DSD
 sinoF = asino.analytic_circle_sino_fan_2d((x0,y0,r,1), ang_arr_lets, u_arr_lets, DSO, DSD).mean(3).mean(1)
 sinoC = asino.analytic_sphere_sino_cone_3d((x0,y0,z0,r,1), ang_arr, u_arr, v_arr,DSO, DSD)
 
+"""
+ang_arr = np.array([ang_arr[0]])
+sinoP = sinoP[:1,...]
+sinoF = sinoF[:1,...]
+sinoC = sinoC[:1,...]
+"""
 
-#p_images(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,
-#             ph=False,fp=True,bp=True)
+test = p_run_single(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,
+           fp=True,bp=True)
+
+
+p_images(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,
+             ph=False,fp=True,bp=True)
 
 
 #p_time(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,

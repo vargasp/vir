@@ -32,9 +32,6 @@ def as_float32(*args):
     return out
 
 
-# Small epsilon to avoid numerical problems when a ray lies exactly
-# on a grid line or boundary.
-eps = np.float32(1e-6)
 
 
 @njit(fastmath=True,inline='always',cache=True)
@@ -49,24 +46,34 @@ def _intersect_bounding(r0, dr, adr, r_min, r_max):
     #
     # We compute parametric entry/exit values for a single component of r
     #   r(tr_enter) enters the image
-    #   r(tr_exit) exits the image    
-    if adr > eps:
-        tr_entry = (r_min - r0) / dr
-        tr_exit = (r_max - r0) / dr
+    #   r(tr_exit) exits the image
+    
+    inv_dr = 1.0/dr
+    
+    
+    if adr > 0.:
+        tr_entry = (r_min - r0) * inv_dr
+        tr_exit = (r_max - r0) * inv_dr
         return min(tr_entry, tr_exit), max(tr_entry, tr_exit)
     else:
         # Ray is (almost) vertical → no x-bound intersection
         return -np.inf, np.inf
+                    
 
 @njit(fastmath=True,inline='always',cache=True)
-def _calc_ir0(ray_r_org,ray_r_hat,t_entry,img_bnd_r_min,img_bnd_r_max,d_pix):
-    
+def _calc_ir0(ray_r_org,ray_r_hat,t_entry,img_bnd_r_min,nr,d_pix):
+
     r = ray_r_org + t_entry*ray_r_hat
-    r = min(max(r, img_bnd_r_min + eps), img_bnd_r_max - eps)
     
-    # Convert to voxel indices
-    return int(np.floor((r - img_bnd_r_min) / d_pix))
-                    
+
+    ir = int((r - img_bnd_r_min)/d_pix)
+    if ir < 0:
+        ir = 0
+    elif ir >= nr:
+        ir = nr - 1
+
+    return ir
+
 
 @njit(fastmath=True,inline='always',cache=True)
 def _fp_step_init(r0, ir, dr, adr, r_min, d_pix):
@@ -146,7 +153,7 @@ def _fp_step_init(r0, ir, dr, adr, r_min, d_pix):
         r_next = r_min + ir*d_pix
 
     # Compute ray-parameter increments for grid crossings
-    if adr > eps:
+    if adr > 0.0:
         # Distance in t between successive grid-plane crossings
         # along this axis
         tr_step = d_pix / adr
@@ -163,8 +170,95 @@ def _fp_step_init(r0, ir, dr, adr, r_min, d_pix):
     return idir, tr_step, tr_next
                     
 
+
+
+@njit(fastmath=True, inline='always', cache=True)
+def _fp_step_init_voxel(v0, iv, dv, adv):
+    """
+    Amanatides–Woo step initialization in voxel space.
+
+    v(s) = v0 + s * dv
+    Grid planes are at integer coordinates.
+    """
+
+    if dv > 0.0:
+        idir = 1
+        v_next_plane = iv + 1.0
+    else:
+        idir = -1
+        v_next_plane = iv * 1.0
+
+    if dv != 0.0:
+        t_step = 1.0 / adv
+        t_next = (v_next_plane - v0) / dv
+    else:
+        t_step = np.inf
+        t_next = np.inf
+
+    return idir, t_step, t_next
+
+
+@njit(fastmath=True, inline='always', cache=True)
+def _aw_fp_traverse_3d_voxel(img,
+                             t_entry, t_exit,
+                             tx_next, ty_next, tz_next,
+                             tx_step, ty_step, tz_step,
+                             ix, iy, iz,
+                             ix_dir, iy_dir, iz_dir,
+                             nx, ny, nz,
+                             ray_length):
+
+    t = t_entry
+    acc = np.float32(0.0)
+
+    while True:
+
+        if t >= t_exit:
+            break
+
+        if ix < 0 or iy < 0 or iz < 0 or \
+           ix >= nx or iy >= ny or iz >= nz:
+            break
+
+        # Find next crossing
+        t_next = tx_next
+        if ty_next < t_next:
+            t_next = ty_next
+        if tz_next < t_next:
+            t_next = tz_next
+
+        if t_next > t_exit:
+            t_next = t_exit
+
+        dt = t_next - t
+
+        if dt > 0.0:
+            acc += img[ix, iy, iz] * dt * ray_length
+
+        t = t_next
+
+        if t >= t_exit:
+            break
+
+        # Robust multi-axis tie handling
+        if t_next == tx_next:
+            ix += ix_dir
+            tx_next += tx_step
+
+        if t_next == ty_next:
+            iy += iy_dir
+            ty_next += ty_step
+
+        if t_next == tz_next:
+            iz += iz_dir
+            tz_next += tz_step
+
+    return acc
+
+
+
 @njit(fastmath=True,inline='always',cache=True)
-def _aw_fp_traverse_2d(img,t_entry,t_exit,tx_next,ty_next,tx_step,ty_step,
+def _aw_fp_traverse_2d(iu, img,t_entry,t_exit,tx_next,ty_next,tx_step,ty_step,
                        ix,iy,ix_dir,iy_dir,nx,ny):
     
     # Ensure first crossing occurs after entry point
@@ -179,12 +273,9 @@ def _aw_fp_traverse_2d(img,t_entry,t_exit,tx_next,ty_next,tx_step,ty_step,
     t = t_entry
     acc = np.float32(0.0)
 
-    while t <= t_exit:
-
-        # Safety check (should rarely trigger)
-        if ix < 0 or ix >= nx or iy < 0 or iy >= ny:
-            break
-
+    #print(type(t),type(t_exit))
+    while t < t_exit:
+        #print(ix,iy,t,t_exit)
         if tx_next <= ty_next:
             # Cross a vertical boundary first
             t_next = min(tx_next, t_exit)
@@ -239,10 +330,7 @@ def _aw_fp_traverse_3d(img,t_entry,t_exit,tx_next,ty_next,tz_next,
     acc = np.float32(0.0)
 
     while t < t_exit:
-
-        # Safety check (should rarely trigger)
-        if ix<0 or iy<0 or iz<0 or ix>=nx or iy>=ny or iz>=nz:
-            break
+        print(ix,iy,iz,t,t_exit)
 
         if tx_next <= ty_next and tx_next <= tz_next:
             t_next = min(tx_next, t_exit)
@@ -275,10 +363,6 @@ def _aw_bp_traverse_3d(img,s_val,t_entry,t_exit,tx_next,ty_next,tz_next,
     t = t_entry
 
     while t < t_exit:
-
-        # Safety check (should rarely trigger)
-        if ix<0 or iy<0 or iz<0 or ix>=nx or iy>=ny or iz>=nz:
-            break
 
         if tx_next <= ty_next and tx_next <= tz_next:
             t_next = min(tx_next, t_exit)
@@ -403,6 +487,64 @@ def _joseph_fp_3d(img,t_entry,t_exit,t_step,ray_x_org,ray_y_org,ray_z_org,
             
             acc += val*t_step
             
+        t += t_step
+
+    return acc
+
+
+@njit(fastmath=True, cache=True)
+def _joseph_fp_3d_voxel(img,
+                        t_entry, t_exit, t_step,
+                        v0x, v0y, v0z,
+                        dvx, dvy, dvz,
+                        ray_length):
+
+    nx, ny, nz = img.shape
+
+    acc = np.float32(0.0)
+    t = t_entry
+
+    while t <= t_exit:
+
+        # Voxel-space position
+        x = v0x + t * dvx
+        y = v0y + t * dvy
+        z = v0z + t * dvz
+
+        ix = int(x)
+        iy = int(y)
+        iz = int(z)
+
+        if 0 <= ix < nx-1 and \
+           0 <= iy < ny-1 and \
+           0 <= iz < nz-1:
+
+            dx = x - ix
+            dy = y - iy
+            dz = z - iz
+
+            # Trilinear interpolation
+            c000 = img[ix  , iy  , iz  ]
+            c100 = img[ix+1, iy  , iz  ]
+            c010 = img[ix  , iy+1, iz  ]
+            c110 = img[ix+1, iy+1, iz  ]
+            c001 = img[ix  , iy  , iz+1]
+            c101 = img[ix+1, iy  , iz+1]
+            c011 = img[ix  , iy+1, iz+1]
+            c111 = img[ix+1, iy+1, iz+1]
+
+            c00 = c000 + dx * (c100 - c000)
+            c10 = c010 + dx * (c110 - c010)
+            c01 = c001 + dx * (c101 - c001)
+            c11 = c011 + dx * (c111 - c011)
+
+            c0 = c00 + dy * (c10 - c00)
+            c1 = c01 + dy * (c11 - c01)
+
+            val = c0 + dz * (c1 - c0)
+
+            acc += val * t_step * ray_length
+
         t += t_step
 
     return acc
@@ -589,6 +731,8 @@ def aw_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0,joseph=False):
             t_entry = max(tx_min, ty_min)
             t_exit = min(tx_max,  ty_max)
 
+            print(type(t_entry), type(t_exit))
+
             if t_exit <= t_entry:
                 # Ray does not intersect the image
                 continue
@@ -600,15 +744,19 @@ def aw_fp_par_2d(img, ang_arr, nu, du=1.0, su=0.0, d_pix=1.0,joseph=False):
 
             else:
                 
-                ix_entry = _calc_ir0(ray_x_org,ray_x_hat,t_entry,img_bnd_x_min,img_bnd_x_max,d_pix)
-                iy_entry = _calc_ir0(ray_y_org,ray_y_hat,t_entry,img_bnd_y_min,img_bnd_y_max,d_pix)
+
+                ix_entry = _calc_ir0(ray_x_org,ray_x_hat,t_entry,img_bnd_x_min,nx,d_pix)
+                iy_entry = _calc_ir0(ray_y_org,ray_y_hat,t_entry,img_bnd_y_min,ny,d_pix)
+
+                print(ix_entry,iy_entry)
 
                 # Amanatides–Woo stepping initialization
                 ix_dir, tx_step, tx_next = _fp_step_init(ray_x_org,ix_entry,ray_x_hat, rx_abs, img_bnd_x_min, d_pix)
                 iy_dir, ty_step, ty_next = _fp_step_init(ray_y_org,iy_entry,ray_y_hat, ry_abs, img_bnd_y_min, d_pix)
                 
+                
                 # Traverse the grid voxel-by-voxel
-                sino[ia, iu] = _aw_fp_traverse_2d(img,t_entry,t_exit,
+                sino[ia, iu] = _aw_fp_traverse_2d(iu, img,t_entry,t_exit,
                                      tx_next, ty_next, tx_step, ty_step,
                                      ix_entry,iy_entry,ix_dir,iy_dir,nx,ny,)
 
@@ -681,7 +829,6 @@ def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0,joseph=Fa
         det_u_orn = (-sin_ang, cos_ang)
 
         for iu, u in enumerate(u_arr):
- 
             # Each ray is parameterized as:
             # r(t) = (ray_o_x_pos, ray_o_y_pos) + t * (rx, ry)
 
@@ -717,9 +864,9 @@ def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0,joseph=Fa
                                              ray_x_org,ray_y_org,
                                              ray_x_hat,ray_y_hat,x0,y0,d_pix)
             else:
-   
-                ix_entry = _calc_ir0(ray_x_org,ray_x_hat,t_entry,img_bnd_x_min,img_bnd_x_max,d_pix)
-                iy_entry = _calc_ir0(ray_y_org,ray_y_hat,t_entry,img_bnd_y_min,img_bnd_y_max,d_pix)
+       
+                ix_entry = _calc_ir0(ray_x_org,ray_x_hat,t_entry,img_bnd_x_min,nx,d_pix)
+                iy_entry = _calc_ir0(ray_y_org,ray_y_hat,t_entry,img_bnd_y_min,ny,d_pix)
     
                 # Amanatides–Woo stepping initialization
                 ix_dir, tx_step, tx_next = _fp_step_init(ray_x_org, ix_entry, ray_x_hat, rx_abs, img_bnd_x_min, d_pix)
@@ -727,7 +874,7 @@ def aw_fp_fan_2d(img, ang_arr, nu, DSO, DSD, du=1.0, su=0.0, d_pix=1.0,joseph=Fa
                 
                 # Grid traversal
                 # Store final line integral
-                sino[ia, iu] = _aw_fp_traverse_2d(img,t_entry,t_exit,
+                sino[ia, iu] = _aw_fp_traverse_2d(iu,img,t_entry,t_exit,
                                      tx_next,ty_next,tx_step,ty_step,
                                      ix_entry,iy_entry,ix_dir,iy_dir,nx,ny)
                 
@@ -786,8 +933,13 @@ def aw_bp_par_2d(sino, ang_arr, img_shape, du=1.0, su=0.0, d_pix=1.0, joseph=Fal
                            x0, y0, t_entry, t_exit, step)
             else:
                 
-                ix_entry = _calc_ir0(ray_x_org,ray_x_hat,t_entry,img_bnd_x_min,img_bnd_x_max,d_pix)
-                iy_entry = _calc_ir0(ray_y_org,ray_y_hat,t_entry,img_bnd_y_min,img_bnd_y_max,d_pix)
+                #ix_entry = _calc_ir0(ray_x_org,ray_x_hat,t_entry,img_bnd_x_min,img_bnd_x_max,d_pix)
+                #iy_entry = _calc_ir0(ray_y_org,ray_y_hat,t_entry,img_bnd_y_min,img_bnd_y_max,d_pix)
+                
+                ix_entry = _calc_ir0(ray_x_org,ray_x_hat,t_entry,img_bnd_x_min,nx,d_pix)
+                iy_entry = _calc_ir0(ray_y_org,ray_y_hat,t_entry,img_bnd_y_min,ny,d_pix)
+
+                
                 
                 ix_dir, tx_step, tx_next = _fp_step_init(ray_x_org, ix_entry, ray_x_hat, rx_abs, img_bnd_x_min, d_pix)
                 iy_dir, ty_step, ty_next = _fp_step_init(ray_y_org, iy_entry, ray_y_hat, ry_abs, img_bnd_y_min, d_pix)
@@ -858,9 +1010,10 @@ def aw_bp_fan_2d(sino, ang_arr, img_shape, DSO, DSD, du=1.0, su=0.0, d_pix=1.0, 
                 _joseph_bp_2d(img, d_pix, sino[ia,iu], ray_x_hat, ray_y_hat, ray_x_org, ray_y_org,
                            x0, y0, t_entry, t_exit, step)
             else:
-                
-                ix_entry = _calc_ir0(ray_x_org,ray_x_hat,t_entry,img_bnd_x_min,img_bnd_x_max,d_pix)
-                iy_entry = _calc_ir0(ray_y_org,ray_y_hat,t_entry,img_bnd_y_min,img_bnd_y_max,d_pix)
+                    
+                ix_entry = _calc_ir0(ray_x_org,ray_x_hat,t_entry,img_bnd_x_min,nx,d_pix)
+                iy_entry = _calc_ir0(ray_y_org,ray_y_hat,t_entry,img_bnd_y_min,ny,d_pix)
+
     
                 # Amanatides–Woo stepping initialization
                 ix_dir, tx_step, tx_next = _fp_step_init(ray_x_org, ix_entry, ray_x_hat, rx_abs, img_bnd_x_min, d_pix)
@@ -900,18 +1053,21 @@ def aw_bp_cone_3d(sino,ang_arr,img_shape,DSO,DSD,
 
 
 @njit(fastmath=True,cache=True)
-def aw_p_cone_3d(img,sino,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,joseph,bp):
+def aw_p_cone_3dO(img,sino,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,joseph,bp):
 
     nx, ny, nz = img.shape
     na, nu, nv = sino.shape
+    
+    inv_d_pix = 1.0 / d_pix
+
     
     img_bnd_x_min, img_bnd_x_max, x0 = _img_bounds(nx,d_pix)
     img_bnd_y_min, img_bnd_y_max, y0 = _img_bounds(ny,d_pix)
     img_bnd_z_min, img_bnd_z_max, z0 = _img_bounds(nz,d_pix)
     step = np.float32(0.5)
 
-    u_arr = du*(np.arange(nu,dtype=np.float32) - np.float32(nu/2 + 0.5))
-    v_arr = dv*(np.arange(nv,dtype=np.float32) - np.float32(nu/2 + 0.5))
+    u_arr = du*(np.arange(nu,dtype=np.float32) - np.float32(nu/2 - 0.5))
+    v_arr = dv*(np.arange(nv,dtype=np.float32) - np.float32(nu/2 - 0.5))
 
     # Precompute ray direction for all angles
     cos_ang_arr = np.cos(ang_arr)
@@ -954,6 +1110,33 @@ def aw_p_cone_3d(img,sino,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,joseph,bp):
                 ray_y_vec = det_y - ray_y_org
                 ray_z_vec = det_z - ray_z_org
 
+                ray_length = np.sqrt(ray_x_vec**2 +
+                                     ray_y_vec**2 +
+                                     ray_z_vec**2)
+
+                ray_x_org_v = (ray_x_org - img_bnd_x_min) * inv_d_pix
+                ray_y_org_v = (ray_y_org - img_bnd_y_min) * inv_d_pix
+                ray_z_org_v = (ray_z_org - img_bnd_z_min) * inv_d_pix
+                
+                ray_x_vec_v = ray_x_vec * inv_d_pix
+                ray_y_vec_v = ray_y_vec * inv_d_pix
+                ray_z_vec_v = ray_z_vec * inv_d_pix
+
+                tx_entry, tx_exit = _intersect_bounding(
+                    ray_x_org_v, ray_x_vec_v, abs(ray_x_vec_v),
+                    0.0, nx)
+                
+                ty_entry, ty_exit = _intersect_bounding(
+                    ray_y_org_v, ray_y_vec_v, abs(ray_y_vec_v),
+                    0.0, ny)
+                
+                tz_entry, tz_exit = _intersect_bounding(
+                    ray_z_org_v, ray_z_vec_v, abs(ray_z_vec_v),
+                    0.0, nz)
+
+                print(tz_entry,tz_exit)
+
+                """
                 ray_mag = np.sqrt(ray_x_vec**2 + ray_y_vec**2 + ray_z_vec**2)
                 ray_x_hat = ray_x_vec/ray_mag
                 ray_y_hat = ray_y_vec/ray_mag
@@ -962,7 +1145,8 @@ def aw_p_cone_3d(img,sino,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,joseph,bp):
                 tx_entry,tx_exit = _intersect_bounding(ray_x_org, ray_x_hat, abs(ray_x_hat), img_bnd_x_min, img_bnd_x_max)
                 ty_entry,ty_exit = _intersect_bounding(ray_y_org, ray_y_hat, abs(ray_y_hat), img_bnd_y_min, img_bnd_y_max)
                 tz_entry,tz_exit = _intersect_bounding(ray_z_org, ray_z_hat, abs(ray_z_hat), img_bnd_z_min, img_bnd_z_max)
-
+                """
+                
                 t_entry = max(tx_entry, ty_entry, tz_entry)
                 t_exit  = min(tx_exit, ty_exit, tz_exit)
 
@@ -973,26 +1157,71 @@ def aw_p_cone_3d(img,sino,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,joseph,bp):
                 if joseph:
 
                     if bp:
+                        
+                        """
                         _joseph_bp_3d(img,sino[ia,iu,iv],t_entry,t_exit,step,
                                                        ray_x_org,ray_y_org,ray_z_org,
                                                        ray_x_hat,ray_y_hat,ray_z_hat,
                                                        x0,y0,z0,d_pix)
+                        
+                        """
+                        print("not implmented")
+
+                        
+                        
                     else:
+                        """
                         sino[ia,iu,iv] = _joseph_fp_3d(img,t_entry,t_exit,step,
                                                    ray_x_org,ray_y_org,ray_z_org,
                                                    ray_x_hat,ray_y_hat,ray_z_hat,
                                                    x0,y0,z0,d_pix)
+                        
+                        """
+                        
+                        sino[ia, iu, iv] = _joseph_fp_3d_voxel(
+    img,
+    t_entry, t_exit,
+    step,  # same sampling step
+    ray_x_org_v,
+    ray_y_org_v,
+    ray_z_org_v,
+    ray_x_vec_v,
+    ray_y_vec_v,
+    ray_z_vec_v,
+    ray_length)
                 else:
-                    ix_entry = _calc_ir0(ray_x_org,ray_x_hat,t_entry,
-                                         img_bnd_x_min,img_bnd_x_max,d_pix)
-                    iy_entry = _calc_ir0(ray_y_org,ray_y_hat,t_entry,
-                                         img_bnd_y_min,img_bnd_y_max,d_pix)
-                    iz_entry = _calc_ir0(ray_z_org,ray_z_hat,t_entry,
-                                         img_bnd_z_min,img_bnd_z_max,d_pix)
 
-                    ix_dir,tx_step,tx_next = _fp_step_init(ray_x_org,ix_entry, ray_x_hat, abs(ray_x_hat), img_bnd_x_min, d_pix)
-                    iy_dir,ty_step,ty_next = _fp_step_init(ray_y_org,iy_entry, ray_y_hat, abs(ray_y_hat), img_bnd_y_min, d_pix)
-                    iz_dir,tz_step,tz_next = _fp_step_init(ray_z_org,iz_entry, ray_z_hat, abs(ray_z_hat), img_bnd_z_min, d_pix)
+                    #ix_entry = _calc_ir0(ray_x_org,ray_x_hat,t_entry,img_bnd_x_min,nx,d_pix)
+                    #iy_entry = _calc_ir0(ray_y_org,ray_y_hat,t_entry,img_bnd_y_min,ny,d_pix)
+                    #iz_entry = _calc_ir0(ray_z_org,ray_z_hat,t_entry,img_bnd_z_min,nz,d_pix)
+                    #ix_dir,tx_step,tx_next = _fp_step_init(ray_x_org,ix_entry, ray_x_hat, abs(ray_x_hat), img_bnd_x_min, d_pix)
+                    #iy_dir,ty_step,ty_next = _fp_step_init(ray_y_org,iy_entry, ray_y_hat, abs(ray_y_hat), img_bnd_y_min, d_pix)
+                    #iz_dir,tz_step,tz_next = _fp_step_init(ray_z_org,iz_entry, ray_z_hat, abs(ray_z_hat), img_bnd_z_min, d_pix)
+
+
+                    ix_entry = int(ray_x_org_v + t_entry * ray_x_vec_v)
+                    iy_entry = int(ray_y_org_v + t_entry * ray_y_vec_v)
+                    iz_entry = int(ray_z_org_v + t_entry * ray_z_vec_v)
+
+                    
+                    ix_dir, tx_step, tx_next = _fp_step_init_voxel(
+                        ray_x_org_v + t_entry * ray_x_vec_v,
+                        ix_entry,
+                        ray_x_vec_v,
+                        abs(ray_x_vec_v))
+                    
+                    iy_dir, ty_step, ty_next = _fp_step_init_voxel(
+                        ray_y_org_v + t_entry * ray_y_vec_v,
+                        iy_entry,
+                        ray_y_vec_v,
+                        abs(ray_y_vec_v))
+                    
+                    iz_dir, tz_step, tz_next = _fp_step_init_voxel(
+                        ray_z_org_v + t_entry * ray_z_vec_v,
+                        iz_entry,
+                        ray_z_vec_v,
+                        abs(ray_z_vec_v))
+
 
                     if bp:
                         _aw_bp_traverse_3d(img,sino[ia,iu,iv],t_entry,t_exit,
@@ -1001,6 +1230,7 @@ def aw_p_cone_3d(img,sino,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,joseph,bp):
                             ix_dir,iy_dir,iz_dir,nx,ny,nz)
 
                     else:
+                        """
                         sino[ia,iu,iv] = _aw_fp_traverse_3d(img,t_entry, t_exit,
                             tx_next,ty_next,tz_next,tx_step, ty_step, tz_step,
                             ix_entry, iy_entry, iz_entry,
@@ -1008,8 +1238,144 @@ def aw_p_cone_3d(img,sino,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,joseph,bp):
                                         
                         ray_scale = DSD/np.sqrt(DSD**2 + u**2 + v**2)
                         sino[ia, iu, iv]= sino[ia, iu, iv]*ray_scale
+                        """
+                        sino[ia, iu, iv] = _aw_fp_traverse_3d_voxel(
+                                            img,
+                                            t_entry, t_exit,
+                                            tx_next, ty_next, tz_next,
+                                            tx_step, ty_step, tz_step,
+                                            ix_entry, iy_entry, iz_entry,
+                                            ix_dir, iy_dir, iz_dir,
+                                            nx, ny, nz,
+                                            ray_length)
+
                     
     if bp:
         return img/ang_arr.size*du*dv
     else:
         return sino
+    
+    
+    
+@njit(fastmath=True, cache=True)
+def aw_p_cone_3d(img, sino, ang_arr, DSO, DSD, du, dv, su, sv, d_pix,
+                 joseph=False, bp=False):
+
+    nx, ny, nz = img.shape
+    na, nu, nv = sino.shape
+
+    # Voxel-space bounds
+    inv_d_pix = 1.0 / d_pix
+
+    # Image bounds in world coordinates
+    img_bnd_x_min, img_bnd_x_max, _ = -d_pix*nx/2, d_pix*nx/2, 0.0
+    img_bnd_y_min, img_bnd_y_max, _ = -d_pix*ny/2, d_pix*ny/2, 0.0
+    img_bnd_z_min, img_bnd_z_max, _ = -d_pix*nz/2, d_pix*nz/2, 0.0
+
+    # Detector positions
+    u_arr = du*(np.arange(nu, dtype=np.float32) - np.float32(nu/2 - 0.5) + su)
+    v_arr = dv*(np.arange(nv, dtype=np.float32) - np.float32(nv/2 - 0.5) + sv)
+
+    cos_arr = np.cos(ang_arr)
+    sin_arr = np.sin(ang_arr)
+
+    step = np.float32(0.5)  # Joseph step, later can adapt to voxel step
+
+    for ia in range(na):
+        cos_ang = cos_arr[ia]
+        sin_ang = sin_arr[ia]
+
+        # Source position
+        ray_x_org = DSO * cos_ang
+        ray_y_org = DSO * sin_ang
+        ray_z_org = 0.0
+
+        # Detector origin (center)
+        det_x_org = -(DSD - DSO) * cos_ang
+        det_y_org = -(DSD - DSO) * sin_ang
+        det_z_org = 0.0
+
+        # Detector u,v positions
+        det_x_arr = det_x_org + u_arr * -sin_ang
+        det_y_arr = det_y_org + u_arr * cos_ang
+
+        for iv in range(nv):
+            v = v_arr[iv]
+            det_z = det_z_org + v
+
+            for iu in range(nu):
+                det_x = det_x_arr[iu]
+                det_y = det_y_arr[iu]
+
+                # Ray vector in world space
+                ray_vec_x = det_x - ray_x_org
+                ray_vec_y = det_y - ray_y_org
+                ray_vec_z = det_z - ray_z_org
+
+                ray_length = np.sqrt(ray_vec_x**2 + ray_vec_y**2 + ray_vec_z**2)
+
+                # Transform to voxel space
+                v0x = (ray_x_org - img_bnd_x_min) * inv_d_pix
+                v0y = (ray_y_org - img_bnd_y_min) * inv_d_pix
+                v0z = (ray_z_org - img_bnd_z_min) * inv_d_pix
+
+                dvx = ray_vec_x * inv_d_pix
+                dvy = ray_vec_y * inv_d_pix
+                dvz = ray_vec_z * inv_d_pix
+
+                # Compute voxel-space slab intersections
+                tmin_x = (0.0 - v0x)/dvx if dvx != 0 else -np.inf
+                tmax_x = (nx - v0x)/dvx if dvx != 0 else np.inf
+                if tmin_x > tmax_x:
+                    tmin_x, tmax_x = tmax_x, tmin_x
+
+                tmin_y = (0.0 - v0y)/dvy if dvy != 0 else -np.inf
+                tmax_y = (ny - v0y)/dvy if dvy != 0 else np.inf
+                if tmin_y > tmax_y:
+                    tmin_y, tmax_y = tmax_y, tmin_y
+
+                tmin_z = (0.0 - v0z)/dvz if dvz != 0 else -np.inf
+                tmax_z = (nz - v0z)/dvz if dvz != 0 else np.inf
+                if tmin_z > tmax_z:
+                    tmin_z, tmax_z = tmax_z, tmin_z
+
+                t_entry = max(tmin_x, tmin_y, tmin_z)
+                t_exit  = min(tmax_x, tmax_y, tmax_z)
+
+                if t_exit <= t_entry:
+                    continue  # Ray misses volume
+
+                # Initial voxel indices
+                ix = int(v0x + t_entry * dvx)
+                iy = int(v0y + t_entry * dvy)
+                iz = int(v0z + t_entry * dvz)
+
+                # Clamp indices
+                ix = max(0, min(nx-1, ix))
+                iy = max(0, min(ny-1, iy))
+                iz = max(0, min(nz-1, iz))
+
+                # Step initialization
+                ix_dir, tx_step, tx_next = _fp_step_init_voxel(v0x + t_entry*dvx, ix, dvx, abs(dvx))
+                iy_dir, ty_step, ty_next = _fp_step_init_voxel(v0y + t_entry*dvy, iy, dvy, abs(dvy))
+                iz_dir, tz_step, tz_next = _fp_step_init_voxel(v0z + t_entry*dvz, iz, dvz, abs(dvz))
+
+                if joseph:
+                    sino[ia, iu, iv] = _joseph_fp_3d_voxel(
+                        img, t_entry, t_exit, step,
+                        v0x, v0y, v0z, dvx, dvy, dvz, ray_length)
+                else:
+                    sino[ia, iu, iv] = _aw_fp_traverse_3d_voxel(
+                        img, t_entry, t_exit,
+                        tx_next, ty_next, tz_next,
+                        tx_step, ty_step, tz_step,
+                        ix, iy, iz,
+                        ix_dir, iy_dir, iz_dir,
+                        nx, ny, nz,
+                        ray_length)
+
+    if bp:
+        return img / na * du * dv
+    else:
+        return sino
+

@@ -39,6 +39,7 @@ def as_int32(x):
 eps = np.float32(1e-6)
 
 
+
 @njit(fastmath=True,inline='always',cache=True)
 def proj_img2det_fan(p_term1, p_term2, o_term1, o_term2, DSO, DSD):
     return DSD * (p_term1 + p_term2) / (DSO - (o_term1 + o_term2))
@@ -975,13 +976,19 @@ def _dd_fp_cone_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
 
 
 
-def dd_fp_par_2d(img,ang_arr,nu,du=1.0,su=0.0,d_pix=1.0):
+def dd_fp_par_2d(img,ang_arr,nu,du=1.0,su=0.0,d_pix=1.0,sample=1):
+    
     img,ang_arr,du,su,d_pix = \
         as_float32(img,ang_arr,du,su,d_pix)
- 
-    sino = np.zeros((ang_arr.size, nu), dtype=np.float32)
    
+    if sample != 1:
+        img = rebin(img, sample *np.array(img.shape))
+        d_pix /= sample
+                     
+    sino = np.zeros((ang_arr.size, nu), dtype=np.float32)
     return dd_p_par_2d(img,sino,ang_arr,du=du,su=su,d_pix=d_pix,bp=False)
+
+
 
 
 def dd_bp_par_2d(sino,ang_arr,img_shape,du=1.0,su=0.0,d_pix=1.0):
@@ -1211,9 +1218,13 @@ def proj_img2det_cone(p, o, z, DSO, DSD):
     return u, v
 
 
-def dd_fp_cone_3d(img,ang_arr,nu,nv,DSO,DSD,du=1.0,dv=1.0,su=0.0,sv=1.0,d_pix=1.0):
+def dd_fp_cone_3d(img,ang_arr,nu,nv,DSO,DSD,du=1.0,dv=1.0,su=0.0,sv=1.0,d_pix=1.0,sample=1):
     img,ang_arr,DSO,DSD,du,dv,su,sv,d_pix = \
         as_float32(img,ang_arr,DSO,DSD,du,dv,su,sv,d_pix)
+
+    if sample != 1:
+        img = np.kron(img, np.ones([sample,sample,sample]))
+        d_pix /= sample
     
     sino = np.zeros((ang_arr.size, nu, nv), dtype=np.float32)
 
