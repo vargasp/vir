@@ -25,7 +25,7 @@ def p_run_single(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0
 
     img2d = img3d[:,:,int(nz/2)]
 
-    return dd.dd_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix,sample=5)
+    return rd.aw_fp_par_2d(img2d,ang_arr,nu,du=du,su=su,d_pix=d_pix)
 
 def p_run(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,
            fp=True,bp=True):
@@ -97,20 +97,22 @@ def p_images(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,
         sino4p = pd.pd_fp_par_2d(img2d,ang_arr,nu,du=du,su=su,d_pix=d_pix)
         
         sino1f = dd.dd_fp_fan_2d(img2d,ang_arr,nu,DSO,DSD,du=du,su=su,d_pix=d_pix)
-        print("Img1")
         sino2f = rd.aw_fp_fan_2d(img2d,ang_arr,nu,DSO,DSD,du=du,su=su,d_pix=d_pix)
-        print("Img2")
         sino3f = rd.aw_fp_fan_2d(img2d,ang_arr,nu,DSO,DSD,du=du,su=su,d_pix=d_pix,joseph=True)
         sino4f = pd.pd_fp_fan_2d(img2d,ang_arr,nu,DSO,DSD,du=du,su=su,d_pix=d_pix)
         
         sino1c = dd.dd_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
-        print("Cone")    
         sino2c = rd.aw_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
         sino3c = rd.aw_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix,joseph=True)
         sino4c = pd.pd_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
     
+        #sino2p = np.zeros(sinoP.shape)
+        #sino3p = np.zeros(sinoP.shape)
+        #sino2f = np.zeros(sinoF.shape)
+        #sino3f = np.zeros(sinoF.shape)
+
+
     
-        print("Done")    
         sinos = [sino1p,sino2p,sino3p,sino4p,
                  sino1f,sino2f,sino3f,sino4f,
                  sino1c[:,:,int(nv/2)],sino2c[:,:,int(nv/2)],sino3c[:,:,int(nv/2)],sino4c[:,:,int(nv/2)]]
@@ -205,8 +207,11 @@ def p_images(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,
         
         
     if bp:
-        #sino = sino[8:9,:]
-        #ang_arr = [ang_arr[8]]
+        #sinoP = sinoP[:1,:]
+        #sinoF = sinoF[:1,:]
+        #sinoC = sinoC[:1,:]
+        
+        #ang_arr = np.array([ang_arr[0]])
         
         print("BP")
         rec1p = dd.dd_bp_par_2d(sinoP,ang_arr,(nx,ny),du=du,su=su,d_pix=d_pix)
@@ -219,16 +224,23 @@ def p_images(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,
         rec3f = rd.aw_bp_fan_2d(sinoF,ang_arr,(nx,ny),DSO,DSD,du=du,su=su,d_pix=d_pix,joseph=True)
         rec4f = pd.pd_bp_fan_2d(sinoF,ang_arr,(nx,ny),DSO,DSD,du=du,su=su,d_pix=d_pix)
         
-        rec1c = dd.dd_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),DSO,DSD,du=du,dv=dv,d_pix=d_pix)
-        rec2c = rd.aw_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),DSO,DSD,du=du,dv=dv,d_pix=d_pix)
-        rec3c = rd.aw_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),DSO,DSD,du=du,dv=dv,d_pix=d_pix,joseph=True)
-        rec4c = pd.pd_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),DSO,DSD,du=du,dv=dv,d_pix=d_pix)
+        rec1c = dd.dd_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
+        rec2c = rd.aw_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
+        rec3c = rd.aw_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix,joseph=True)
+        rec4c = pd.pd_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
         
         
-        print(rec1c[int(nx/2),int(nx/2),int(nz/2)])
-        print(rec2c[int(nx/2),int(nx/2),int(nz/2)])
-        print(rec3c[int(nx/2),int(nx/2),int(nz/2)])
-        print(rec4c[int(nx/2),int(nx/2),int(nz/2)])
+        #rec2p = np.zeros(img2d.shape)
+        #rec3p = np.zeros(img2d.shape)
+        #rec2f = np.zeros(img2d.shape)
+        #rec3f = np.zeros(img2d.shape)
+        
+        
+        
+        #print(rec1c[int(nx/2),int(nx/2),int(nz/2)])
+        #print(rec2c[int(nx/2),int(nx/2),int(nz/2)])
+        #print(rec3c[int(nx/2),int(nx/2),int(nz/2)])
+        #print(rec4c[int(nx/2),int(nx/2),int(nz/2)])
         
         
         recs = [rec1p,rec2p,rec3p,rec4p,

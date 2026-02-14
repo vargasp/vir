@@ -125,6 +125,48 @@ def analytic_sphere_sino_cone_3d(s, ang, u, v, DSO, DSD):
     v   = np.asarray(v)
 
     # Fan angles (1, nU, 1)
+    gamma = np.arctan(u / DSD)
+    gamma = gamma.reshape((1,)*ang.ndim + u.shape + (1,)*v.ndim)
+
+
+    # Cone angles (1, 1, nV)
+    eta = np.arctan(v / DSD)
+    eta = eta.reshape((1,)*ang.ndim + (1,)*u.ndim + v.shape )
+   
+   
+    # Parallel offset from fan geometry
+    xi = DSO * np.sin(gamma)          # (1, nU, 1)
+
+    # Projection angle
+    phi = ang.reshape(ang.shape + (1,)*u.ndim + (1,)*v.ndim) + gamma  # (nAng, nU, 1)
+
+    # In-plane distance (fan-beam part)
+    p_xy = (x0*np.sin(phi) - y0*np.cos(phi) + xi) # (nAng, nU, 1)
+
+    # Out-of-plane distance
+    p_z = z0 - DSO * np.tan(eta)       # (1, 1, nV)
+
+    # Total squared perpendicular distance
+    d2 = p_xy**2 + p_z**2              # (nAng, nU, nV)
+
+    return 2.0 * np.sqrt((r**2 - d2).clip(0))
+
+
+def analytic_sphere_sino_cone_3d0(s, ang, u, v, DSO, DSD):
+    '''
+    Analytic cone-beam sinogram of a sphere (flat panel)
+
+    Output shape:
+        (len(ang), len(u), len(v))
+    '''
+
+    x0, y0, z0, r = s[0], s[1], s[2], s[3]
+
+    ang = np.asarray(ang)
+    u   = np.asarray(u)
+    v   = np.asarray(v)
+
+    # Fan angles (1, nU, 1)
     gamma = np.arctan(u / DSD)[None, :, None]
 
     # Cone angles (1, 1, nV)
