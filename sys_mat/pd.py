@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on Mon Jan 19 15:27:50 2026
@@ -18,6 +19,22 @@ except ImportError:
         return _identity_decorator  # @njit(...)
 
 import numpy as np
+
+
+def as_float32(*args):
+    out = []
+    for x in args:
+        if np.isscalar(x):
+            out.append(np.float32(x))
+        else:
+            out.append(np.asarray(x, dtype=np.float32))
+    return out
+
+
+def as_int32(x):
+    if np.isscalar(x):
+        return np.int32(x)
+    return np.asarray(x, dtype=np.int32)
 
 
 @njit(fastmath=True,inline='always',cache=True)

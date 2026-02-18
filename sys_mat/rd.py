@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on Sat Jan 10 21:38:08 2026
@@ -17,8 +18,6 @@ except ImportError:
             return args[0]      # @njit
         return _identity_decorator  # @njit(...)
 
-
-
 import numpy as np
 
 
@@ -30,6 +29,12 @@ def as_float32(*args):
         else:
             out.append(np.asarray(x, dtype=np.float32))
     return out
+
+
+def as_int32(x):
+    if np.isscalar(x):
+        return np.int32(x)
+    return np.asarray(x, dtype=np.int32)
 
 
 # Small epsilon to avoid numerical problems when a ray lies exactly
@@ -783,3 +788,121 @@ def aw_p_cone_3d(img,sino,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,joseph,bp):
         return img/ang_arr.size*du*dv
     else:
         return sino
+    
+    
+"""
+@njit(fastmath=True,cache=True)
+def aw_p_traj_cone_3d(img,sino,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,joseph,bp):
+
+    nx, ny, nz = img.shape
+    ns, ng, nt, nu, nv = sino.shape
+    
+    img_bnd_x_min, img_bnd_x_max, x0 = _img_bounds(nx,d_pix)
+    img_bnd_y_min, img_bnd_y_max, y0 = _img_bounds(ny,d_pix)
+    img_bnd_z_min, img_bnd_z_max, z0 = _img_bounds(nz,d_pix)
+    step = np.float32(0.5)
+
+    u_arr = du*(np.arange(nu,dtype=np.float32) - np.float32(nu/2 - 0.5) + su)
+    v_arr = dv*(np.arange(nv,dtype=np.float32) - np.float32(nu/2 - 0.5) + sv)
+
+    # Precompute ray direction for all angles
+    cos_ang_arr = np.cos(ang_arr)
+    sin_ang_arr = np.sin(ang_arr)
+
+    # Main loops: angles → detectors → voxel traversal
+    for ia, (cos_ang,sin_ang) in enumerate(zip(cos_ang_arr,sin_ang_arr)):
+
+        # Ray origin (located at the source)
+        ray_x_org = DSO*cos_ang
+        ray_y_org = DSO*sin_ang
+        ray_z_org = np.float32(0.0)
+        
+        # Detector origin point
+        det_x_org = -(DSD - DSO)*cos_ang
+        det_y_org = -(DSD - DSO)*sin_ang
+        det_z_org = np.float32(0.0)
+
+        # Detector basis orientation (unit vectors)
+        #det_u_orn = (-sin_ang, cos_ang, 0)
+        #det_v_orn = (0, 0, 1)
+
+        #Detector positions
+        #det_x = det_x_org + u*det_u_orn[0] + v*det_v_orn[0]
+        det_x_arr = det_x_org + u_arr * -sin_ang
+        det_y_arr = det_y_org + u_arr * cos_ang
+
+        for iv, v in enumerate(v_arr):
+            #Detector position z
+            det_z = det_z_org + v
+
+            for iu, u in enumerate(u_arr):
+                #Detector position x,y
+                det_x = det_x_arr[iu]
+                det_y = det_y_arr[iu]
+
+                #Ray vector 
+                ray_x_vec = det_x - ray_x_org
+                ray_y_vec = det_y - ray_y_org
+                ray_z_vec = det_z - ray_z_org
+
+
+                ray_mag = np.sqrt(ray_x_vec**2 + ray_y_vec**2 + ray_z_vec**2)
+                ray_x_hat = ray_x_vec/ray_mag
+                ray_y_hat = ray_y_vec/ray_mag
+                ray_z_hat = ray_z_vec/ray_mag
+
+                tx_entry,tx_exit = _intersect_bounding(ray_x_org, ray_x_hat, abs(ray_x_hat), img_bnd_x_min, img_bnd_x_max)
+                ty_entry,ty_exit = _intersect_bounding(ray_y_org, ray_y_hat, abs(ray_y_hat), img_bnd_y_min, img_bnd_y_max)
+                tz_entry,tz_exit = _intersect_bounding(ray_z_org, ray_z_hat, abs(ray_z_hat), img_bnd_z_min, img_bnd_z_max)
+
+                t_entry = max(tx_entry, ty_entry, tz_entry)
+                t_exit  = min(tx_exit, ty_exit, tz_exit)
+
+
+                if t_exit <= t_entry:
+                    continue
+
+                if joseph:
+
+                    if bp:
+                        _joseph_bp_3d(img,sino[ia,iu,iv],t_entry,t_exit,step,
+                                                       ray_x_org,ray_y_org,ray_z_org,
+                                                       ray_x_hat,ray_y_hat,ray_z_hat,
+                                                       x0,y0,z0,d_pix)
+                    else:
+                        sino[ia,iu,iv] = _joseph_fp_3d(img,t_entry,t_exit,step,
+                                                   ray_x_org,ray_y_org,ray_z_org,
+                                                   ray_x_hat,ray_y_hat,ray_z_hat,
+                                                   x0,y0,z0,d_pix)
+                else:
+                    ix_entry = _calc_ir0(ray_x_org,ray_x_hat,t_entry,
+                                         img_bnd_x_min,img_bnd_x_max,d_pix)
+                    iy_entry = _calc_ir0(ray_y_org,ray_y_hat,t_entry,
+                                         img_bnd_y_min,img_bnd_y_max,d_pix)
+                    iz_entry = _calc_ir0(ray_z_org,ray_z_hat,t_entry,
+                                         img_bnd_z_min,img_bnd_z_max,d_pix)
+
+                    ix_dir,tx_step,tx_next = _fp_step_init(ray_x_org,ix_entry, ray_x_hat, abs(ray_x_hat), img_bnd_x_min, d_pix)
+                    iy_dir,ty_step,ty_next = _fp_step_init(ray_y_org,iy_entry, ray_y_hat, abs(ray_y_hat), img_bnd_y_min, d_pix)
+                    iz_dir,tz_step,tz_next = _fp_step_init(ray_z_org,iz_entry, ray_z_hat, abs(ray_z_hat), img_bnd_z_min, d_pix)
+
+                    if bp:
+                        _aw_bp_traverse_3d(img,sino[ia,iu,iv],t_entry,t_exit,
+                            tx_next,ty_next,tz_next,tx_step, ty_step, tz_step,
+                            ix_entry, iy_entry, iz_entry,
+                            ix_dir,iy_dir,iz_dir,nx,ny,nz)
+
+                    else:
+                        sino[ia,iu,iv] = _aw_fp_traverse_3d(img,t_entry, t_exit,
+                            tx_next,ty_next,tz_next,tx_step, ty_step, tz_step,
+                            ix_entry, iy_entry, iz_entry,
+                            ix_dir,iy_dir,iz_dir,nx,ny,nz)
+                                        
+                        ray_scale = DSD/np.sqrt(DSD**2 + u**2 + v**2)
+                        sino[ia, iu, iv]= sino[ia, iu, iv]*ray_scale
+                    
+    if bp:
+        return img/ang_arr.size*du*dv
+    else:
+        return sino    
+"""

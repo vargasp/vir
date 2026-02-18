@@ -6,8 +6,6 @@ Created on Mon Jan  5 06:34:23 2026
 @author: pvargas21
 """
 
-import numpy as np
-
 
 def _identity_decorator(func):
     return func
@@ -20,6 +18,8 @@ except ImportError:
             return args[0]      # @njit
         return _identity_decorator  # @njit(...)
     
+import numpy as np
+
 
 def as_float32(*args):
     out = []
