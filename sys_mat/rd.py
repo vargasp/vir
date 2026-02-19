@@ -11,7 +11,7 @@ def _identity_decorator(func):
     return func
 
 try:
-    from numba import njit
+    from numbas import njit
 except ImportError:
     def njit(*args, **kwargs):
         if args and callable(args[0]):
@@ -789,120 +789,576 @@ def aw_p_cone_3d(img,sino,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,joseph,bp):
     else:
         return sino
     
-    
-"""
-@njit(fastmath=True,cache=True)
-def aw_p_traj_cone_3d(img,sino,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,joseph,bp):
+
+
+
+@njit(fastmath=True, cache=True)
+def aw_p_square(img, sino,
+                                           DSO, DSD,
+                                           du, dv,
+                                           d_pix):
+    """
+    Square trajectory forward projector.
+    Loops in order: side → detector u → detector v → source translation p → source z
+    """
 
     nx, ny, nz = img.shape
-    ns, ng, nt, nu, nv = sino.shape
-    
-    img_bnd_x_min, img_bnd_x_max, x0 = _img_bounds(nx,d_pix)
-    img_bnd_y_min, img_bnd_y_max, y0 = _img_bounds(ny,d_pix)
-    img_bnd_z_min, img_bnd_z_max, z0 = _img_bounds(nz,d_pix)
-    step = np.float32(0.5)
+    ns, ns_p, ns_z, nu, nv = sino.shape
 
-    u_arr = du*(np.arange(nu,dtype=np.float32) - np.float32(nu/2 - 0.5) + su)
-    v_arr = dv*(np.arange(nv,dtype=np.float32) - np.float32(nu/2 - 0.5) + sv)
+    # Image bounds
+    img_bnd_x_min, img_bnd_x_max, x0 = _img_bounds(nx, d_pix)
+    img_bnd_y_min, img_bnd_y_max, y0 = _img_bounds(ny, d_pix)
+    img_bnd_z_min, img_bnd_z_max, z0 = _img_bounds(nz, d_pix)
 
-    # Precompute ray direction for all angles
-    cos_ang_arr = np.cos(ang_arr)
-    sin_ang_arr = np.sin(ang_arr)
+    # Detector coordinates along u and v
+    u0_arr = du * (np.arange(nu, dtype=np.float32) - (nu / 2 - 0.5))
+    v_arr = dv * (np.arange(nv, dtype=np.float32) - (nv / 2 - 0.5))
 
-    # Main loops: angles → detectors → voxel traversal
-    for ia, (cos_ang,sin_ang) in enumerate(zip(cos_ang_arr,sin_ang_arr)):
+    # Source translations along side and in z
+    p_arr = np.linspace(-DSO, DSO, ns_p).astype(np.float32)
+    sz_arr = np.linspace(img_bnd_z_min, img_bnd_z_max, ns_z).astype(np.float32)
 
-        # Ray origin (located at the source)
-        ray_x_org = DSO*cos_ang
-        ray_y_org = DSO*sin_ang
-        ray_z_org = np.float32(0.0)
-        
-        # Detector origin point
-        det_x_org = -(DSD - DSO)*cos_ang
-        det_y_org = -(DSD - DSO)*sin_ang
-        det_z_org = np.float32(0.0)
+    for iside in range(ns):
+        # Side geometry: determine which axis the source moves along
+        if iside == 0:       # Bottom side: X moves, Y fixed
+            side_dir_x, side_dir_y = 1.0, 0.0
+            norm_x, norm_y = 0.0, 1.0  # detector plane normal along Y
+            base_x, base_y = 0.0, -DSO
+        elif iside == 1:     # Right side: Y moves, X fixed
+            side_dir_x, side_dir_y = 0.0, 1.0
+            norm_x, norm_y = -1.0, 0.0
+            base_x, base_y = DSO, 0.0
+        elif iside == 2:     # Top side: X moves, Y fixed
+            side_dir_x, side_dir_y = -1.0, 0.0
+            norm_x, norm_y = 0.0, -1.0
+            base_x, base_y = 0.0, DSO
+        else:                # Left side: Y moves, X fixed
+            side_dir_x, side_dir_y = 0.0, -1.0
+            norm_x, norm_y = 1.0, 0.0
+            base_x, base_y = -DSO, 0.0
 
-        # Detector basis orientation (unit vectors)
-        #det_u_orn = (-sin_ang, cos_ang, 0)
-        #det_v_orn = (0, 0, 1)
+        for iu in range(nu):
+            u_det = u0_arr[iu]
 
-        #Detector positions
-        #det_x = det_x_org + u*det_u_orn[0] + v*det_v_orn[0]
-        det_x_arr = det_x_org + u_arr * -sin_ang
-        det_y_arr = det_y_org + u_arr * cos_ang
+            for iv in range(nv):
+                v_det = v_arr[iv]
 
-        for iv, v in enumerate(v_arr):
-            #Detector position z
-            det_z = det_z_org + v
+                for ip in range(ns_p):
+                    p_shift = p_arr[ip]
 
-            for iu, u in enumerate(u_arr):
-                #Detector position x,y
-                det_x = det_x_arr[iu]
-                det_y = det_y_arr[iu]
+                    # Source position along the side
+                    src_x = base_x + p_shift * side_dir_x
+                    src_y = base_y + p_shift * side_dir_y
 
-                #Ray vector 
-                ray_x_vec = det_x - ray_x_org
-                ray_y_vec = det_y - ray_y_org
-                ray_z_vec = det_z - ray_z_org
+                    for izs in range(ns_z):
+                        src_z = sz_arr[izs]
+
+                        # Detector position
+                        det_x = src_x + DSD * norm_x + u_det * side_dir_x
+                        det_y = src_y + DSD * norm_y + u_det * side_dir_y
+                        det_z = src_z + v_det
+
+                        # Ray vector
+                        ray_x_vec = det_x - src_x
+                        ray_y_vec = det_y - src_y
+                        ray_z_vec = det_z - src_z
+                        ray_mag = np.sqrt(ray_x_vec**2 + ray_y_vec**2 + ray_z_vec**2)
+
+                        ray_x_hat = ray_x_vec / ray_mag
+                        ray_y_hat = ray_y_vec / ray_mag
+                        ray_z_hat = ray_z_vec / ray_mag
+
+                        # Intersections with image bounds
+                        tx_entry, tx_exit = _intersect_bounding(src_x, ray_x_hat, abs(ray_x_hat),
+                                                                img_bnd_x_min, img_bnd_x_max)
+                        ty_entry, ty_exit = _intersect_bounding(src_y, ray_y_hat, abs(ray_y_hat),
+                                                                img_bnd_y_min, img_bnd_y_max)
+                        tz_entry, tz_exit = _intersect_bounding(src_z, ray_z_hat, abs(ray_z_hat),
+                                                                img_bnd_z_min, img_bnd_z_max)
+
+                        t_entry = max(tx_entry, ty_entry, tz_entry)
+                        t_exit  = min(tx_exit, ty_exit, tz_exit)
+
+                        if t_exit <= t_entry:
+                            continue
+
+                        # Entry voxel indices
+                        ix = _calc_ir0(src_x, ray_x_hat, t_entry, img_bnd_x_min, img_bnd_x_max, d_pix)
+                        iy = _calc_ir0(src_y, ray_y_hat, t_entry, img_bnd_y_min, img_bnd_y_max, d_pix)
+                        iz = _calc_ir0(src_z, ray_z_hat, t_entry, img_bnd_z_min, img_bnd_z_max, d_pix)
+
+                        # Initialize voxel stepping
+                        ix_dir, tx_step, tx_next = _fp_step_init(src_x, ix, ray_x_hat, abs(ray_x_hat),
+                                                                 img_bnd_x_min, d_pix)
+                        iy_dir, ty_step, ty_next = _fp_step_init(src_y, iy, ray_y_hat, abs(ray_y_hat),
+                                                                 img_bnd_y_min, d_pix)
+                        iz_dir, tz_step, tz_next = _fp_step_init(src_z, iz, ray_z_hat, abs(ray_z_hat),
+                                                                 img_bnd_z_min, d_pix)
+
+                        # Voxel traversal
+                        val = _aw_fp_traverse_3d(
+                            img,
+                            t_entry, t_exit,
+                            tx_next, ty_next, tz_next,
+                            tx_step, ty_step, tz_step,
+                            ix, iy, iz,
+                            ix_dir, iy_dir, iz_dir,
+                            nx, ny, nz
+                        )
+
+                        # Store in sinogram
+                        sino[iside, ip, izs, iu, iv] = val * (DSD / ray_mag)
+
+    return sino
 
 
-                ray_mag = np.sqrt(ray_x_vec**2 + ray_y_vec**2 + ray_z_vec**2)
-                ray_x_hat = ray_x_vec/ray_mag
-                ray_y_hat = ray_y_vec/ray_mag
-                ray_z_hat = ray_z_vec/ray_mag
+@njit(fastmath=True, cache=True)
+def aw_p_square2(img, sino, DSO, DSD, du, dv, d_pix):
+    """
+    Square trajectory forward projector.
+    Loops in order: side → detector u → detector v → source translation p → source z
+    Optimized: ray vectors precomputed per detector element (iu, iv) since source and detector move together.
+    """
 
-                tx_entry,tx_exit = _intersect_bounding(ray_x_org, ray_x_hat, abs(ray_x_hat), img_bnd_x_min, img_bnd_x_max)
-                ty_entry,ty_exit = _intersect_bounding(ray_y_org, ray_y_hat, abs(ray_y_hat), img_bnd_y_min, img_bnd_y_max)
-                tz_entry,tz_exit = _intersect_bounding(ray_z_org, ray_z_hat, abs(ray_z_hat), img_bnd_z_min, img_bnd_z_max)
+    nx, ny, nz = img.shape
+    ns, ns_p, ns_z, nu, nv = sino.shape
 
-                t_entry = max(tx_entry, ty_entry, tz_entry)
-                t_exit  = min(tx_exit, ty_exit, tz_exit)
+    # Image bounds
+    img_bnd_x_min, img_bnd_x_max, x0 = _img_bounds(nx, d_pix)
+    img_bnd_y_min, img_bnd_y_max, y0 = _img_bounds(ny, d_pix)
+    img_bnd_z_min, img_bnd_z_max, z0 = _img_bounds(nz, d_pix)
+
+    # Detector coordinates along u and v
+    u0_arr = du * (np.arange(nu, dtype=np.float32) - (nu / 2 - 0.5))
+    v_arr = dv * (np.arange(nv, dtype=np.float32) - (nv / 2 - 0.5))
+
+    # Source translations along side and in z
+    p_arr = np.linspace(-DSO, DSO, ns_p).astype(np.float32)
+    sz_arr = np.linspace(img_bnd_z_min, img_bnd_z_max, ns_z).astype(np.float32)
+
+    for iside in range(ns):
+        # Side geometry
+        if iside == 0:       # Bottom side: X moves, Y fixed
+            side_dir_x, side_dir_y = 1.0, 0.0
+            norm_x, norm_y = 0.0, 1.0
+            base_x, base_y = 0.0, -DSO
+        elif iside == 1:     # Right side: Y moves, X fixed
+            side_dir_x, side_dir_y = 0.0, 1.0
+            norm_x, norm_y = -1.0, 0.0
+            base_x, base_y = DSO, 0.0
+        elif iside == 2:     # Top side: X moves, Y fixed
+            side_dir_x, side_dir_y = -1.0, 0.0
+            norm_x, norm_y = 0.0, -1.0
+            base_x, base_y = 0.0, DSO
+        else:                # Left side: Y moves, X fixed
+            side_dir_x, side_dir_y = 0.0, -1.0
+            norm_x, norm_y = 1.0, 0.0
+            base_x, base_y = -DSO, 0.0
+
+        src_x0 = base_x
+        src_y0 = base_y
+        src_z0 = 0.0
+
+        # Now loop over detector and sources
+        for iu in range(nu):
+            u_det = u0_arr[iu]
+            
+            det_x0 = src_x0 + DSD * norm_x + u_det * side_dir_x
+            det_y0 = base_y + DSD * norm_y + u_det * side_dir_y
+            rx = det_x0 - src_x0
+            ry = det_y0 - src_y0
+
+            for iv in range(nv):
+                v_det = v_arr[iv]
+
+                det_z0 = src_z0 + v_det
+                rz = det_z0 - src_z0
+
+                rmag = np.sqrt(rx*rx + ry*ry + rz*rz)
+                ray_x_hat = rx / rmag
+                ray_y_hat = ry / rmag
+                ray_z_hat = rz / rmag
+
+                for ip in range(ns_p):
+                    p_shift = p_arr[ip]
+
+                    # Source moves along side
+                    src_x = base_x + p_shift * side_dir_x
+                    src_y = base_y + p_shift * side_dir_y
+
+                    for izs in range(ns_z):
+                        src_z = sz_arr[izs]
 
 
-                if t_exit <= t_entry:
-                    continue
+                        # Intersections with image bounds
+                        tx_entry, tx_exit = _intersect_bounding(src_x, ray_x_hat, abs(ray_x_hat),
+                                                                img_bnd_x_min, img_bnd_x_max)
+                        ty_entry, ty_exit = _intersect_bounding(src_y, ray_y_hat, abs(ray_y_hat),
+                                                                img_bnd_y_min, img_bnd_y_max)
+                        tz_entry, tz_exit = _intersect_bounding(src_z, ray_z_hat, abs(ray_z_hat),
+                                                                img_bnd_z_min, img_bnd_z_max)
 
-                if joseph:
+                        t_entry = max(tx_entry, ty_entry, tz_entry)
+                        t_exit  = min(tx_exit, ty_exit, tz_exit)
 
-                    if bp:
-                        _joseph_bp_3d(img,sino[ia,iu,iv],t_entry,t_exit,step,
-                                                       ray_x_org,ray_y_org,ray_z_org,
-                                                       ray_x_hat,ray_y_hat,ray_z_hat,
-                                                       x0,y0,z0,d_pix)
+                        if t_exit <= t_entry:
+                            continue
+
+                        # Entry voxel indices
+                        ix = _calc_ir0(src_x, ray_x_hat, t_entry, img_bnd_x_min, img_bnd_x_max, d_pix)
+                        iy = _calc_ir0(src_y, ray_y_hat, t_entry, img_bnd_y_min, img_bnd_y_max, d_pix)
+                        iz = _calc_ir0(src_z, ray_z_hat, t_entry, img_bnd_z_min, img_bnd_z_max, d_pix)
+
+                        # Initialize voxel stepping
+                        ix_dir, tx_step, tx_next = _fp_step_init(src_x, ix, ray_x_hat, abs(ray_x_hat),
+                                                                 img_bnd_x_min, d_pix)
+                        iy_dir, ty_step, ty_next = _fp_step_init(src_y, iy, ray_y_hat, abs(ray_y_hat),
+                                                                 img_bnd_y_min, d_pix)
+                        iz_dir, tz_step, tz_next = _fp_step_init(src_z, iz, ray_z_hat, abs(ray_z_hat),
+                                                                 img_bnd_z_min, d_pix)
+
+                        # Voxel traversal
+                        val = _aw_fp_traverse_3d(
+                            img,
+                            t_entry, t_exit,
+                            tx_next, ty_next, tz_next,
+                            tx_step, ty_step, tz_step,
+                            ix, iy, iz,
+                            ix_dir, iy_dir, iz_dir,
+                            nx, ny, nz
+                        )
+
+                        sino[iside, ip, izs, iu, iv] = val * (DSD / rmag)
+
+    return sino
+
+
+@njit(fastmath=True, cache=True)
+def aw_p_square3(img, sino, DSO, DSD, du, dv, d_pix):
+
+    nx, ny, nz = img.shape
+    ns, ns_p, ns_z, nu, nv = sino.shape
+
+    # Image bounds
+    bx_min, bx_max, _ = _img_bounds(nx, d_pix)
+    by_min, by_max, _ = _img_bounds(ny, d_pix)
+    bz_min, bz_max, _ = _img_bounds(nz, d_pix)
+
+    # Detector coordinates
+    u_arr = du * (np.arange(nu, dtype=np.float32) - (nu / 2 - 0.5))
+    v_arr = dv * (np.arange(nv, dtype=np.float32) - (nv / 2 - 0.5))
+
+    # Source sampling
+    p_arr  = np.linspace(-DSO, DSO, ns_p).astype(np.float32)
+    sz_arr = np.linspace(bz_min, bz_max, ns_z).astype(np.float32)
+
+    for iside in range(ns):
+
+        # --- Side geometry ---
+        if iside == 0:
+            side_x, side_y = 1.0, 0.0
+            norm_x, norm_y = 0.0, 1.0
+            base_x, base_y = 0.0, -DSO
+            src_x_arr = base_x + p_arr * side_x
+            src_y_arr = base_y + p_arr * side_y
+            
+        elif iside == 1:
+            side_x, side_y = 0.0, 1.0
+            norm_x, norm_y = -1.0, 0.0
+            base_x, base_y = DSO, 0.0
+            src_x_arr = base_x + p_arr * side_x
+            src_y_arr = base_y + p_arr * side_y
+
+        elif iside == 2:
+            side_x, side_y = -1.0, 0.0
+            norm_x, norm_y = 0.0, -1.0
+            base_x, base_y = 0.0, DSO
+            src_x_arr = base_x + p_arr * side_x
+            src_y_arr = base_y + p_arr * side_y
+
+        else:
+            side_x, side_y = 0.0, -1.0
+            norm_x, norm_y = 1.0, 0.0
+            base_x, base_y = -DSO, 0.0
+            src_x_arr = base_x + p_arr * side_x
+            src_y_arr = base_y + p_arr * side_y
+
+        for iu in range(nu):
+
+            u_det = u_arr[iu]
+
+            # Ray x/y components independent of p and z
+            rx = DSD * norm_x + u_det * side_x
+            ry = DSD * norm_y + u_det * side_y
+
+            for iv in range(nv):
+
+                rz = v_arr[iv]
+
+                rmag = np.sqrt(rx*rx + ry*ry + rz*rz)
+
+                ray_x = rx / rmag
+                ray_y = ry / rmag
+                ray_z = rz / rmag
+
+                abs_rx = abs(ray_x)
+                abs_ry = abs(ray_y)
+                abs_rz = abs(ray_z)
+
+                inv_rx = 1.0 / ray_x if abs_rx > eps else 0.0
+                inv_ry = 1.0 / ray_y if abs_ry > eps else 0.0
+                inv_rz = 1.0 / ray_z if abs_rz > eps else 0.0
+
+                for ip in range(ns_p):
+
+                    src_x = src_x_arr[ip]
+                    src_y = src_y_arr[ip]
+
+                    # --- Bounding box intersection (fast form) ---
+                    if abs_rx > eps:
+                        tx1 = (bx_min - src_x) * inv_rx
+                        tx2 = (bx_max - src_x) * inv_rx
+                        tx_entry = min(tx1, tx2)
+                        tx_exit  = max(tx1, tx2)
                     else:
-                        sino[ia,iu,iv] = _joseph_fp_3d(img,t_entry,t_exit,step,
-                                                   ray_x_org,ray_y_org,ray_z_org,
-                                                   ray_x_hat,ray_y_hat,ray_z_hat,
-                                                   x0,y0,z0,d_pix)
+                        tx_entry = -np.inf
+                        tx_exit  =  np.inf
+
+                    if abs_ry > eps:
+                        ty1 = (by_min - src_y) * inv_ry
+                        ty2 = (by_max - src_y) * inv_ry
+                        ty_entry = min(ty1, ty2)
+                        ty_exit  = max(ty1, ty2)
+                    else:
+                        ty_entry = -np.inf
+                        ty_exit  =  np.inf
+
+                    for izs in range(ns_z):
+
+                        src_z = sz_arr[izs]
+
+                        if abs_rz > eps:
+                            tz1 = (bz_min - src_z) * inv_rz
+                            tz2 = (bz_max - src_z) * inv_rz
+                            tz_entry = min(tz1, tz2)
+                            tz_exit  = max(tz1, tz2)
+                        else:
+                            tz_entry = -np.inf
+                            tz_exit  =  np.inf
+
+                        t_entry = max(tx_entry, ty_entry, tz_entry)
+                        t_exit  = min(tx_exit, ty_exit, tz_exit)
+
+                        if t_exit <= t_entry:
+                            continue
+
+                        # --- Entry voxel ---
+                        ix = _calc_ir0(src_x, ray_x, t_entry, bx_min, bx_max, d_pix)
+                        iy = _calc_ir0(src_y, ray_y, t_entry, by_min, by_max, d_pix)
+                        iz = _calc_ir0(src_z, ray_z, t_entry, bz_min, bz_max, d_pix)
+
+                        # --- Step init ---
+                        ix_dir, tx_step, tx_next = _fp_step_init(
+                            src_x, ix, ray_x, abs_rx, bx_min, d_pix)
+
+                        iy_dir, ty_step, ty_next = _fp_step_init(
+                            src_y, iy, ray_y, abs_ry, by_min, d_pix)
+
+                        iz_dir, tz_step, tz_next = _fp_step_init(
+                            src_z, iz, ray_z, abs_rz, bz_min, d_pix)
+
+                        # --- Traverse ---
+                        val = _aw_fp_traverse_3d(
+                            img,
+                            t_entry, t_exit,
+                            tx_next, ty_next, tz_next,
+                            tx_step, ty_step, tz_step,
+                            ix, iy, iz,
+                            ix_dir, iy_dir, iz_dir,
+                            nx, ny, nz
+                        )
+
+                        sino[iside, ip, izs, iu, iv] = val * (DSD / rmag)
+
+    return sino
+
+
+@njit(fastmath=True, cache=True)
+def aw_p_square4(img, sino, DSO, DSD, du, dv, d_pix):
+
+    nx, ny, nz = img.shape
+    ns, ns_p, ns_z, nu, nv = sino.shape
+
+    # Image bounds
+    bx_min, bx_max, _ = _img_bounds(nx, d_pix)
+    by_min, by_max, _ = _img_bounds(ny, d_pix)
+    bz_min, bz_max, _ = _img_bounds(nz, d_pix)
+
+    # Detector coordinates
+    u_arr = du * (np.arange(nu, dtype=np.float32) - (nu / 2 - 0.5))
+    v_arr = dv * (np.arange(nv, dtype=np.float32) - (nv / 2 - 0.5))
+
+    # Source sampling
+    p_arr  = np.linspace(-DSO, DSO, ns_p).astype(np.float32)
+    sz_arr = np.linspace(bz_min, bz_max, ns_z).astype(np.float32)
+
+    for iside in range(ns):
+
+        # --- Side geometry ---
+        if iside == 0:
+            side_x, side_y = 1.0, 0.0
+            norm_x, norm_y = 0.0, 1.0
+            base_x, base_y = 0.0, -DSO
+        elif iside == 1:
+            side_x, side_y = 0.0, 1.0
+            norm_x, norm_y = -1.0, 0.0
+            base_x, base_y = DSO, 0.0
+        elif iside == 2:
+            side_x, side_y = -1.0, 0.0
+            norm_x, norm_y = 0.0, -1.0
+            base_x, base_y = 0.0, DSO
+        else:
+            side_x, side_y = 0.0, -1.0
+            norm_x, norm_y = 1.0, 0.0
+            base_x, base_y = -DSO, 0.0
+
+        # Precompute translated source arrays
+        src_x_arr = base_x + p_arr * side_x
+        src_y_arr = base_y + p_arr * side_y
+
+        for iu in range(nu):
+
+            u_det = u_arr[iu]
+
+            # Ray components independent of source translation
+            rx = DSD * norm_x + u_det * side_x
+            ry = DSD * norm_y + u_det * side_y
+
+            for iv in range(nv):
+
+                rz = v_arr[iv]
+
+                rmag = np.sqrt(rx*rx + ry*ry + rz*rz)
+
+                ray_x = rx / rmag
+                ray_y = ry / rmag
+                ray_z = rz / rmag
+
+                abs_rx = abs(ray_x)
+                abs_ry = abs(ray_y)
+                abs_rz = abs(ray_z)
+
+                inv_rx = 1.0 / ray_x if abs_rx > eps else 0.0
+                inv_ry = 1.0 / ray_y if abs_ry > eps else 0.0
+                inv_rz = 1.0 / ray_z if abs_rz > eps else 0.0
+
+                # -----------------------------
+                # Compute base intersections
+                # at reference source position
+                # -----------------------------
+                src_x_ref = base_x
+                src_y_ref = base_y
+                src_z_ref = 0.0
+
+                if abs_rx > eps:
+                    tx1 = (bx_min - src_x_ref) * inv_rx
+                    tx2 = (bx_max - src_x_ref) * inv_rx
+                    tx_entry_base = min(tx1, tx2)
+                    tx_exit_base  = max(tx1, tx2)
                 else:
-                    ix_entry = _calc_ir0(ray_x_org,ray_x_hat,t_entry,
-                                         img_bnd_x_min,img_bnd_x_max,d_pix)
-                    iy_entry = _calc_ir0(ray_y_org,ray_y_hat,t_entry,
-                                         img_bnd_y_min,img_bnd_y_max,d_pix)
-                    iz_entry = _calc_ir0(ray_z_org,ray_z_hat,t_entry,
-                                         img_bnd_z_min,img_bnd_z_max,d_pix)
+                    tx_entry_base = -np.inf
+                    tx_exit_base  =  np.inf
 
-                    ix_dir,tx_step,tx_next = _fp_step_init(ray_x_org,ix_entry, ray_x_hat, abs(ray_x_hat), img_bnd_x_min, d_pix)
-                    iy_dir,ty_step,ty_next = _fp_step_init(ray_y_org,iy_entry, ray_y_hat, abs(ray_y_hat), img_bnd_y_min, d_pix)
-                    iz_dir,tz_step,tz_next = _fp_step_init(ray_z_org,iz_entry, ray_z_hat, abs(ray_z_hat), img_bnd_z_min, d_pix)
+                if abs_ry > eps:
+                    ty1 = (by_min - src_y_ref) * inv_ry
+                    ty2 = (by_max - src_y_ref) * inv_ry
+                    ty_entry_base = min(ty1, ty2)
+                    ty_exit_base  = max(ty1, ty2)
+                else:
+                    ty_entry_base = -np.inf
+                    ty_exit_base  =  np.inf
 
-                    if bp:
-                        _aw_bp_traverse_3d(img,sino[ia,iu,iv],t_entry,t_exit,
-                            tx_next,ty_next,tz_next,tx_step, ty_step, tz_step,
-                            ix_entry, iy_entry, iz_entry,
-                            ix_dir,iy_dir,iz_dir,nx,ny,nz)
+                if abs_rz > eps:
+                    tz1 = (bz_min - src_z_ref) * inv_rz
+                    tz2 = (bz_max - src_z_ref) * inv_rz
+                    tz_entry_base = min(tz1, tz2)
+                    tz_exit_base  = max(tz1, tz2)
+                else:
+                    tz_entry_base = -np.inf
+                    tz_exit_base  =  np.inf
 
+                # -----------------------------
+                # Loop over translated sources
+                # -----------------------------
+                for ip in range(ns_p):
+
+                    src_x = src_x_arr[ip]
+                    src_y = src_y_arr[ip]
+
+                    dx = src_x - src_x_ref
+                    dy = src_y - src_y_ref
+
+                    # Shift x and y intersections linearly
+                    if abs_rx > eps:
+                        tx_entry = tx_entry_base - dx * inv_rx
+                        tx_exit  = tx_exit_base  - dx * inv_rx
                     else:
-                        sino[ia,iu,iv] = _aw_fp_traverse_3d(img,t_entry, t_exit,
-                            tx_next,ty_next,tz_next,tx_step, ty_step, tz_step,
-                            ix_entry, iy_entry, iz_entry,
-                            ix_dir,iy_dir,iz_dir,nx,ny,nz)
-                                        
-                        ray_scale = DSD/np.sqrt(DSD**2 + u**2 + v**2)
-                        sino[ia, iu, iv]= sino[ia, iu, iv]*ray_scale
-                    
-    if bp:
-        return img/ang_arr.size*du*dv
-    else:
-        return sino    
-"""
+                        tx_entry = -np.inf
+                        tx_exit  =  np.inf
+
+                    if abs_ry > eps:
+                        ty_entry = ty_entry_base - dy * inv_ry
+                        ty_exit  = ty_exit_base  - dy * inv_ry
+                    else:
+                        ty_entry = -np.inf
+                        ty_exit  =  np.inf
+
+                    for izs in range(ns_z):
+
+                        src_z = sz_arr[izs]
+                        dz = src_z - src_z_ref
+
+                        # Shift z intersections linearly
+                        if abs_rz > eps:
+                            tz_entry = tz_entry_base - dz * inv_rz
+                            tz_exit  = tz_exit_base  - dz * inv_rz
+                        else:
+                            tz_entry = -np.inf
+                            tz_exit  =  np.inf
+
+                        t_entry = max(tx_entry, ty_entry, tz_entry)
+                        t_exit  = min(tx_exit, ty_exit, tz_exit)
+
+                        if t_exit <= t_entry:
+                            continue
+
+                        # Entry voxel
+                        ix = _calc_ir0(src_x, ray_x, t_entry, bx_min, bx_max, d_pix)
+                        iy = _calc_ir0(src_y, ray_y, t_entry, by_min, by_max, d_pix)
+                        iz = _calc_ir0(src_z, ray_z, t_entry, bz_min, bz_max, d_pix)
+
+                        # Step init
+                        ix_dir, tx_step, tx_next = _fp_step_init(
+                            src_x, ix, ray_x, abs_rx, bx_min, d_pix)
+
+                        iy_dir, ty_step, ty_next = _fp_step_init(
+                            src_y, iy, ray_y, abs_ry, by_min, d_pix)
+
+                        iz_dir, tz_step, tz_next = _fp_step_init(
+                            src_z, iz, ray_z, abs_rz, bz_min, d_pix)
+
+                        # Traverse
+                        val = _aw_fp_traverse_3d(
+                            img,
+                            t_entry, t_exit,
+                            tx_next, ty_next, tz_next,
+                            tx_step, ty_step, tz_step,
+                            ix, iy, iz,
+                            ix_dir, iy_dir, iz_dir,
+                            nx, ny, nz
+                        )
+
+                        sino[iside, ip, izs, iu, iv] = val * (DSD / rmag)
+
+    return sino
+

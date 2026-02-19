@@ -84,13 +84,13 @@ def p_images(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,
         plt.figure(figsize=(4,4))
         plt.subplot(1,1,1)
         plt.imshow((img3d.transpose([1,0,2]))[:,:,int(nz/2)], cmap='gray', aspect='auto', origin='lower')
-        #plt.imshow((img3d.transpose([1,0,2]))[:,:,21], cmap='gray', aspect='auto', origin='lower')
         plt.title("Image Phantom")
         plt.xlabel("X Pixels")
         plt.ylabel("Y Pixels")
         plt.show()
 
     if fp:
+        print("Forward Projection Images")
         sino1p = dd.dd_fp_par_2d(img2d,ang_arr,nu,du=du,su=su,d_pix=d_pix)
         sino2p = rd.aw_fp_par_2d(img2d,ang_arr,nu,du=du,su=su,d_pix=d_pix)
         sino3p = rd.aw_fp_par_2d(img2d,ang_arr,nu,du=du,su=su,d_pix=d_pix,joseph=True)
@@ -105,13 +105,6 @@ def p_images(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,
         sino2c = rd.aw_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
         sino3c = rd.aw_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix,joseph=True)
         sino4c = pd.pd_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
-    
-        #sino2p = np.zeros(sinoP.shape)
-        #sino3p = np.zeros(sinoP.shape)
-        #sino2f = np.zeros(sinoF.shape)
-        #sino3f = np.zeros(sinoF.shape)
-
-
     
         sinos = [sino1p,sino2p,sino3p,sino4p,
                  sino1f,sino2f,sino3f,sino4f,
@@ -213,7 +206,7 @@ def p_images(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,
         
         #ang_arr = np.array([ang_arr[0]])
         
-        print("BP")
+        print("Backprojection Images")
         rec1p = dd.dd_bp_par_2d(sinoP,ang_arr,(nx,ny),du=du,su=su,d_pix=d_pix)
         rec2p = rd.aw_bp_par_2d(sinoP,ang_arr,(nx,ny),du=du,su=su,d_pix=d_pix)
         rec3p = rd.aw_bp_par_2d(sinoP,ang_arr,(nx,ny),du=du,su=su,d_pix=d_pix,joseph=True)
@@ -230,11 +223,7 @@ def p_images(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,
         rec4c = pd.pd_bp_cone_3d(sinoC,ang_arr,(nx,ny,nz),DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
         
         
-        #rec2p = np.zeros(img2d.shape)
-        #rec3p = np.zeros(img2d.shape)
-        #rec2f = np.zeros(img2d.shape)
-        #rec3f = np.zeros(img2d.shape)
-        
+
         
         
         #print(rec1c[int(nx/2),int(nx/2),int(nz/2)])

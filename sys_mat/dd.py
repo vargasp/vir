@@ -75,46 +75,6 @@ def _accumulate_3d(sino, img_val, ray_scl,p_bnd_l, p_bnd_r,u_bnd_l,u_bnd_r,
 @njit(fastmath=True,cache=True)
 def _dd_fp_par_sweep(sino_vec,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
                      u_bnd_arr,ray_scl,ia):
-    """
-    Distance-driven sweep kernel for 2D parallel or fanbeam forward projection.
-
-    This function performs the core distance-driven accumulation for a single
-    projection angle. It assumes that pixel boundaries projected onto the
-    detector coordinate are monotonic along the driving axis, enabling a
-    linear-time sweep over pixels and detector bins.
-
-    Geometry:
-        - Parallel-beam or fanbeam
-        - Detector coordinate u is linear and orthogonal to ray direction
-
-    Parameters
-    ----------
-    sino : ndarray, shape (n_angles, nu)
-        Output sinogram array to be accumulated in-place.
-    img_trm : ndarray, shape (np, no)
-        Image data after transpose and/or flip so that axis 0 corresponds
-        to the driving (sweep) axis.
-    p_bnd_arr : ndarray, shape (np + 1,)
-        Projected pixel boundary coordinates along the driving axis in
-        detector space, independent of orthogonal pixel index.
-    o_arr : ndarray, shape (no,)
-        Orthogonal pixel-center offsets projected onto the detector coordinate.
-    u_bnd_arr : ndarray, shape (nu + 1,)
-        Detector bin boundary coordinates in detector space.
-    rays_scl_arr : ndarray, shape (np)
-        Projection scaling factor (typically 1/|cos(theta)| or 1/|sin(theta)|)
-        to  account for pixel width along the ray direction. Fanbean will also
-        include a magificaiton factor. The value is inverted to reduce division
-        in the hot loop of the sweep function. 
-    ia : int
-        Index of the current projection angle in the sinogram.
-
-    Notes
-    -----
-    - The sweep assumes strictly monotonic projected pixel boundaries.
-    - Contributions outside the detector range are implicitly discarded.
-    - This function does not allocate memory and updates `sino` in-place.
-    """
     np, no = img_trm.shape
     nu = u_bnd_arr.size - 1
 
@@ -225,60 +185,6 @@ def _dd_bp_par_sweep(img_out,sino_vec,p_drv_bnd_arr_trm,p_orth_arr_trm,
 def _dd_fp_fan_sweep(sino_vec,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
                      o_drv_bnd_arr_trm,o_orth_arr_trm,u_bnd_arr,
                      ray_scl_arr,ia,DSO,DSD):
-    """
-    Distance-driven sweep kernel for 2D parallel or fanbeam forward projection.
-
-    This function performs the core distance-driven accumulation for a single
-    projection angle. It assumes that pixel boundaries projected onto the
-    detector coordinate are monotonic along the driving axis, enabling a
-    linear-time sweep over pixels and detector bins.
-
-    Geometry:
-        - Parallel-beam or fanbeam
-        - Detector coordinate u is linear and orthogonal to ray direction
-
-    Parameters
-    ----------
-    sino : ndarray, shape (n_angles, nu)
-        Output sinogram array to be accumulated in-place.
-    img_trm : ndarray, shape (np, no)
-        Image data after transpose and/or flip so that axis 0 corresponds
-        to the driving (sweep) axis.
-    p_bnd_arr : ndarray, shape (np + 1,)
-        Projected pixel boundary coordinates along the driving axis in
-        detector space, independent of orthogonal pixel index.
-    o_arr : ndarray, shape (no,)
-        Orthogonal pixel-center offsets projected onto the detector coordinate.
-    u_bnd_arr : ndarray, shape (nu + 1,)
-        Detector bin boundary coordinates in detector space.
-    rays_scl_arr : ndarray, shape (np)
-        Projection scaling factor (typically 1/|cos(theta)| or 1/|sin(theta)|)
-        to  account for pixel width along the ray direction. Fanbean will also
-        include a magificaiton factor. The value is inverted to reduce division
-        in the hot loop of the sweep function. 
-    ia : int
-        Index of the current projection angle in the sinogram.
-
-    Notes
-    -----
-    - The sweep assumes strictly monotonic projected pixel boundaries.
-    - Contributions outside the detector range are implicitly discarded.
-    - This function does not allocate memory and updates `sino` in-place.
-    """
-    
-    """
-    print(sino_vec.dtype)
-    print(img_trm.dtype)
-    print(p_drv_bnd_arr_trm.dtype)
-    print(p_orth_arr_trm.dtype)
-    print(o_drv_bnd_arr_trm.dtype)
-    print(o_orth_arr_trm.dtype)
-    print(u_bnd_arr.dtype)
-    print(ray_scl_arr.dtype)
-    print(ia.dtype)
-    print(DSO.dtype)
-    print(DSD.dtype)
-    """
     
     nP, no = img_trm.shape
     nu = u_bnd_arr.size - 1
@@ -323,7 +229,7 @@ def _dd_fp_fan_sweep(sino_vec,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
             # Advance whichever interval ends first
             if p_bnd_r < u_bnd_r:
                 ip += 1
-                if iu==nu: break
+                if ip==nP: break
                 p_bnd_l = p_bnd_r
                 p_bnd_r = proj_img2det_fan(p_drv_bnd_arr_trm[ip+1],p_orth_trm,
                                            o_drv_bnd_arr_trm[ip+1],o_orth_trm,
@@ -339,20 +245,6 @@ def _dd_fp_fan_sweep(sino_vec,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
 def _dd_bp_fan_sweep(sino_vec,img_trm,p_drv_bnd_arr_trm,p_orth_arr_trm,
                      o_drv_bnd_arr_trm,o_orth_arr_trm,
                      u_bnd_arr,ray_scl_arr,ia,DSO,DSD):
-
-    """
-    print(sino_vec.dtype)
-    print(img_trm.dtype)
-    print(p_drv_bnd_arr_trm.dtype)
-    print(p_orth_arr_trm.dtype)
-    print(o_drv_bnd_arr_trm.dtype)
-    print(o_orth_arr_trm.dtype)
-    print(u_bnd_arr.dtype)
-    print(ray_scl_arr.dtype)
-    print(ia.dtype)
-    print(DSO.dtype)
-    print(DSD.dtype)
-    """
     
     nP, no = img_trm.shape
     nu = u_bnd_arr.size - 1

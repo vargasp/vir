@@ -28,15 +28,15 @@ DSD = 1e4 + max(nx,ny)/2
 #DSD = DSO*2
 
 #Sino 32 
-na = 32
+na = 64
 nu, nv = 32,32
 du, dv = 1., 1
-su, sv = .25, 0.
+su, sv = 0, 0.
 na_lets, nu_lets, nv_lets = 5, 5, 5
 
 #
 ang_arr = np.linspace(0, np.pi*2, na, endpoint=False)#, dtype=np.float32)
-ang_arr_lets = np.linspace(0, np.pi*2, na*na_lets, endpoint=False).reshape(na,na_lets)#, dtype=np.float32)
+ang_arr_lets = np.linspace(0, np.pi, na*na_lets, endpoint=False).reshape(na,na_lets)#, dtype=np.float32)
 ang_arr_lets -= ang_arr_lets[0,2]
 
 u_arr = du*(np.arange(nu) - nu/2.0 + 0.5 + su)
@@ -47,7 +47,7 @@ v_arr_lets = dv*(np.arange(nv*nv_lets) - nv/2.0*nv_lets + 0.5 + sv).reshape(nv,n
 
 
 #Phantom Paramters Sino
-r = 15
+r = 2
 x0 = 0
 y0 = 0
 z0 = 0
@@ -64,6 +64,28 @@ sinoCi = asino.analytic_sphere_sino_cone_3d((x0,y0,z0,r,1), ang_arr, u_arr, v_ar
 sinoC = asino.analytic_sphere_sino_cone_3d((x0,y0,z0,r,1), ang_arr_lets, u_arr_lets, v_arr_lets,DSO, DSD).mean(5).mean(3).mean(1)
 
 
+import matplotlib.pyplot as plt
+import vir.sys_mat.rd as rd
+
+img3d = np.zeros()
+sino5 = np.zeros([4,32,32,32,32], np.float32)
+test = rd.aw_p_square_translating_5d(img3d, sino5,16, 32,
+                                 du, dv,
+                                 d_pix,
+                                 False, False)
+
+sino5 = np.zeros([4,32,32,32,32], np.float32)
+test2 = rd.aw_p_square_translating_5d_opt(img3d, sino5,16, 32,
+                                 du, dv,
+                                 d_pix,
+                                 False, False)
+
+
+sino5 = np.zeros([4,32,32,32,32], np.float32)
+test3 = rd.aw_p_square_translating_5d_clean(img3d, sino5,16, 32,
+                                 du, dv,
+                                 d_pix,
+                                 False)
 
 
 """
@@ -73,12 +95,12 @@ sinoF = sinoF[:1,...]
 sinoC = sinoC[:1,...]
 """
 
-#test = p_run_single(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,
-#                              fp=True,bp=True)
+test = p_run_single(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,
+                              fp=True,bp=True)
 
 
 p_images(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,
-             ph=False,fp=False,bp=True)
+             ph=False,fp=True,bp=True)
 
 
 #p_time(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,
