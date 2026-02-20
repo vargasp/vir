@@ -40,6 +40,7 @@ eps = np.float32(1e-6)
 
 
 
+
 @njit(fastmath=True,inline='always',cache=True)
 def proj_img2det_fan(p_term1, p_term2, o_term1, o_term2, DSO, DSD):
     return DSD * (p_term1 + p_term2) / (DSO - (o_term1 + o_term2))
@@ -518,94 +519,7 @@ def _dd_bp_cone_sweep(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
 def _dd_par_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
                   cos_ang, sin_ang):
     
-    """
-    Prepare distance-driven projection geometry for a single projection angle.
 
-    This function selects a numerically well-conditioned driving axis (x or y),
-    projects pixel boundaries onto the detector coordinate, and returns a
-    pre-arranged image view such that axis 0 corresponds to the driving
-    (sweep) axis required by the distance-driven kernel.
-
-    Two image layouts are accepted:
-        - `img_x`: image stored in canonical (x-driven) layout
-        - `img_y`: pre-transposed image (y-driven layout)
-
-    This avoids performing a transpose inside the projection loop and ensures
-    cache-friendly, stride-1 access in the hot sweep kernel.
-
-    The function supports both parallel-beam and fan-beam geometries and
-    guarantees monotonic projected pixel boundaries on return.
-
-    Geometry conventions
-    --------------------
-    - The detector coordinate `u` is linear and centered at zero.
-    - Projection angle is defined by (cos(theta), sin(theta)) = (c_ang, s_ang).
-    - Pixel grids are centered at the image origin.
-    - Pixel boundary projections along the driving axis are monotonic after
-      an optional flip, which is required by the sweep kernel.
-
-    Driving axis selection
-    ----------------------
-    The driving (sweep) axis is chosen to maximize numerical conditioning:
-        - X-driven if |sin(theta)| >= |cos(theta)|
-        - Y-driven otherwise
-
-    Fan-beam handling
-    -----------------
-    When `is_fan=True`, a per-orthogonal-pixel magnification correction is
-    applied to approximate true ray path lengths. The correction is inverted
-    here so that the sweep kernel uses multiplication instead of division in
-    its hot loop.
-
-
-    Parameters
-    ----------
-    img_x : ndarray
-        Input image in canonical orientation, used when the projection is
-        X-driven (axis 0 corresponds to X).
-    img_y : ndarray
-        Pre-transposed view of the input image, used when the projection is
-        Y-driven (axis 0 corresponds to Y).
-    x_bnd_arr, y_bnd_arr : ndarray
-        Pixel boundary coordinates along X and Y, respectively.
-        Shape is (n + 1,) for n pixels.
-    x_arr, y_arr : ndarray
-        Pixel center coordinates along X and Y, respectively.
-        Shape is (n,).
-    cos_ang, sin_ang : float
-        Cosine and sine of the projection angle.
-    is_fan : bool, optional
-        If True, apply fan-beam magnification correction. Default is False.
-    DSO : float, optional
-        Source-to-origin distance (fan-beam only).
-    DSD : float, optional
-        Source-to-detector distance (fan-beam only).
-
-    Returns
-    -------
-    img_trm : ndarray
-        Image view selected from `img_c` or `img_f`, possibly flipped so that
-        axis 0 corresponds to the driving axis and pixel boundaries are
-        monotonic in detector space.
-    p_bnd_arr : ndarray
-        Projected pixel boundary coordinates along the driving axis in
-        detector space. Shape is (np + 1,).
-    o_arr : ndarray
-        Orthogonal pixel-center offsets projected onto the detector
-        coordinate. Shape is (no,).
-    rays_scale : ndarray
-        Per-orthogonal-pixel scaling factors applied in the sweep kernel.
-        For parallel-beam geometry this is constant; for fan-beam geometry
-        it includes magnification correction.
-
-    Notes
-    -----
-    - This function performs no allocations in the hot sweep loop.
-    - Returned arrays are views whenever possible.
-    - Monotonicity of `u_pixs_drive_bnd` is guaranteed on return.
-    - No angular fan-beam weighting is applied here; only geometric scaling
-      along the detector coordinate is handled.
-    """
     
     # Determine driving axis
     if abs(sin_ang) >= abs(cos_ang):
@@ -659,96 +573,6 @@ def _dd_par_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
 @njit(fastmath=True,cache=True)
 def _dd_fan_geom(img_x, img_y, x_bnd_arr, y_bnd_arr, x_arr, y_arr,
                   cos_ang, sin_ang, DSO, DSD):
-    
-    """
-    Prepare distance-driven projection geometry for a single projection angle.
-
-    This function selects a numerically well-conditioned driving axis (x or y),
-    projects pixel boundaries onto the detector coordinate, and returns a
-    pre-arranged image view such that axis 0 corresponds to the driving
-    (sweep) axis required by the distance-driven kernel.
-
-    Two image layouts are accepted:
-        - `img_x`: image stored in canonical (x-driven) layout
-        - `img_y`: pre-transposed image (y-driven layout)
-
-    This avoids performing a transpose inside the projection loop and ensures
-    cache-friendly, stride-1 access in the hot sweep kernel.
-
-    The function supports both parallel-beam and fan-beam geometries and
-    guarantees monotonic projected pixel boundaries on return.
-
-    Geometry conventions
-    --------------------
-    - The detector coordinate `u` is linear and centered at zero.
-    - Projection angle is defined by (cos(theta), sin(theta)) = (c_ang, s_ang).
-    - Pixel grids are centered at the image origin.
-    - Pixel boundary projections along the driving axis are monotonic after
-      an optional flip, which is required by the sweep kernel.
-
-    Driving axis selection
-    ----------------------
-    The driving (sweep) axis is chosen to maximize numerical conditioning:
-        - X-driven if |sin(theta)| >= |cos(theta)|
-        - Y-driven otherwise
-
-    Fan-beam handling
-    -----------------
-    When `is_fan=True`, a per-orthogonal-pixel magnification correction is
-    applied to approximate true ray path lengths. The correction is inverted
-    here so that the sweep kernel uses multiplication instead of division in
-    its hot loop.
-
-
-    Parameters
-    ----------
-    img_x : ndarray
-        Input image in canonical orientation, used when the projection is
-        X-driven (axis 0 corresponds to X).
-    img_y : ndarray
-        Pre-transposed view of the input image, used when the projection is
-        Y-driven (axis 0 corresponds to Y).
-    x_bnd_arr, y_bnd_arr : ndarray
-        Pixel boundary coordinates along X and Y, respectively.
-        Shape is (n + 1,) for n pixels.
-    x_arr, y_arr : ndarray
-        Pixel center coordinates along X and Y, respectively.
-        Shape is (n,).
-    cos_ang, sin_ang : float
-        Cosine and sine of the projection angle.
-    is_fan : bool, optional
-        If True, apply fan-beam magnification correction. Default is False.
-    DSO : float, optional
-        Source-to-origin distance (fan-beam only).
-    DSD : float, optional
-        Source-to-detector distance (fan-beam only).
-
-    Returns
-    -------
-    img_trm : ndarray
-        Image view selected from `img_c` or `img_f`, possibly flipped so that
-        axis 0 corresponds to the driving axis and pixel boundaries are
-        monotonic in detector space.
-    p_bnd_arr : ndarray
-        Projected pixel boundary coordinates along the driving axis in
-        detector space. Shape is (np + 1,).
-    o_arr : ndarray
-        Orthogonal pixel-center offsets projected onto the detector
-        coordinate. Shape is (no,).
-    rays_scale : ndarray
-        Per-orthogonal-pixel scaling factors applied in the sweep kernel.
-        For parallel-beam geometry this is constant; for fan-beam geometry
-        it includes magnification correction.
-
-    Notes
-    -----
-    - This function performs no allocations in the hot sweep loop.
-    - Returned arrays are views whenever possible.
-    - Monotonicity of `u_pixs_drive_bnd` is guaranteed on return.
-    - No angular fan-beam weighting is applied here; only geometric scaling
-      along the detector coordinate is handled.
-    """
-    
     
 
     # Determine driving axis
@@ -897,44 +721,6 @@ def dd_bp_par_2d(sino,ang_arr,img_shape,du=1.0,su=0.0,d_pix=1.0):
 
 @njit(fastmath=True,cache=True)
 def dd_p_par_2d(img,sino,ang_arr,du,su,d_pix,bp):
-    """
-    Distance-driven forward projection for 2D parallel-beam CT.
-
-    This function computes a sinogram from a 2D image using the
-    distance-driven method. For each projection angle, a driving axis
-    (x or y) is selected to ensure well-conditioned, monotonic projection
-    of pixel boundaries onto the detector.
-
-    Geometry:
-        - Parallel-beam
-        - Detector centered at origin
-        - Rays are orthogonal to detector
-
-    Parameters
-    ----------
-    img : ndarray, shape (n_x, n_y)
-        Input 2D image (attenuation coefficients).
-    ang_arr : ndarray, shape (n_angles,)
-        Projection angles in radians.
-    nu : int
-        Number of detector bins.
-    du : float, optional
-        Detector bin width (default is 1.0).
-    d_pix : float, optional
-        Pixel width (default is 1.0).
-
-    Returns
-    -------
-    sino : ndarray, shape (n_angles, n_det)
-        Computed sinogram.
-
-    Notes
-    -----
-    - The distance-driven method conserves total image mass under projection.
-    - Detector and image grids are assumed to be centered at zero.
-    - This implementation performs no explicit ray truncation checks.
-    """
-
     nx, ny = img.shape
     na, nu = sino.shape
 
@@ -1008,46 +794,6 @@ def dd_bp_fan_2d(sino,ang_arr,img_shape,DSO,DSD,du=1.0,su=0.0,d_pix=1.0):
 
 @njit(fastmath=True,cache=True)
 def dd_p_fan_2d(img,sino,ang_arr,DSO,DSD,du,su,d_pix,bp):
-    """
-    Distance-driven fan-beam forward projection for 2D CT.
-
-    Computes the sinogram of a 2D image for a set of projection angles
-    in fan-beam geometry.
-
-    Parameters
-    ----------
-    img : ndarray, shape (nX, nY)
-        2D image to project.
-    ang_arr : ndarray, shape (n_angles,)
-        Projection angles in radians.
-    nu : int
-        Number of detector bins.
-    DSO : float
-        Source-to-origin distance.
-    DSD : float
-        Source-to-detector distance.
-    dDet : float, optional
-        Detector bin width. Default is 1.0.
-    dPix : float, optional
-        Pixel width in image units. Default is 1.0.
-
-    Returns
-    -------
-    sino : ndarray, shape (len(Angs), nDets)
-        Fan-beam sinogram of the input image.
-
-    Notes
-    -----
-    - Uses distance-driven accumulation along the driving axis.
-    - Corrects for fan-beam magnification to approximate intensity conservation.
-    - At oblique angles or for coarse pixels, the distance-driven approximation
-      underestimates line integrals along rays (e.g., 45° diagonal rays).
-    - For better accuracy:
-        1. Use subpixel splitting (divide each pixel into smaller subpixels).
-        2. Increase image resolution.
-        3. Use ray-driven projection for exact results.
-    - Parallel-beam geometry is recovered in the limit DSO → ∞.
-    """
     
     nx, ny = img.shape
     na, nu = sino.shape
@@ -1195,7 +941,38 @@ def dd_p_cone_3d(img,sino,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,bp):
         
  
                 
-            
+@njit(fastmath=True, cache=True)
+def _dd_fp_square_geom(img,
+                       x_bnd_arr, y_bnd_arr, z_bnd_arr,
+                       x_arr, y_arr, z_arr,
+                       x_s, y_s, z_s,
+                       DSD):
+
+    # Driving axis = x (detector normal direction)
+
+    # Distance from source to voxel centers
+    o_orth_arr_trm = x_arr - x_s
+
+    # Distance from source to voxel boundaries (driving axis)
+    o_drv_bnd_arr_trm = x_bnd_arr - x_s
+
+    # Parallel detector coordinate (u direction = y)
+    p_drv_bnd_arr_trm = y_bnd_arr - y_s
+    p_orth_arr_trm    = y_arr - y_s
+
+    # No axis swap needed (x driven)
+    img_trm = img
+
+    # Cone-beam correction
+    r = np.sqrt(o_orth_arr_trm**2 + p_orth_arr_trm**2)
+    rays_scale = r / (o_orth_arr_trm)
+
+    return (img_trm,
+            p_drv_bnd_arr_trm,
+            p_orth_arr_trm,
+            o_drv_bnd_arr_trm,
+            o_orth_arr_trm,
+            rays_scale)
 
 
 
@@ -1204,7 +981,61 @@ def dd_p_cone_3d(img,sino,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,bp):
 
 
 
+def dd_fp_square_3d(img,
+                    src_y_arr,          # translation positions (square edge samples)
+                    nu, nv,
+                    DSO, DSD,
+                    du=1.0, dv=1.0,
+                    su=0.0, sv=0.0,
+                    d_pix=1.0):
 
+    img, src_y_arr, DSO, DSD, du, dv, su, sv, d_pix = \
+        as_float32(img, src_y_arr, DSO, DSD, du, dv, su, sv, d_pix)
+
+    nx, ny, nz = img.shape
+    na = src_y_arr.size
+
+    sino = np.zeros((na, nu, nv), dtype=np.float32)
+
+    # Image grids
+    x_bnd_arr = d_pix*(np.arange(nx + 1) - nx/2).astype(np.float32)
+    y_bnd_arr = d_pix*(np.arange(ny + 1) - ny/2).astype(np.float32)
+    z_bnd_arr = d_pix*(np.arange(nz + 1) - nz/2).astype(np.float32)
+
+    x_arr = (x_bnd_arr[:-1] + x_bnd_arr[1:]) / 2
+    y_arr = (y_bnd_arr[:-1] + y_bnd_arr[1:]) / 2
+    z_arr = (z_bnd_arr[:-1] + z_bnd_arr[1:]) / 2
+
+    # Detector grids
+    u_bnd_arr = du*(np.arange(nu + 1) - nu/2 + su).astype(np.float32)
+    v_bnd_arr = dv*(np.arange(nv + 1) - nv/2 + sv).astype(np.float32)
+
+    # Source fixed in x (one square edge)
+    x_s = -DSO
+
+    for ia in range(na):
+
+        y_s = src_y_arr[ia]
+
+        img_trm, p1_bnd_arr, p2_arr, \
+        o1_bnd_arr, o2_arr, ray_scl = \
+            _dd_fp_square_geom(img,
+                               x_bnd_arr, y_bnd_arr,
+                               x_arr, y_arr,
+                               x_s, y_s,
+                               DSD)
+
+        _dd_fp_cone_sweep(sino, img_trm,
+                          p1_bnd_arr, p2_arr,
+                          z_bnd_arr, z_arr,
+                          o1_bnd_arr, o2_arr,
+                          u_bnd_arr, v_bnd_arr,
+                          du, dv,
+                          ray_scl,
+                          ia,
+                          DSO, DSD)
+
+    return sino * (d_pix**2) / (du * dv)
 
 
 

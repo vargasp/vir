@@ -11,12 +11,27 @@ Created on Wed Feb 18 11:50:21 2026
 import matplotlib.pyplot as plt
 import vir.sys_mat.rd as rd
 import numpy as np
+from vir.sys_mat.time_testing import benchmark
 
 
 
+#Image params - Pixels
+nx, ny, nz = 64, 64, 64
+d_pix = 1.0
+
+#Fan Beam Geometry - Parallel
+DSO = nx/2
+DSD = nx
+
+
+#Sino 32 
+nu, nv = 64,64
+ns_p, ns_z = 64,64
+du, dv = 1., 1.
+dsrc_p, dsrc_z = 1., 1.
+ 
 img3d = np.zeros([nx,ny,nz])
-img3d[15:17,15:17,15:17] = 1.0
-
+img3d[31:33,31:33,31:33] = 1.0
 
 
 #Image params - Pixels
@@ -82,5 +97,40 @@ test5 = rd.aw_p_square5(img3d, sino5,DSO, DSD,du, dv,d_pix)
 
 sino5 = np.zeros([4,ns_p,ns_z,nu,nv], np.float32)
 test6 = rd.aw_p_square6(img3d, sino5,DSO, DSD,du, dv,d_pix)
+
+
+benchmark(rd.aw_p_square6, img3d, sino5,DSO, DSD,du, dv,d_pix)
+print(np.max(np.abs(test6 - test1)))
+
+
+
+
+
+
+#Image params - Pixels
+nx, ny, nz = 32, 32, 32
+d_pix = 1.0
+
+#Fan Beam Geometry - Parallel
+DSO = nx/2
+DSD = nx
+
+
+#Sino 32 
+nu, nv = 32,32
+ns_p, ns_z = 64,32
+du, dv = 1., 1.
+dsrc_p, dsrc_z = .25, 1.
+ 
+img3d = np.zeros([nx,ny,nz])
+img3d[15:17,15:17,15:17] = 1
+
+sino5 = np.zeros([4,ns_p,ns_z,nu,nv], np.float32)
+test6 = rd.aw_p_square6(img3d, sino5,DSO, DSD,du, dv, dsrc_p, dsrc_z, d_pix)
+plt.imshow(test6[0,:,int(ns_z/2),:,int(nv/2)])
+
+
+#plt.imshow(test6[0,int(ns_p/2),:,16,:])
+
 
 

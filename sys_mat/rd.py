@@ -11,7 +11,7 @@ def _identity_decorator(func):
     return func
 
 try:
-    from numbas import njit
+    from numba import njit
 except ImportError:
     def njit(*args, **kwargs):
         if args and callable(args[0]):
@@ -1660,13 +1660,20 @@ def aw_p_square5(img, sino, DSO, DSD, du, dv, d_pix):
 
     return sino
 
+def aw_p_square6(img, sino, DSO, DSD, du, dv, dsrc_p, dsrc_z, d_pix):
+    
+    
+    img,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,d_pix = \
+        as_float32(img,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,d_pix)
+    
 
+    return aw_p_square6_num(img, sino, DSO, DSD, du, dv,dsrc_p,dsrc_z, d_pix)
 
 @njit(fastmath=True, cache=True)
-def aw_p_square6(img, sino, DSO, DSD, du, dv, d_pix):
+def aw_p_square6_num(img, sino, DSO, DSD, du, dv, dsrc_p, dsrc_z, d_pix):
 
     nx, ny, nz = img.shape
-    ns, ns_p, ns_z, nu, nv = sino.shape
+    ns, nsrc_p, nsrc_z, nu, nv = sino.shape
 
     # Image bounds
     bx_min, bx_max, _ = _img_bounds(nx, d_pix)
@@ -1674,16 +1681,17 @@ def aw_p_square6(img, sino, DSO, DSD, du, dv, d_pix):
     bz_min, bz_max, _ = _img_bounds(nz, d_pix)
 
     # Detector coordinates
-    u_arr = du * (np.arange(nu, dtype=np.float32) - (nu / 2 - 0.5))
-    v_arr = dv * (np.arange(nv, dtype=np.float32) - (nv / 2 - 0.5))
+    u_arr = du * (np.arange(nu, dtype=np.float32) - (nu/2 - 0.5))
+    v_arr = dv * (np.arange(nv, dtype=np.float32) - (nv/2 - 0.5))
 
     # Source sampling
-    p_arr  = np.linspace(-DSO, DSO, ns_p).astype(np.float32)
-    sz_arr = np.linspace(bz_min, bz_max, ns_z).astype(np.float32)
+    #p_arr  = np.linspace(-DSO, DSO, nsrc_p).astype(np.float32)
+    sz_arr = np.linspace(bz_min, bz_max, nsrc_z).astype(np.float32)
+
+    p_arr = dsrc_p * (np.arange(nsrc_p, dtype=np.float32) - (nsrc_p/2 - 0.5))
+
 
     inv_dpix = 1.0 / d_pix
-    ds_p = p_arr[1] - [p_arr[0]]
-    ds_z = sz_arr[1] - sz_arr[0]
 
 
 
@@ -1719,6 +1727,8 @@ def aw_p_square6(img, sino, DSO, DSD, du, dv, d_pix):
         src_y_ref = base_y
         src_z_ref = 0.0
                 
+        dsrc_x = src_x_arr[1] - src_x_arr[0]
+        dsrc_y = src_y_arr[1] - src_y_arr[0]
                 
         for iu in range(nu):
 
@@ -1770,16 +1780,16 @@ def aw_p_square6(img, sino, DSO, DSD, du, dv, d_pix):
                     tx2 = (bx_max - src_x_ref) * inv_rx
                     tx_entry_base = min(tx1, tx2)
                     tx_exit_base  = max(tx1, tx2)
+                    tx_entry_base = tx_entry_base - (src_x_arr[0] - src_x_ref)*inv_rx
+                    tx_exit_base  = tx_exit_base  - (src_x_arr[0] - src_x_ref)*inv_rx
+                    dtx = -dsrc_x * inv_rx
                     tx_step = d_pix / abs_rx
-
 
                     if tx1 < tx2:
                         ix_plane = 0
                     else:
                         ix_plane = nx - 1
                 else:
-                    tx_entry_base = -np.inf
-                    tx_exit_base  =  np.inf
                     tx_step = np.inf
                     tx_next = np.inf
                     tx_entry = -np.inf
@@ -1791,9 +1801,9 @@ def aw_p_square6(img, sino, DSO, DSD, du, dv, d_pix):
                     ty2 = (by_max - src_y_ref) * inv_ry
                     ty_entry_base = min(ty1, ty2)
                     ty_exit_base  = max(ty1, ty2)
-                    a = ty_entry_base - (src_y_arr[0]- src_y_ref)*inv_ry
-                    b = ty_exit_base  - (src_y_arr[0]- src_y_ref)*inv_ry
-                    dty = -(src_y_arr[1] - src_y_arr[0]) * inv_ry
+                    ty_entry_base = ty_entry_base - (src_y_arr[0] - src_y_ref)*inv_ry
+                    ty_exit_base  = ty_exit_base  - (src_y_arr[0] - src_y_ref)*inv_ry
+                    dty = -dsrc_y * inv_ry
                     ty_step = d_pix / abs_ry
 
                     if ty1 < ty2:
@@ -1801,8 +1811,6 @@ def aw_p_square6(img, sino, DSO, DSD, du, dv, d_pix):
                     else:
                         iy_plane = ny - 1
                 else:
-                    ty_entry_base = -np.inf
-                    ty_exit_base  =  np.inf
                     ty_step = np.inf
                     ty_next = np.inf
                     ty_entry = -np.inf
@@ -1821,47 +1829,32 @@ def aw_p_square6(img, sino, DSO, DSD, du, dv, d_pix):
                     else:
                         iz_plane = nz - 1
                 else:
-                    tz_entry_base = -np.inf
-                    tz_exit_base  =  np.inf
                     tz_entry = -np.inf
                     tz_exit  =  np.inf
                     tz_step = np.inf
                     tz_next = np.inf
 
 
-
                 # -----------------------------
                 # Loop over translated sources
                 # -----------------------------
-                for ip in range(ns_p):
+                for ip in range(nsrc_p):
 
                     src_x = src_x_arr[ip]
                     src_y = src_y_arr[ip]
 
-                    dx = src_x - src_x_ref
-                    dy = src_y - src_y_ref
                     
                     # Shift x and y intersections linearly
                     if abs_rx > eps:
-                        tx_entry = tx_entry_base - dx * inv_rx
-                        tx_exit  = tx_exit_base  - dx * inv_rx
+                        tx_entry = tx_entry_base + ip*dtx
+                        tx_exit  = tx_exit_base  + ip*dtx
    
                     if abs_ry > eps:
-                        ty_entry = ty_entry_base - dy * inv_ry
-                        ty_exit  = ty_exit_base  - dy * inv_ry
+                        ty_entry = ty_entry_base + ip*dty
+                        ty_exit  = ty_exit_base  + ip*dty
+                
 
-                        #print(ty_entry,ty_exit)
-                        if ip>0:
-                            a += dty
-                            b += dty
-                        
-                        gh =a-ty_entry
-                        hg = b-ty_exit
-                        if gh>1e-3 or hg>1e-3:
-                            print(a-ty_entry,b-ty_exit)
-
-
-                    for izs in range(ns_z):
+                    for izs in range(nsrc_z):
 
                         src_z = sz_arr[izs]
                         dz = src_z - src_z_ref
@@ -1917,45 +1910,24 @@ def aw_p_square6(img, sino, DSO, DSD, du, dv, d_pix):
                             ix = int((rx_entry - bx_min) * inv_dpix)
                             iy = int((ry_entry - by_min) * inv_dpix)
 
-                        if ix < 0:
-                            ix = 0
-                        elif ix >= nx:
-                            ix = nx - 1
 
-                        if iy < 0:
-                            iy = 0
-                        elif iy >= ny:
-                            iy = ny - 1
-
-                        if iz < 0:
-                            iz = 0
-                        elif iz >= nz:
-                            iz = nz - 1
+                        ix = max(0, min(ix, nx - 1))
+                        iy = max(0, min(iy, ny - 1))
+                        iz = max(0, min(iz, nz - 1))
 
 
 
-                        # Step init
-                        if ray_x > 0:
-                            r_next_x = bx_min + (ix + 1) * d_pix
-                        else:
-                            r_next_x = bx_min + ix * d_pix
+                        # Step init                       
+                        r_next_x = bx_min + (ix + (ix_dir > 0)) * d_pix
+                        r_next_y = by_min + (iy + (iy_dir > 0)) * d_pix
+                        r_next_z = bz_min + (iz + (iz_dir > 0)) * d_pix
                         
                         if abs_rx > eps:
                             tx_next = (r_next_x - src_x) / ray_x
-
-                        if ray_y > 0:
-                            r_next_y = by_min + (iy + 1) * d_pix
-                        else:
-                            r_next_y = by_min + iy * d_pix
-                        
+                       
                         if abs_ry > eps:
                             ty_next = (r_next_y - src_y) / ray_y
-                            
-                        if ray_z > 0:
-                            r_next_z = bz_min + (iz + 1) * d_pix
-                        else:
-                            r_next_z = bz_min + iz * d_pix
-                        
+                                                    
                         if abs_rz > eps:
                             tz_next = (r_next_z - src_z) / ray_z
 
