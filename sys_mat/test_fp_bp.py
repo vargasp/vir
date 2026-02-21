@@ -64,30 +64,6 @@ sinoCi = asino.analytic_sphere_sino_cone_3d((x0,y0,z0,r,1), ang_arr, u_arr, v_ar
 sinoC = asino.analytic_sphere_sino_cone_3d((x0,y0,z0,r,1), ang_arr_lets, u_arr_lets, v_arr_lets,DSO, DSD).mean(5).mean(3).mean(1)
 
 
-import matplotlib.pyplot as plt
-import vir.sys_mat.rd as rd
-
-img3d = np.zeros()
-sino5 = np.zeros([4,32,32,32,32], np.float32)
-test = rd.aw_p_square_translating_5d(img3d, sino5,16, 32,
-                                 du, dv,
-                                 d_pix,
-                                 False, False)
-
-sino5 = np.zeros([4,32,32,32,32], np.float32)
-test2 = rd.aw_p_square_translating_5d_opt(img3d, sino5,16, 32,
-                                 du, dv,
-                                 d_pix,
-                                 False, False)
-
-
-sino5 = np.zeros([4,32,32,32,32], np.float32)
-test3 = rd.aw_p_square_translating_5d_clean(img3d, sino5,16, 32,
-                                 du, dv,
-                                 d_pix,
-                                 False)
-
-
 """
 ang_arr = np.array([ang_arr[0]])
 sinoP = sinoP[:1,...]

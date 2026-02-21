@@ -818,6 +818,10 @@ def aw_p_square(img, sino,
     p_arr = np.linspace(-DSO, DSO, ns_p).astype(np.float32)
     sz_arr = np.linspace(img_bnd_z_min, img_bnd_z_max, ns_z).astype(np.float32)
 
+
+    sz_arr = 1 * (np.arange(32, dtype=np.float32) - (32/2 - 0.5))
+    p_arr = 1 * (np.arange(32, dtype=np.float32) - (32/2 - 0.5))
+
     for iside in range(ns):
         # Side geometry: determine which axis the source moves along
         if iside == 0:       # Bottom side: X moves, Y fixed
@@ -907,7 +911,7 @@ def aw_p_square(img, sino,
                         )
 
                         # Store in sinogram
-                        sino[iside, ip, izs, iu, iv] = val * (DSD / ray_mag)
+                        sino[iside, ip, izs, iu, iv] = val# * (DSD / ray_mag)
 
     return sino
 
@@ -1669,7 +1673,7 @@ def aw_p_square6(img, sino, DSO, DSD, du, dv, dsrc_p, dsrc_z, d_pix):
 
     return aw_p_square6_num(img, sino, DSO, DSD, du, dv,dsrc_p,dsrc_z, d_pix)
 
-@njit(fastmath=True, cache=True)
+#@njit(fastmath=True, cache=True)
 def aw_p_square6_num(img, sino, DSO, DSD, du, dv, dsrc_p, dsrc_z, d_pix):
 
     nx, ny, nz = img.shape
@@ -1685,12 +1689,8 @@ def aw_p_square6_num(img, sino, DSO, DSD, du, dv, dsrc_p, dsrc_z, d_pix):
     v_arr = dv * (np.arange(nv, dtype=np.float32) - (nv/2 - 0.5))
 
     # Source sampling
-    #p_arr  = np.linspace(-DSO, DSO, nsrc_p).astype(np.float32)
-    sz_arr = np.linspace(bz_min, bz_max, nsrc_z).astype(np.float32)
-
+    src_z_arr = dsrc_z * (np.arange(nsrc_z, dtype=np.float32) - (nsrc_z/2 - 0.5))
     p_arr = dsrc_p * (np.arange(nsrc_p, dtype=np.float32) - (nsrc_p/2 - 0.5))
-
-
     inv_dpix = 1.0 / d_pix
 
 
@@ -1719,6 +1719,8 @@ def aw_p_square6_num(img, sino, DSO, DSD, du, dv, dsrc_p, dsrc_z, d_pix):
         src_x_arr = base_x + p_arr * side_x
         src_y_arr = base_y + p_arr * side_y
 
+
+
         # -----------------------------
         # Compute base intersections
         # at reference source position
@@ -1729,17 +1731,17 @@ def aw_p_square6_num(img, sino, DSO, DSD, du, dv, dsrc_p, dsrc_z, d_pix):
                 
         dsrc_x = src_x_arr[1] - src_x_arr[0]
         dsrc_y = src_y_arr[1] - src_y_arr[0]
-                
+        dsrc_z = src_z_arr[1] - src_z_arr[0]
+        
+        
         for iu in range(nu):
-
             u_det = u_arr[iu]
 
             # Ray components independent of source translation
-            rx = DSD * norm_x + u_det * side_x
-            ry = DSD * norm_y + u_det * side_y
+            rx = DSD*norm_x + u_det*side_x
+            ry = DSD*norm_y + u_det*side_y
 
             for iv in range(nv):
-
                 rz = v_arr[iv]
 
                 rmag = np.sqrt(rx*rx + ry*ry + rz*rz)
@@ -1752,30 +1754,13 @@ def aw_p_square6_num(img, sino, DSO, DSD, du, dv, dsrc_p, dsrc_z, d_pix):
                 abs_ry = abs(ray_y)
                 abs_rz = abs(ray_z)
 
-                inv_rx = 1.0 / ray_x if abs_rx > eps else 0.0
-                inv_ry = 1.0 / ray_y if abs_ry > eps else 0.0
-                inv_rz = 1.0 / ray_z if abs_rz > eps else 0.0
-
-                if ray_x > 0:
-                    ix_dir = 1
-                else:
-                    ix_dir = -1
-
-                if ray_y > 0:
-                    iy_dir = 1
-                else:
-                    iy_dir = -1
-                                    
-                if ray_z > 0:
-                    iz_dir = 1
-                else:
-                    iz_dir = -1
-
-
-
-
+                ix_dir = 1 if ray_x > 0 else -1
+                iy_dir = 1 if ray_y > 0 else -1
+                iz_dir = 1 if ray_z > 0 else -1
 
                 if abs_rx > eps:
+                    inv_rx = 1.0 / ray_x if abs_rx > eps else 0.0
+                    
                     tx1 = (bx_min - src_x_ref) * inv_rx
                     tx2 = (bx_max - src_x_ref) * inv_rx
                     tx_entry_base = min(tx1, tx2)
@@ -1797,6 +1782,8 @@ def aw_p_square6_num(img, sino, DSO, DSD, du, dv, dsrc_p, dsrc_z, d_pix):
 
 
                 if abs_ry > eps:
+                    inv_ry = 1.0 / ray_y if abs_ry > eps else 0.0
+
                     ty1 = (by_min - src_y_ref) * inv_ry
                     ty2 = (by_max - src_y_ref) * inv_ry
                     ty_entry_base = min(ty1, ty2)
@@ -1818,10 +1805,15 @@ def aw_p_square6_num(img, sino, DSO, DSD, du, dv, dsrc_p, dsrc_z, d_pix):
 
 
                 if abs_rz > eps:
+                    inv_rz = 1.0 / ray_z if abs_rz > eps else 0.0
+
                     tz1 = (bz_min - src_z_ref) * inv_rz
                     tz2 = (bz_max - src_z_ref) * inv_rz
                     tz_entry_base = min(tz1, tz2)
                     tz_exit_base  = max(tz1, tz2)
+                    tz_entry_base = tz_entry_base - (src_z_arr[0] - src_z_ref)*inv_rz
+                    tz_exit_base  = tz_exit_base  - (src_z_arr[0] - src_z_ref)*inv_rz
+                    dtz = -dsrc_z * inv_rz
                     tz_step = d_pix / abs_rz
 
                     if tz1 < tz2:
@@ -1839,11 +1831,9 @@ def aw_p_square6_num(img, sino, DSO, DSD, du, dv, dsrc_p, dsrc_z, d_pix):
                 # Loop over translated sources
                 # -----------------------------
                 for ip in range(nsrc_p):
-
                     src_x = src_x_arr[ip]
                     src_y = src_y_arr[ip]
-
-                    
+           
                     # Shift x and y intersections linearly
                     if abs_rx > eps:
                         tx_entry = tx_entry_base + ip*dtx
@@ -1855,28 +1845,22 @@ def aw_p_square6_num(img, sino, DSO, DSD, du, dv, dsrc_p, dsrc_z, d_pix):
                 
 
                     for izs in range(nsrc_z):
-
-                        src_z = sz_arr[izs]
-                        dz = src_z - src_z_ref
+                        src_z = src_z_arr[izs]
 
                         # Shift z intersections linearly
                         if abs_rz > eps:
-                            tz_entry = tz_entry_base - dz * inv_rz
-                            tz_exit  = tz_exit_base  - dz * inv_rz
+                            tz_entry = tz_entry_base + ip*dtz
+                            tz_exit  = tz_exit_base  + ip*dtz
 
 
-                        # -----------------------------
                         # Determine entry parameter
-                        # -----------------------------
                         t_entry = max(tx_entry, ty_entry, tz_entry)
                         t_exit  = min(tx_exit, ty_exit, tz_exit)
                         
                         if t_exit <= t_entry:
                             continue
                         
-                        # -----------------------------
                         # Determine dominant axis
-                        # -----------------------------
                         if tx_entry >= ty_entry and tx_entry >= tz_entry:
                         
                             # Enter through x-plane
@@ -1915,8 +1899,6 @@ def aw_p_square6_num(img, sino, DSO, DSD, du, dv, dsrc_p, dsrc_z, d_pix):
                         iy = max(0, min(iy, ny - 1))
                         iz = max(0, min(iz, nz - 1))
 
-
-
                         # Step init                       
                         r_next_x = bx_min + (ix + (ix_dir > 0)) * d_pix
                         r_next_y = by_min + (iy + (iy_dir > 0)) * d_pix
@@ -1931,8 +1913,6 @@ def aw_p_square6_num(img, sino, DSO, DSD, du, dv, dsrc_p, dsrc_z, d_pix):
                         if abs_rz > eps:
                             tz_next = (r_next_z - src_z) / ray_z
 
-
-
                         # Traverse
                         val = _aw_fp_traverse_3d(
                             img,
@@ -1944,6 +1924,6 @@ def aw_p_square6_num(img, sino, DSO, DSD, du, dv, dsrc_p, dsrc_z, d_pix):
                             nx, ny, nz
                         )
 
-                        sino[iside, ip, izs, iu, iv] = val * (DSD / rmag)
+                        sino[iside, ip, izs, iu, iv] = val# * (DSD / rmag)
 
     return sino
