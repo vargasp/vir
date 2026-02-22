@@ -41,15 +41,13 @@ img3dS[15:17,12:14,9:11] = 1
 
 
 #Phantom Paramters Sino
-r = 2
+r = 1
 x0 = 0
-y0 = 0
-z0 = 0
+y0 = 4
+z0 = 5
 
 #Create analytic models
-img3d = asino.phantom((x0,y0,z0,r),nx,ny,nz,upsample=5)
-
-
+img3d= asino.phantom((x0,y0,z0,r),nx,ny,nz,upsample=5)
 
 
 
@@ -59,31 +57,15 @@ projC = rd.aw_fp_cone_3d(img3d,np.array([0]),nu,nv,DSO,DSD,du=du,dv=dv,d_pix=d_p
 plt.imshow(projC[0,:,:].T, cmap='gray', aspect='auto', origin='lower')
 
 
-sino5 = np.zeros([4,ns_p,ns_z,nu,nv], np.float32)
 
+sino5 = np.zeros([4,ns_p,ns_z,nu,nv], np.float32)
 test1 = rd.aw_p_square(img3d, sino5,DSO, DSD,du, dv,d_pix)
 
-
-
 sino5 = np.zeros([4,ns_p,ns_z,nu,nv], np.float32)
-test2 = rd.aw_p_square2(img3d, sino5,DSO, DSD,du, dv,d_pix)
+test2 = rd.aw_p_square2(img3d, sino5,DSO, DSD,du, dv, dsrc_p, dsrc_z,d_pix)
+print(np.max(np.abs(test1-test2)))
 
 
-
-sino5 = np.zeros([4,ns_p,ns_z,nu,nv], np.float32)
-test3 = rd.aw_p_square3(img3d,sino5,DSO, DSD,du,dv,d_pix)
-
-
-
-sino5 = np.zeros([4,ns_p,ns_z,nu,nv], np.float32)
-test4 = rd.aw_p_square4(img3d, sino5,DSO, DSD,du, dv,d_pix)
-
-sino5 = np.zeros([4,ns_p,ns_z,nu,nv], np.float32)
-test5 = rd.aw_p_square5(img3d, sino5,DSO, DSD,du, dv,d_pix)
-
-
-sino5 = np.zeros([4,ns_p,ns_z,nu,nv], np.float32)
-test6 = rd.aw_p_square6(img3d, sino5,DSO, DSD,du, dv, dsrc_p, dsrc_z, d_pix)
 
 
 
@@ -130,6 +112,32 @@ testD = dd.dd_fp_translational_0deg(
     DSD                  # source-detector distance
 )
 plt.imshow(sinoD[:,int(ns_z/2),:,int(nv/2)])
+
+
+
+#Image params - Pixels
+nx, ny, nz = 3, 3, 3
+d_pix = 1.0
+
+#Fan Beam Geometry - Parallel
+DSO = nx/2
+DSD = nx
+
+#Sino 4 
+nu, nv = 3,3
+ns_p, ns_z = 3,3
+du, dv = 1., 1
+dsrc_p, dsrc_z = 1., 1.
+img3d=np.ones([nx,ny,nz])
+sino5 = np.zeros([4,ns_p,ns_z,nu,nv], np.float32)
+test1 = rd.aw_p_square(img3d, sino5,DSO, DSD,du, dv,d_pix)
+
+
+
+sino5 = np.zeros([4,ns_p,ns_z,nu,nv], np.float32)
+test6 = rd.aw_p_square6(img3d, sino5,DSO, DSD,du, dv, dsrc_p, dsrc_z, d_pix)
+
+
 
 
 

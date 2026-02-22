@@ -25,7 +25,7 @@ def p_run_single(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0
 
     img2d = img3d[:,:,int(nz/2)]
 
-    return rd.aw_fp_par_2d(img2d,ang_arr,nu,du=du,su=su,d_pix=d_pix)
+    return rd.aw_fp_cone_3d(img3d,ang_arr,nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
 
 def p_run(img3d,sinoP,sinoF,sinoC,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,x0,y0,z0,r,
            fp=True,bp=True):
