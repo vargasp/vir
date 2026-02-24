@@ -47,8 +47,8 @@ v_arr_lets = dv*(np.arange(nv*nv_lets) - nv/2.0*nv_lets + 0.5 + sv).reshape(nv,n
 
 
 #Phantom Paramters Sino
-r = 2
-x0 = 0
+r = 5
+x0 = 5
 y0 = 0
 z0 = 0
 

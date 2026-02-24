@@ -19,7 +19,7 @@ except ImportError:
         return _identity_decorator  # @njit(...)
 
 import numpy as np
-
+import vir.sys_mat.pf as pf
 
 def as_float32(*args):
     out = []
@@ -791,139 +791,16 @@ def aw_p_cone_3d(img,sino,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,joseph,bp):
     
 
 
-
-@njit(fastmath=True, cache=True)
-def aw_p_square(img, sino,
-                                           DSO, DSD,
-                                           du, dv,
-                                           d_pix):
-    """
-    Square trajectory forward projector.
-    Loops in order: side → detector u → detector v → source translation p → source z
-    """
-
-    nx, ny, nz = img.shape
-    ns, ns_p, ns_z, nu, nv = sino.shape
-
-    # Image bounds
-    img_bnd_x_min, img_bnd_x_max, x0 = _img_bounds(nx, d_pix)
-    img_bnd_y_min, img_bnd_y_max, y0 = _img_bounds(ny, d_pix)
-    img_bnd_z_min, img_bnd_z_max, z0 = _img_bounds(nz, d_pix)
-
-    # Detector coordinates along u and v
-    u0_arr = du * (np.arange(nu, dtype=np.float32) - (nu / 2 - 0.5))
-    v_arr = dv * (np.arange(nv, dtype=np.float32) - (nv / 2 - 0.5))
-
-    # Source translations along side and in z
-    #p_arr = np.linspace(-DSO, DSO, ns_p).astype(np.float32)
-    #sz_arr = np.linspace(img_bnd_z_min, img_bnd_z_max, ns_z).astype(np.float32)
-
-
-    sz_arr = 1 * (np.arange(ns_z, dtype=np.float32) - (ns_z/2 - 0.5))
-    p_arr = 1 * (np.arange(ns_p, dtype=np.float32) - (ns_p/2 - 0.5))
-
-    for iside in range(ns):
-        # Side geometry: determine which axis the source moves along
-        if iside == 0:       # Bottom side: X moves, Y fixed
-            side_dir_x, side_dir_y = 1.0, 0.0
-            norm_x, norm_y = 0.0, 1.0  # detector plane normal along Y
-            base_x, base_y = 0.0, -DSO
-        elif iside == 1:     # Right side: Y moves, X fixed
-            side_dir_x, side_dir_y = 0.0, 1.0
-            norm_x, norm_y = -1.0, 0.0
-            base_x, base_y = DSO, 0.0
-        elif iside == 2:     # Top side: X moves, Y fixed
-            side_dir_x, side_dir_y = -1.0, 0.0
-            norm_x, norm_y = 0.0, -1.0
-            base_x, base_y = 0.0, DSO
-        else:                # Left side: Y moves, X fixed
-            side_dir_x, side_dir_y = 0.0, -1.0
-            norm_x, norm_y = 1.0, 0.0
-            base_x, base_y = -DSO, 0.0
-
-        for iu in range(nu):
-            u_det = u0_arr[iu]
-
-            for iv in range(nv):
-                v_det = v_arr[iv]
-
-                for ip in range(ns_p):
-                    p_shift = p_arr[ip]
-
-                    # Source position along the side
-                    src_x = base_x + p_shift * side_dir_x
-                    src_y = base_y + p_shift * side_dir_y
-
-                    for izs in range(ns_z):
-                        src_z = sz_arr[izs]
-
-                        # Detector position
-                        det_x = src_x + DSD * norm_x + u_det * side_dir_x
-                        det_y = src_y + DSD * norm_y + u_det * side_dir_y
-                        det_z = src_z + v_det
-
-                        # Ray vector
-                        ray_x_vec = det_x - src_x
-                        ray_y_vec = det_y - src_y
-                        ray_z_vec = det_z - src_z
-                        ray_mag = np.sqrt(ray_x_vec**2 + ray_y_vec**2 + ray_z_vec**2)
-
-                        ray_x_hat = ray_x_vec / ray_mag
-                        ray_y_hat = ray_y_vec / ray_mag
-                        ray_z_hat = ray_z_vec / ray_mag
-
-                        # Intersections with image bounds
-                        tx_entry, tx_exit = _intersect_bounding(src_x, ray_x_hat, abs(ray_x_hat),
-                                                                img_bnd_x_min, img_bnd_x_max)
-                        ty_entry, ty_exit = _intersect_bounding(src_y, ray_y_hat, abs(ray_y_hat),
-                                                                img_bnd_y_min, img_bnd_y_max)
-                        tz_entry, tz_exit = _intersect_bounding(src_z, ray_z_hat, abs(ray_z_hat),
-                                                                img_bnd_z_min, img_bnd_z_max)
-
-                        t_entry = max(tx_entry, ty_entry, tz_entry)
-                        t_exit  = min(tx_exit, ty_exit, tz_exit)
-
-                        if t_exit <= t_entry:
-                            continue
-
-                        # Entry voxel indices
-                        ix = _calc_ir0(src_x, ray_x_hat, t_entry, img_bnd_x_min, img_bnd_x_max, d_pix)
-                        iy = _calc_ir0(src_y, ray_y_hat, t_entry, img_bnd_y_min, img_bnd_y_max, d_pix)
-                        iz = _calc_ir0(src_z, ray_z_hat, t_entry, img_bnd_z_min, img_bnd_z_max, d_pix)
-
-                        # Initialize voxel stepping
-                        ix_dir, tx_step, tx_next = _fp_step_init(src_x, ix, ray_x_hat, abs(ray_x_hat),
-                                                                 img_bnd_x_min, d_pix)
-                        iy_dir, ty_step, ty_next = _fp_step_init(src_y, iy, ray_y_hat, abs(ray_y_hat),
-                                                                 img_bnd_y_min, d_pix)
-                        iz_dir, tz_step, tz_next = _fp_step_init(src_z, iz, ray_z_hat, abs(ray_z_hat),
-                                                                 img_bnd_z_min, d_pix)
-
-                        # Voxel traversal
-                        val = _aw_fp_traverse_3d(
-                            img,
-                            t_entry, t_exit,
-                            tx_next, ty_next, tz_next,
-                            tx_step, ty_step, tz_step,
-                            ix, iy, iz,
-                            ix_dir, iy_dir, iz_dir,
-                            nx, ny, nz
-                        )
-
-                        # Store in sinogram
-                        sino[iside, ip, izs, iu, iv] = val * (DSD / ray_mag)
-
-    return sino
-
-
-def aw_p_square2(img, sino, DSO, DSD, du, dv, dsrc_p, dsrc_z, d_pix):
+def aw_p_square(img,nu,nv,ns_p,ns_z,DSO,DSD,
+                  du=1.0,dv=1.0,ds_p=1.0,ds_z=1.0, 
+                  su=0.0,sv=0.0,d_pix=1.0,joseph=False):
     
-    
+    sino = np.zeros([4,ns_p,ns_z,nu,nv], np.float32)
    # img,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,d_pix = \
    #     as_float32(img,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,d_pix)
     
 
-    return aw_p_square2_num(img, sino, DSO, DSD, du, dv,dsrc_p,dsrc_z, d_pix)
+    return aw_p_square_num(img,sino,DSO,DSD,du,dv,ds_p,ds_z,su,sv,d_pix)
 
 
 @njit(inline='always')
@@ -951,7 +828,7 @@ def setup_axis(r_not_parallel,ray_r_hat,img_bnd_r_min, img_bnd_r_max,src_r0,dsrc
 
 
 @njit(fastmath=True, cache=True)
-def aw_p_square2_num(img, sino, DSO, DSD, du, dv, dsrc_p, dsrc_z, d_pix):
+def aw_p_square_num(img,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,su,sv,d_pix):
 
     nx, ny, nz = img.shape
     ns, nsrc_p, nsrc_z, nu, nv = sino.shape
@@ -962,20 +839,21 @@ def aw_p_square2_num(img, sino, DSO, DSD, du, dv, dsrc_p, dsrc_z, d_pix):
     img_bnd_z_min, img_bnd_z_max, _ = _img_bounds(nz, d_pix)
 
     # Detector coordinates
-    u_arr = du * (np.arange(nu, dtype=np.float32) - (nu / 2 - 0.5))
-    v_arr = dv * (np.arange(nv, dtype=np.float32) - (nv / 2 - 0.5))
+    u_arr = pf.censpace(du,nu,su)
+    v_arr = pf.censpace(dv,nv,sv)
 
-    # Source sampling
-    src_z_arr = 1 * (np.arange(nsrc_z, dtype=np.float32) - (nsrc_z/2 - 0.5))
-    p_arr = 1 * (np.arange(nsrc_p, dtype=np.float32) - (nsrc_p/2 - 0.5))
+    # Source coordinates
+    src_p_arr = pf.censpace(dsrc_p,nsrc_p)
+    src_z_arr = pf.censpace(dsrc_z,nsrc_z)
+
 
     inv_dpix = 1.0 / d_pix
                 
-    side_x_arr = (1.0,  0.0, -1.0,  0.0)
-    side_y_arr = (0.0,  1.0,  0.0, -1.0)
+    side_x_arr = ( 0.0, -1.0,  0.0, 1.0)
+    side_y_arr = ( 1.0,  0.0, -1.0, 0.0)
 
-    norm_x_arr = (0.0, -1.0,  0.0,  1.0)
-    norm_y_arr = (1.0,  0.0, -1.0,  0.0)
+    norm_x_arr = (-1.0,  0.0,  1.0, 0.0)
+    norm_y_arr = ( 0.0, -1.0,  0.0, 1.0)
     
     
     for iside in range(ns):
@@ -993,8 +871,10 @@ def aw_p_square2_num(img, sino, DSO, DSD, du, dv, dsrc_p, dsrc_z, d_pix):
         dsrc_y = dsrc_p * side_y
 
         # Precompute translated source arrays
-        src_x_arr = base_x + p_arr*side_x
-        src_y_arr = base_y + p_arr*side_y
+        src_x_arr = base_x + src_p_arr*side_x
+        src_y_arr = base_y + src_p_arr*side_y
+        
+        
                 
         for iu in range(nu):
             u_det = u_arr[iu]

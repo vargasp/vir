@@ -11,7 +11,7 @@ def _identity_decorator(func):
     return func
 
 try:
-    from numba import njit
+    from numba import njit, prange
 except ImportError:
     def njit(*args, **kwargs):
         if args and callable(args[0]):
@@ -19,7 +19,7 @@ except ImportError:
         return _identity_decorator  # @njit(...)
     
 import numpy as np
-
+import vir.sys_mat.pf as pf
 
 def as_float32(*args):
     out = []
@@ -338,7 +338,7 @@ def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
             p_r = p_bnd_arr_prj_u[1]
 
             img_val = img_vec[ip] * ray_scl
-            while ip < nP - 1 and iu < iu_max-1:
+            while True:
                 overlap_l = max(p_l, u_bnd_l)
                 overlap_r = min(p_r, u_bnd_r)
 
@@ -347,11 +347,15 @@ def _dd_fp_cone_sweep(sino,vol,p_drv_bnd_arr_trm,p_orth_arr_trm,
 
                 if p_r < u_bnd_r:
                     ip += 1
+                    if ip == nP:
+                        break
                     p_l = p_r
                     p_r = p_bnd_arr_prj_u[ip + 1]
                     img_val = img_vec[ip] * ray_scl
                 else:
                     iu += 1
+                    if iu == nu:
+                        break
                     u_bnd_l = u_bnd_r
                     u_bnd_r = u_bnd_arr[iu + 1]
 
@@ -885,343 +889,321 @@ def dd_p_cone_3d(img,sino,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,bp):
         
  
                 
-@njit(fastmath=True, cache=True)
-def _dd_fp_square_geom(img,
-                       x_bnd_arr, y_bnd_arr, z_bnd_arr,
-                       x_arr, y_arr, z_arr,
-                       x_s, y_s, z_s,
-                       DSD):
-
-    # Driving axis = x (detector normal direction)
-
-    # Distance from source to voxel centers
-    o_orth_arr_trm = x_arr - x_s
-
-    # Distance from source to voxel boundaries (driving axis)
-    o_drv_bnd_arr_trm = x_bnd_arr - x_s
-
-    # Parallel detector coordinate (u direction = y)
-    p_drv_bnd_arr_trm = y_bnd_arr - y_s
-    p_orth_arr_trm    = y_arr - y_s
-
-    # No axis swap needed (x driven)
-    img_trm = img
-
-    # Cone-beam correction
-    r = np.sqrt(o_orth_arr_trm**2 + p_orth_arr_trm**2)
-    rays_scale = r / (o_orth_arr_trm)
-
-    return (img_trm,
-            p_drv_bnd_arr_trm,
-            p_orth_arr_trm,
-            o_drv_bnd_arr_trm,
-            o_orth_arr_trm,
-            rays_scale)
 
 
 
 
 
 
-
-
-def dd_fp_square_3d(img,
-                    src_y_arr,          # translation positions (square edge samples)
-                    nu, nv,
-                    DSO, DSD,
-                    du=1.0, dv=1.0,
-                    su=0.0, sv=0.0,
-                    d_pix=1.0):
-
-    img, src_y_arr, DSO, DSD, du, dv, su, sv, d_pix = \
-        as_float32(img, src_y_arr, DSO, DSD, du, dv, su, sv, d_pix)
+def dd_p_square(img,nu,nv,ns_p,ns_z,DSO,DSD,
+                  du=1.0,dv=1.0,dsrc_p=1.0,dsrc_z=1.0, 
+                  su=0.0,sv=0.0,d_pix=1.0):
 
     nx, ny, nz = img.shape
-    na = src_y_arr.size
+    
+    if nx != ny:
+        raise ValueError("nx must equal ny")
 
-    sino = np.zeros((na, nu, nv), dtype=np.float32)
+    
+    #sino = np.zeros([4,ns_p,ns_z,nv,nu], np.float32)
+    sino = np.zeros([ns_p,ns_z,nv,4,nu], np.float32)
 
-    # Image grids
-    x_bnd_arr = d_pix*(np.arange(nx + 1) - nx/2).astype(np.float32)
-    y_bnd_arr = d_pix*(np.arange(ny + 1) - ny/2).astype(np.float32)
-    z_bnd_arr = d_pix*(np.arange(nz + 1) - nz/2).astype(np.float32)
 
-    x_arr = (x_bnd_arr[:-1] + x_bnd_arr[1:]) / 2
-    y_arr = (y_bnd_arr[:-1] + y_bnd_arr[1:]) / 2
-    z_arr = (z_bnd_arr[:-1] + z_bnd_arr[1:]) / 2
+    img,DSO,DSD,du,dv,dsrc_p,dsrc_z,d_pix = \
+        as_float32(img,DSO,DSD,du,dv,dsrc_p,dsrc_z,d_pix)
 
-    # Detector grids
-    u_bnd_arr = du*(np.arange(nu + 1) - nu/2 + su).astype(np.float32)
-    v_bnd_arr = dv*(np.arange(nv + 1) - nv/2 + sv).astype(np.float32)
 
-    # Source fixed in x (one square edge)
-    x_s = -DSO
 
-    for ia in range(na):
+    #[ny, nz, nx]  (iy contiguous)
+    imgX = np.ascontiguousarray(img.transpose(1,2,0))
+    
+    #[nx, nz, ny]  (iy contiguous)
+    imgY = np.ascontiguousarray(img.transpose(0,2,1))
+    
 
-        y_s = src_y_arr[ia]
+    sino = dd_p_square_num(imgX,imgY,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,su,sv,d_pix)
+    
+    return np.ascontiguousarray(sino.transpose(0,1,2,4,3))
 
-        img_trm, p1_bnd_arr, p2_arr, \
-        o1_bnd_arr, o2_arr, ray_scl = \
-            _dd_fp_square_geom(img,
-                               x_bnd_arr, y_bnd_arr,
-                               x_arr, y_arr,
-                               x_s, y_s,
-                               DSD)
 
-        _dd_fp_cone_sweep(sino, img_trm,
-                          p1_bnd_arr, p2_arr,
-                          z_bnd_arr, z_arr,
-                          o1_bnd_arr, o2_arr,
-                          u_bnd_arr, v_bnd_arr,
-                          du, dv,
-                          ray_scl,
-                          ia,
-                          DSO, DSD)
+njit(fastmath=True, cache=True)
+def dd_p_square_num(imgX,imgY,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,su,sv,d_pix):   
+    no, nz, np = imgX.shape
+
+
+    #ns, nsrc_p, nsrc_z, nv, nu = sino.shape    
+    nsrc_p, nsrc_z, nv, ns, nu = sino.shape    
+  
+    # voxel boundaries in parallel (p), orthogonal (o), and vertical (z)
+    p_bnd_arr = pf.boundspace(d_pix, np)  # parallel
+    o_bnd_arr = pf.boundspace(d_pix, no)  # orthogonal
+    z_bnd_arr = pf.boundspace(d_pix, nz)  # vertical
+
+    # Detector grids  
+    u_bnd_arr = pf.boundspace(du,nu,su)
+    v_bnd_arr = pf.boundspace(dv,nv,sv)
+
+    # Source coordinates
+    src_p_arr = pf.censpace(dsrc_p,nsrc_p)
+    src_z_arr = pf.censpace(dsrc_z,nsrc_z)
+
+    dd_fp_translational_opt_prange(
+        sino,                # [4,ty, tz, u, v]
+        imgY,imgX,          # [nx, nz, ny] , [ny, nz, nx] 
+        p_bnd_arr, o_bnd_arr, z_bnd_arr, # voxel boundaries
+        u_bnd_arr, v_bnd_arr,        # detector boundaries
+        DSO,
+        src_p_arr,        # translation in y
+        src_z_arr,        # translation in z
+        DSD                  # source-detector distance
+    )
 
     return sino * (d_pix**2) / (du * dv)
 
 
 
-from numba import njit
-import numpy as np
-
-
 @njit(fastmath=True, cache=True)
-def dd_fp_translational_0deg(
-    sino,                # [ty, tz, u, v]
-    vol,                 # [nx, ny, nz]
-    x_bnd, y_bnd, z_bnd, # voxel boundaries
-    u_bnd, v_bnd,        # detector boundaries
-    source_x,
-    source_y_arr,        # translation in y
-    source_z_arr,        # translation in z
-    DSD                  # source-detector distance
-):
-
-    nx, ny, nz = vol.shape
-    nu = u_bnd.size - 1
-    nv = v_bnd.size - 1
-
-    u0 = u_bnd[0]
-    v0 = v_bnd[0]
-    inv_du = 1.0 / (u_bnd[1] - u_bnd[0])
-    inv_dv = 1.0 / (v_bnd[1] - v_bnd[0])
-
-    tmp_u = np.zeros(nu, dtype=np.float32)
-
-    for ity in range(source_y_arr.size):
-        y_s = source_y_arr[ity]
-
-        for itz in range(source_z_arr.size):
-            z_s = source_z_arr[itz]
-
-            for ix in range(nx):
-
-                # Magnification for this x-slice
-                denom = source_x - x_bnd[ix]
-                if denom <= 0.0:
-                    continue  # avoid singularity / behind source
-
-                M = DSD / denom
-
-                # Project z boundaries once for this slice
-                z_l = M * (z_bnd[0] - z_s)
-                z_r = M * (z_bnd[-1] - z_s)
-
-                iv_min = max(int((z_l - v0) * inv_dv), 0)
-                iv_max = min(int((z_r - v0) * inv_dv) + 1, nv)
-
-                if iv_max <= iv_min:
-                    continue
-
-                for iz in range(nz):
-
-                    # project this voxel's z extent
-                    vz_l = M * (z_bnd[iz] - z_s)
-                    vz_r = M * (z_bnd[iz + 1] - z_s)
-
-                    iv0 = max(int((vz_l - v0) * inv_dv), iv_min)
-                    iv1 = min(int((vz_r - v0) * inv_dv) + 1, iv_max)
-
-                    if iv1 <= iv0:
-                        continue
-
-                    # reset u buffer
-                    tmp_u[:] = 0.0
-
-                    # sweep along y (monotonic overlap)
-                    ip = 0
-                    iu = 0
-
-                    y_l = M * (y_bnd[0] - y_s)
-                    y_r = M * (y_bnd[1] - y_s)
-
-                    u_l = u_bnd[0]
-                    u_r = u_bnd[1]
-
-                    while ip < ny - 1 and iu < nu - 1:
-
-                        overlap_l = max(y_l, u_l)
-                        overlap_r = min(y_r, u_r)
-
-                        if overlap_r > overlap_l:
-                            tmp_u[iu] += (
-                                vol[ix, ip, iz]
-                                * (overlap_r - overlap_l)
-                            )
-
-                        if y_r <= u_r:
-                            ip += 1
-                            y_l = y_r
-                            y_r = M * (y_bnd[ip + 1] - y_s)
-                        else:
-                            iu += 1
-                            u_l = u_r
-                            u_r = u_bnd[iu + 1]
-
-                    # distribute in v
-                    for iv in range(iv0, iv1):
-
-                        v_l = v_bnd[iv]
-                        v_r = v_bnd[iv + 1]
-
-                        ov_l = max(vz_l, v_l)
-                        ov_r = min(vz_r, v_r)
-
-                        if ov_r > ov_l:
-                            sino[ity, itz, :, iv] += tmp_u * (ov_r - ov_l)
-
-
-
-
-
-@njit(fastmath=True, cache=True)
-def dd_fp_translational_0deg_optimized(
-    sino,              # [nty, ntz, nv, nu]  (iu contiguous)
-    vol,               # [nx, nz, ny]        (iy contiguous)
-    x_bnd, y_bnd, z_bnd,
+def dd_fp_translational(
+    sino,              # [4,nty, ntz, nv, nu]  (iu contiguous)
+    imgY, imgX,        # [no, nz, nP] , [no, nz, nP] (orthogonal / parallel)
+    p_bnd_arr, o_bnd_arr, z_bnd_arr,
     u_bnd, v_bnd,
-    source_x,
-    source_y_arr,      # size nty
-    source_z_arr,      # size ntz
+    src_o,          # orthogonal source location
+    src_p_arr,         # parallel source positions
+    src_z_arr,         # source z positions
     DSD
 ):
 
-    nx, nz, ny = vol.shape
-    nty = source_y_arr.size
-    ntz = source_z_arr.size
-    nu = u_bnd.size - 1
-    nv = v_bnd.size - 1
+    no, nz, nP = imgY.shape
+    ns, nsrc_p, nsrc_z, nv, nu = sino.shape
 
-    u0 = u_bnd[0]
     v0 = v_bnd[0]
-
-    inv_du = 1.0 / (u_bnd[1] - u_bnd[0])
+    du = u_bnd[1] - u_bnd[0]
     inv_dv = 1.0 / (v_bnd[1] - v_bnd[0])
 
-    tmp_u = np.zeros(nu, dtype=np.float32)
+    tmp_u = np.zeros((4, nu), dtype=np.float32)
 
     # ------------------------------------------------------------------
-    # OUTERMOST LOOP: x-slice (magnification depends only on x)
+    # Outermost loop: orthogonal slices
     # ------------------------------------------------------------------
-    for ix in range(nx):
-
-        denom = source_x - x_bnd[ix]
+    for io in range(no):
+        print(io)
+        denom = src_o - o_bnd_arr[io]
         if denom <= 0.0:
-            continue  # avoid singularity / invalid region
-
+            continue
         M = DSD / denom
 
-        # Precompute projected y boundaries once per x-slice
-        proj_y_bnd = M * y_bnd
-
-        # Precompute projected z boundaries once per x-slice
-        proj_z_bnd = M * z_bnd
+        # Project parallel and z voxel boundaries
+        proj_p_bnd = M * p_bnd_arr
+        proj_z_bnd = M * z_bnd_arr
 
         # ------------------------------------------------------------------
-        # Loop over z-slices (volume)
+        # Loop over z slices
         # ------------------------------------------------------------------
         for iz in range(nz):
+            colX  = imgX[io, iz, :]       # contiguous in parallel direction
+            colY  = imgY[io, iz, :]
+            colXF = imgX[no - 1 - io, iz, :]
+            colYF = imgY[no - 1 - io, iz, :]
 
-            # Load contiguous y-column once (stays hot in cache)
-            col_y = vol[ix, iz, :]   # contiguous in iy
-
-            # Precompute projected z voxel boundaries
             z_vox_l = proj_z_bnd[iz]
             z_vox_r = proj_z_bnd[iz + 1]
 
             # ------------------------------------------------------------------
-            # Loop over y translations
+            # Loop over parallel source positions
             # ------------------------------------------------------------------
-            for ity in range(nty):
-
-                y_s = source_y_arr[ity]
-
-                # Reset u buffer
+            for i_sp in range(nsrc_p):
+                src_p = src_p_arr[i_sp]
                 tmp_u[:] = 0.0
 
-                # Monotonic overlap sweep in y
-                ip = 0
-                iu = 0
+                # Precompute voxel->detector index ranges
+                iu_min_arr = np.empty(nP, dtype=np.int32)
+                iu_max_arr = np.empty(nP, dtype=np.int32)
 
-                y_l = proj_y_bnd[0] - M * y_s
-                y_r = proj_y_bnd[1] - M * y_s
+                p_proj = proj_p_bnd - M * src_p
 
-                u_l = u_bnd[0]
-                u_r = u_bnd[1]
+                for ip in range(nP):
+                    iu_min = int((p_proj[ip] - u_bnd[0]) / du)
+                    iu_max = int((p_proj[ip + 1] - u_bnd[0]) / du) + 1
 
-                while ip < ny - 1 and iu < nu - 1:
+                    # Clamp to detector limits
+                    iu_min_arr[ip] = max(0, min(nu, iu_min))
+                    iu_max_arr[ip] = max(0, min(nu, iu_max))
 
-                    overlap_l = max(y_l, u_l)
-                    overlap_r = min(y_r, u_r)
-
-                    if overlap_r > overlap_l:
-                        tmp_u[iu] += col_y[ip] * (overlap_r - overlap_l)
-
-                    if y_r <= u_r:
-                        ip += 1
-                        y_l = y_r
-                        y_r = proj_y_bnd[ip + 1] - M * y_s
-                    else:
-                        iu += 1
-                        u_l = u_r
-                        u_r = u_bnd[iu + 1]
+                # Fill tmp_u buffer
+                for ip in range(nP):
+                    for iu in range(iu_min_arr[ip], iu_max_arr[ip]):
+                        ov_l = max(p_proj[ip], u_bnd[iu])
+                        ov_r = min(p_proj[ip + 1], u_bnd[iu + 1])
+                        ov = ov_r - ov_l
+                        if ov > 0.0:
+                            tmp_u[0, iu] += colY[ip] * ov
+                            tmp_u[1, iu] += colX[nP - 1 - ip] * ov
+                            tmp_u[2, iu] += colYF[nP - 1 - ip] * ov
+                            tmp_u[3, iu] += colXF[ip] * ov
 
                 # ------------------------------------------------------------------
-                # Now reuse tmp_u across all z translations
+                # Loop over source z positions
                 # ------------------------------------------------------------------
-                for itz in range(ntz):
+                for i_sz in range(nsrc_z):
+                    src_z = src_z_arr[i_sz]
 
-                    z_s = source_z_arr[itz]
-
-                    vz_l = z_vox_l - M * z_s
-                    vz_r = z_vox_r - M * z_s
+                    vz_l = z_vox_l - M * src_z
+                    vz_r = z_vox_r - M * src_z
 
                     iv_min = int((vz_l - v0) * inv_dv)
                     iv_max = int((vz_r - v0) * inv_dv) + 1
 
-                    if iv_max <= 0 or iv_min >= nv:
+                    iv_min = max(0, iv_min)
+                    iv_max = min(nv, iv_max)
+
+                    for iv in range(iv_min, iv_max):
+                        ov_l = max(vz_l, v_bnd[iv])
+                        ov_r = min(vz_r, v_bnd[iv + 1])
+                        ov_v = ov_r - ov_l
+                        if ov_v > 0.0:
+                            for f in range(4):
+                                sino[f, i_sp, i_sz, iv, :] += tmp_u[f, :] * ov_v
+                                
+                                
+                                
+@njit(fastmath=True, cache=True)
+def dd_fp_translational_opt(
+    sino,              # [4, nsrc_p, nsrc_z, nv, nu]
+    imgY, imgX,        # [no, nz, nP]
+    p_bnd_arr, o_bnd_arr, z_bnd_arr,
+    u_bnd, v_bnd,
+    source_o,
+    src_p_arr,
+    src_z_arr,
+    DSD
+):
+
+    no, nz, nP = imgY.shape
+    ns, nsrc_p, nsrc_z, nv, nu = sino.shape
+
+    du = u_bnd[1] - u_bnd[0]
+    inv_dv = np.float32(1.0) / (v_bnd[1] - v_bnd[0])
+    v0 = v_bnd[0]
+
+    tmp_u = np.zeros((4, nu), dtype=np.float32)
+
+    # ------------------------------------------------------------
+    # Precompute magnification per orthogonal slice
+    # ------------------------------------------------------------
+    M_arr = np.empty(no, dtype=np.float32)
+    for io in range(no):
+        denom = source_o - o_bnd_arr[io]
+        if denom > 0:
+            M_arr[io] = DSD / denom
+        else:
+            M_arr[io] = np.float32(0.0)
+
+    # ------------------------------------------------------------
+    # Main orthogonal loop
+    # ------------------------------------------------------------
+    for io in range(no):
+
+        M = M_arr[io]
+        if M == 0.0:
+            continue
+
+        proj_p_bnd = M * p_bnd_arr
+        proj_z_bnd = M * z_bnd_arr
+
+        # Precompute M * src_p once per io
+        Mp_src = np.empty(nsrc_p, dtype=np.float32)
+        for i_sp in range(nsrc_p):
+            Mp_src[i_sp] = M * src_p_arr[i_sp]
+
+        # --------------------------------------------------------
+        # Loop over z slices
+        # --------------------------------------------------------
+        for iz in range(nz):
+
+            colX  = imgX[io, iz, :]
+            colY  = imgY[io, iz, :]
+            colXF = imgX[no - 1 - io, iz, :]
+            colYF = imgY[no - 1 - io, iz, :]
+
+            z_vox_l = proj_z_bnd[iz]
+            z_vox_r = proj_z_bnd[iz + 1]
+
+            # ----------------------------------------------------
+            # Loop over parallel source positions
+            # ----------------------------------------------------
+            for i_sp in range(nsrc_p):
+
+                tmp_u[:] = 0.0
+                Mp = Mp_src[i_sp]
+
+                # --------- PARALLEL DIRECTION INTEGRATION --------
+                for ip in range(nP):
+
+                    p_l = proj_p_bnd[ip]     - Mp
+                    p_r = proj_p_bnd[ip + 1] - Mp
+
+                    # detector index bounds (direct mapping)
+                    iu_min = int((p_l - u_bnd[0]) / du)
+                    iu_max = int((p_r - u_bnd[0]) / du) + 1
+
+                    if iu_min < 0:
+                        iu_min = 0
+                    if iu_max > nu:
+                        iu_max = nu
+
+                    if iu_min >= iu_max:
                         continue
+
+                    val0 = colY[ip]
+                    val1 = colX[nP - 1 - ip]
+                    val2 = colYF[nP - 1 - ip]
+                    val3 = colXF[ip]
+
+                    for iu in range(iu_min, iu_max):
+
+                        ov_l = p_l if p_l > u_bnd[iu] else u_bnd[iu]
+                        ov_r = p_r if p_r < u_bnd[iu+1] else u_bnd[iu+1]
+                        ov = ov_r - ov_l
+
+                        if ov > 0.0:
+                            tmp_u[0, iu] += val0 * ov
+                            tmp_u[1, iu] += val1 * ov
+                            tmp_u[2, iu] += val2 * ov
+                            tmp_u[3, iu] += val3 * ov
+
+                # --------- Z DIRECTION INTEGRATION --------
+                for i_sz in range(nsrc_z):
+
+                    vz_l = z_vox_l - M * src_z_arr[i_sz]
+                    vz_r = z_vox_r - M * src_z_arr[i_sz]
+
+                    iv_min = int((vz_l - v0) * inv_dv)
+                    iv_max = int((vz_r - v0) * inv_dv) + 1
 
                     if iv_min < 0:
                         iv_min = 0
                     if iv_max > nv:
                         iv_max = nv
 
+                    if iv_min >= iv_max:
+                        continue
+
                     for iv in range(iv_min, iv_max):
 
-                        v_l = v_bnd[iv]
-                        v_r = v_bnd[iv + 1]
+                        ov_l = vz_l if vz_l > v_bnd[iv] else v_bnd[iv]
+                        ov_r = vz_r if vz_r < v_bnd[iv+1] else v_bnd[iv+1]
+                        ov_v = ov_r - ov_l
 
-                        ov_l = max(vz_l, v_l)
-                        ov_r = min(vz_r, v_r)
+                        if ov_v > 0.0:
 
-                        if ov_r > ov_l:
-                            # contiguous write in iu
-                            sino[ity, itz, iv, :] += tmp_u * (ov_r - ov_l)
+                            # contiguous write in nu
+                            sino[0, i_sp, i_sz, iv, :] += tmp_u[0, :] * ov_v
+                            sino[1, i_sp, i_sz, iv, :] += tmp_u[1, :] * ov_v
+                            sino[2, i_sp, i_sz, iv, :] += tmp_u[2, :] * ov_v
+                            sino[3, i_sp, i_sz, iv, :] += tmp_u[3, :] * ov_v
 
-
+            
 
 @njit(fastmath=True, cache=True)
 def dd_bp_translational_0deg_optimized(
@@ -1328,3 +1310,450 @@ def dd_bp_translational_0deg_optimized(
                                     acc += row[iu] * ov_u * ov_v
 
                 vol[ix, iz, iy] += acc
+                
+                
+
+@njit(fastmath=True, parallel=True, cache=True)
+def dd_fp_translational_opt_prange(
+    sino,              # [nsrc_p, nsrc_z, nv, 4, nu]
+    imgY, imgX,        # [no, nz, nP]
+    p_bnd_arr, o_bnd_arr, z_bnd_arr,
+    u_bnd, v_bnd,
+    source_o,
+    src_p_arr,
+    src_z_arr,
+    DSD
+):
+
+    no, nz, nP = imgY.shape
+    nsrc_p, nsrc_z, nv, _, nu = sino.shape
+
+    du = u_bnd[1] - u_bnd[0]
+    inv_dv = np.float32(1.0) / (v_bnd[1] - v_bnd[0])
+    v0 = v_bnd[0]
+    
+    
+    u0 = u_bnd[0]
+    inv_du = 1.0 / du
+
+    # Precompute magnification per orthogonal slice
+    M_arr = np.empty(no, dtype=np.float32)
+    for io in range(no):
+        denom = source_o - o_bnd_arr[io]
+        if denom > 0.0:
+            M_arr[io] = DSD / denom
+        else:
+            M_arr[io] = np.float32(0.0)
+
+
+    # PARALLEL OVER ORTHOGONAL SLICES
+    for io in prange(no):
+
+        M = M_arr[io]
+        if M == 0.0:
+            continue
+
+        """        
+        proj_p_bnd_arr = M * p_bnd_arr
+        """
+        proj_z_bnd_arr = M * z_bnd_arr
+        
+
+        """
+        # Precompute M * src_p
+        Mp_src = np.empty(nsrc_p, dtype=np.float32)
+        for i_sp in range(nsrc_p):
+            Mp_src[i_sp] = M * src_p_arr[i_sp]
+        """
+        
+
+        iu_min_arr = np.empty((nsrc_p, nP), dtype=np.int32)
+        iu_max_arr = np.empty((nsrc_p, nP), dtype=np.int32)
+        
+        for i_sp in range(nsrc_p):
+            shift = M * src_p_arr[i_sp]
+        
+            for ip in range(nP):
+                p_l = M*p_bnd_arr[ip]     - shift
+                p_r = M*p_bnd_arr[ip + 1] - shift
+        
+                imin = int((p_l - u0) * inv_du)
+                imax = int((p_r - u0) * inv_du) + 1
+        
+                # clamp
+                if imin < 0:
+                    imin = 0
+                if imax > nu:
+                    imax = nu
+        
+                iu_min_arr[i_sp, ip] = imin
+                iu_max_arr[i_sp, ip] = imax
+
+
+
+        # Thread-local buffer
+        tmp_u = np.zeros((4, nu), dtype=np.float32)
+        u_lo = nu
+        u_hi = 0
+                
+        # --------------------------------------------------------
+        # Loop over z slices
+        # --------------------------------------------------------
+        for iz in range(nz):
+
+            colX  = imgX[io, iz, :]
+            colY  = imgY[io, iz, :]
+            colXF = imgX[no - 1 - io, iz, :]
+            colYF = imgY[no - 1 - io, iz, :]
+
+            vz_l_arr = proj_z_bnd_arr[iz] - M * src_z_arr
+            vz_r_arr = proj_z_bnd_arr[iz + 1] - M * src_z_arr
+            
+            # vz_l_arr and vz_r_arr are arrays of length nsrc_z (float32)
+            iv_min_arr = np.clip(((vz_l_arr - v0) * inv_dv).astype(np.int32), 0, nv)
+            iv_max_arr = np.clip(((vz_r_arr - v0) * inv_dv).astype(np.int32) + 1, 0, nv)
+
+            # ----------------------------------------------------
+            # Parallel source loop
+            # ----------------------------------------------------
+            for i_sp in range(nsrc_p):
+
+                for f in range(4):
+                    for iu in range(u_lo, u_hi):
+                        tmp_u[f, iu] = 0.0
+
+                #tmp_u[:] = 0.0
+                """
+                Mp = Mp_src[i_sp]
+                """
+                shift = M * src_p_arr[i_sp]
+                
+                u_lo = nu
+                u_hi = 0
+
+                # -------- Parallel integration --------
+                for ip in range(nP):
+                    """
+                    p_l = proj_p_bnd_arr[ip]     - Mp
+                    p_r = proj_p_bnd_arr[ip + 1] - Mp
+
+                    iu_min = int((p_l - u_bnd[0]) / du)
+                    iu_max = int((p_r - u_bnd[0]) / du) + 1
+
+                    iu_min = max(0, iu_min)
+                    iu_max = min(nu, iu_max)                      
+                    """
+                    iu_min = iu_min_arr[i_sp, ip]
+                    iu_max = iu_max_arr[i_sp, ip]
+                    
+                    
+                    
+                    if iu_min >= iu_max:
+                        continue
+
+                    v0f = colY[ip]
+                    v1f = colX[nP - 1 - ip]
+                    v2f = colYF[nP - 1 - ip]
+                    v3f = colXF[ip]
+
+                    p_l = M * p_bnd_arr[ip]     - shift
+                    p_r = M * p_bnd_arr[ip + 1] - shift
+                       
+                    if iu_min < u_lo:
+                        u_lo = iu_min
+                    if iu_max > u_hi:
+                        u_hi = iu_max
+                        
+                    for iu in range(iu_min, iu_max):
+                       
+
+                        left  = p_l if p_l > u_bnd[iu] else u_bnd[iu]
+                        right = p_r if p_r < u_bnd[iu+1] else u_bnd[iu+1]
+                        ov = right - left
+
+                        if ov > 0.0:
+                            tmp_u[0, iu] += v0f * ov
+                            tmp_u[1, iu] += v1f * ov
+                            tmp_u[2, iu] += v2f * ov
+                            tmp_u[3, iu] += v3f * ov
+
+                # -------- Z integration --------
+                for i_sz in range(nsrc_z):
+                    iv_min = iv_min_arr[i_sz]
+                    iv_max = iv_max_arr[i_sz]
+                    
+                    if iv_min >= iv_max:
+                        continue
+
+                    vz_l = vz_l_arr[i_sz]
+                    vz_r = vz_r_arr[i_sz]
+                    for iv in range(iv_min, iv_max):
+
+                        left  = vz_l if vz_l > v_bnd[iv] else v_bnd[iv]
+                        right = vz_r if vz_r < v_bnd[iv+1] else v_bnd[iv+1]
+                        ov_v = right - left
+
+                        if ov_v > 0.0:
+                            # Single contiguous block write
+                            #sino[i_sp, i_sz, iv, :, :] += tmp_u * ov_v
+                            for f in range(4):
+                                for iu in range(u_lo, u_hi):
+                                    sino[i_sp, i_sz, iv, f, iu] += tmp_u[f, iu] * ov_v
+                
+                
+                
+
+
+
+@njit(fastmath=True, parallel=True, cache=True)
+def dd_bp_translational_opt_prange(
+    imgY, imgX,          # [no, nz, nP]  (output, modified in-place)
+    sino,                # [nsrc_p, nsrc_z, nv, 4, nu]
+    p_bnd_arr, o_bnd_arr, z_bnd_arr,
+    u_bnd, v_bnd,
+    source_o,
+    src_p_arr,
+    src_z_arr,
+    DSD
+):
+
+    no, nz, nP = imgY.shape
+    nsrc_p, nsrc_z, nv, _, nu = sino.shape
+
+    du = u_bnd[1] - u_bnd[0]
+    inv_dv = np.float32(1.0) / (v_bnd[1] - v_bnd[0])
+    v0 = v_bnd[0]
+
+    # ------------------------------------------------------------
+    # Precompute magnification per orthogonal slice
+    # ------------------------------------------------------------
+    M_arr = np.empty(no, dtype=np.float32)
+    for io in range(no):
+        denom = source_o - o_bnd_arr[io]
+        if denom > 0.0:
+            M_arr[io] = DSD / denom
+        else:
+            M_arr[io] = np.float32(0.0)
+
+    # ============================================================
+    # PARALLEL OVER ORTHOGONAL SLICES (SAFE)
+    # ============================================================
+    for io in prange(no):
+
+        M = M_arr[io]
+        if M == 0.0:
+            continue
+
+        proj_p_bnd = M * p_bnd_arr
+        proj_z_bnd = M * z_bnd_arr
+
+        # Local image slices (thread owned)
+        imgY_slice  = imgY[io, :, :]
+        imgX_slice  = imgX[io, :, :]
+        imgYF_slice = imgY[no - 1 - io, :, :]
+        imgXF_slice = imgX[no - 1 - io, :, :]
+
+        # --------------------------------------------------------
+        # Loop over z slices
+        # --------------------------------------------------------
+        for iz in range(nz):
+
+            z_vox_l = proj_z_bnd[iz]
+            z_vox_r = proj_z_bnd[iz + 1]
+
+            for i_sp in range(nsrc_p):
+
+                Mp = M * src_p_arr[i_sp]
+
+                # ------------------------------------------------
+                # Parallel direction (u sweep)
+                # ------------------------------------------------
+                for ip in range(nP):
+
+                    p_l = proj_p_bnd[ip]     - Mp
+                    p_r = proj_p_bnd[ip + 1] - Mp
+
+                    iu_min = int((p_l - u_bnd[0]) / du)
+                    iu_max = int((p_r - u_bnd[0]) / du) + 1
+
+                    if iu_min < 0:
+                        iu_min = 0
+                    if iu_max > nu:
+                        iu_max = nu
+                    if iu_min >= iu_max:
+                        continue
+
+                    # accumulate per face
+                    acc0 = np.float32(0.0)
+                    acc1 = np.float32(0.0)
+                    acc2 = np.float32(0.0)
+                    acc3 = np.float32(0.0)
+
+                    for iu in range(iu_min, iu_max):
+
+                        left  = p_l if p_l > u_bnd[iu] else u_bnd[iu]
+                        right = p_r if p_r < u_bnd[iu+1] else u_bnd[iu+1]
+                        ov = right - left
+
+                        if ov > 0.0:
+
+                            # integrate over z translations
+                            for i_sz in range(nsrc_z):
+
+                                vz_l = z_vox_l - M * src_z_arr[i_sz]
+                                vz_r = z_vox_r - M * src_z_arr[i_sz]
+
+                                iv_min = int((vz_l - v0) * inv_dv)
+                                iv_max = int((vz_r - v0) * inv_dv) + 1
+
+                                if iv_min < 0:
+                                    iv_min = 0
+                                if iv_max > nv:
+                                    iv_max = nv
+                                if iv_min >= iv_max:
+                                    continue
+
+                                for iv in range(iv_min, iv_max):
+
+                                    left_v  = vz_l if vz_l > v_bnd[iv] else v_bnd[iv]
+                                    right_v = vz_r if vz_r < v_bnd[iv+1] else v_bnd[iv+1]
+                                    ov_v = right_v - left_v
+
+                                    if ov_v > 0.0:
+
+                                        w = ov * ov_v
+
+                                        s = sino[i_sp, i_sz, iv, :, iu]
+
+                                        acc0 += s[0] * w
+                                        acc1 += s[1] * w
+                                        acc2 += s[2] * w
+                                        acc3 += s[3] * w
+
+                    # ------------------------------------------------
+                    # Write accumulated values to image (adjoint)
+                    # ------------------------------------------------
+                    imgY_slice[iz, ip]               += acc0
+                    imgX_slice[iz, nP - 1 - ip]      += acc1
+                    imgYF_slice[iz, nP - 1 - ip]     += acc2
+                    imgXF_slice[iz, ip]              += acc3
+                    
+                    
+                    
+
+"""
+#@njit(fastmath=True, cache=True)
+def dd_fp_translational(sino,              # [4,nty, ntz, nv, nu]  (iu contiguous)
+    imgY,imgX,         
+    p_bnd_arr, o_bnd_arr, z_bnd_arr,
+    u_bnd, v_bnd,source_o,src_p_arr,src_z_arr,DSD):
+
+    no, nz, nP = imgY.shape
+    ns, nsrc_p, nsrc_z, nv, nu = sino.shape
+
+    v0 = v_bnd[0]
+
+    inv_dv = np.float32(1.0) / (v_bnd[1] - v_bnd[0])
+
+    tmp_u = np.zeros((4,nu), dtype=np.float32)
+
+    # OUTERMOST LOOP: orthagonal translations
+    for io in range(no):
+
+        denom = source_o - o_bnd_arr[io]
+        if denom <= 0.0:
+            continue  # avoid singularity / invalid region
+
+        M = DSD/denom
+
+        # Precompute projected y boundaries once per x-slice
+        proj_p_bnd = M*p_bnd_arr
+
+        # Precompute projected z boundaries once per x-slice
+        proj_z_bnd = M*z_bnd_arr
+
+        # Loop over z-slices (volume)
+        for iz in range(nz):
+
+            # Load contiguous y-column once (stays hot in cache)
+            colX = imgX[io, iz, :]   # contiguous in ix
+            colY = imgY[io, iz, :]   # contiguous in iy
+            colXF = imgX[no-1-io, iz, :]   # contiguous in ix
+            colYF = imgY[no-1-io, iz, :]   # contiguous in iy
+
+            # Precompute projected z voxel boundaries
+            z_vox_l = proj_z_bnd[iz]
+            z_vox_r = proj_z_bnd[iz + 1]
+
+            # Loop over parallel translations
+            for i_sp in range(nsrc_p):
+                src_p = src_p_arr[i_sp]
+
+                # Reset u buffer
+                tmp_u[:] = np.float32(0.0)
+
+                # Monotonic overlap sweep in y
+                ip = 0
+                iu = 0
+
+                p_l = proj_p_bnd[0] - M * src_p
+                p_r = proj_p_bnd[1] - M * src_p
+
+                u_l = u_bnd[0]
+                u_r = u_bnd[1]
+
+                while True:
+                    overlap_l = max(p_l, u_l)
+                    overlap_r = min(p_r, u_r)
+
+                    overlap_u = overlap_r - overlap_l
+
+                    if overlap_u>0:
+                        tmp_u[0,iu] += overlap_u* colY[ip]
+                        tmp_u[1,iu] += overlap_u* colX[nP - 1 - ip] 
+                        tmp_u[2,iu] += overlap_u*colYF[nP - 1 - ip]
+                        tmp_u[3,iu] += overlap_u*colXF[ip]
+
+                    # Advance the interval that ends first
+                    if p_r <= u_r:
+                        ip += 1
+                        if ip == nP:
+                            break
+                        p_l = p_r
+                        p_r = proj_p_bnd[ip + 1] - M * src_p
+                    else:
+                        iu += 1
+                        if iu == nu:
+                            break
+                        u_l = u_r
+                        u_r = u_bnd[iu + 1]
+
+                # Now reuse tmp_u across all z translations
+                for i_sz in range(nsrc_z):
+                    src_z = src_z_arr[i_sz]
+
+                    vz_l = z_vox_l - M * src_z
+                    vz_r = z_vox_r - M * src_z
+
+                    iv_min = int((vz_l - v0) * inv_dv)
+                    iv_max = int((vz_r - v0) * inv_dv) + 1
+
+                    if iv_max <= 0 or iv_min >= nv:
+                        continue
+
+                    iv_min = max(0, iv_min)
+                    iv_max = min(nv, iv_max)
+
+                    for iv in range(iv_min, iv_max):
+                        overlap_l = max(vz_l, v_bnd[iv])
+                        overlap_r = min(vz_r, v_bnd[iv + 1])
+
+                        overlap_v = overlap_r - overlap_l
+                        if overlap_v>0:
+                            # contiguous write in iu
+                            sino[0,i_sp,i_sz,iv,:] += overlap_v*tmp_u[0,:] 
+                            sino[1,i_sp,i_sz,iv,:] += overlap_v*tmp_u[1,:]
+                            sino[2,i_sp,i_sz,iv,:] += overlap_v*tmp_u[2,:]
+                            sino[3,i_sp,i_sz,iv,:] += overlap_v*tmp_u[3,:]
+                            
+"""
