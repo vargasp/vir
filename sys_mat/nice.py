@@ -39,3 +39,52 @@ dsino1 = dd.dd_p_square(img3d,nu,nv,ns_p,ns_z,DSO,DSD,
 
 end = time.time()
 print(end - start)
+
+
+
+"""
+# Thread-local accumulation buffer for a z-strip
+tile_size = 8  # or tune based on L2/L3 cache
+tile = np.zeros((tile_size, nu, 4), dtype=np.float32)
+
+# Loop over z slices in tiles
+for iz_start in range(0, nz, tile_size):
+    iz_end = min(iz_start + tile_size, nz)
+    tile[:,:,:] = 0.0  # reset local buffer
+
+    # precompute projected bounds for this tile
+    proj_z_l = proj_z_bnd_arr[iz_start:iz_end] - M*src_z_arr[:, None]
+    proj_z_r = proj_z_bnd_arr[iz_start+1:iz_end+1] - M*src_z_arr[:, None]
+
+    iv_min_tile = np.clip(((proj_z_l - v0) * inv_dv).astype(np.int32), 0, nv)
+    iv_max_tile = np.clip(((proj_z_r - v0) * inv_dv).astype(np.int32)+1, 0, nv)
+
+    for i_sp in range(nsrc_p):
+        proj_src_p = proj_src_p_arr[i_sp]
+
+        # compute iu_min/iu_max as before
+        for ip in range(nP):
+            p_l = proj_p_bnd_arr[ip] - proj_src_p
+            p_r = proj_p_bnd_arr[ip+1] - proj_src_p
+            iu_min = max(0, int((p_l - u_bnd[0]) * inv_du))
+            iu_max = min(nu, int((p_r - u_bnd[0]) * inv_du)+1)
+            if iu_min >= iu_max:
+                continue
+
+            v0f = colY[ip]
+            v1f = colX[nP-1-ip]
+            v2f = colYF[nP-1-ip]
+            v3f = colXF[ip]
+
+            for iu in range(iu_min, iu_max):
+                tmp = np.array([v0f, v1f, v2f, v3f], dtype=np.float32)
+                for iv_rel, (ivmin, ivmax) in enumerate(zip(iv_min_tile[i_sp,:], iv_max_tile[i_sp,:])):
+                    tile[iv_rel, iu, :] += tmp * (overlap_v)  # compute overlap_v as before
+
+    # Once tile is filled, write back contiguous block
+    for iv_rel, iz in enumerate(range(iz_start, iz_end)):
+        for iu in range(u_lo, u_hi):
+            for f in range(4):
+                sino[i_sp, i_sz, iv, iu, f] += tile[iv_rel, iu, f]
+                
+"""

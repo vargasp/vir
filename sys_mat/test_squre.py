@@ -33,7 +33,7 @@ ds_p, ds_z = 1, 1.
 
 #Phantom Paramters Sino
 r = 4
-x0 = 5
+x0 = 0
 y0 = 0
 z0 = 0
 
@@ -50,6 +50,13 @@ sino3c = rd.aw_fp_cone_3d(img3d,np.array([0]),nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv
 sino1s = dd.dd_p_square(img3d,nu,nv,ns_p,ns_z,DSO,DSD,
                        du=du,dv=dv,dsrc_p=ds_p,dsrc_z=ds_z,
                        su=su,sv=sv,d_pix=1.0)
+
+sino1s[...,1:] =0.0
+
+test = dd.dd_bp_square(sino1s,(nx,ny,nz), DSO,DSD,
+                       du=du,dv=dv,dsrc_p=ds_p,dsrc_z=ds_z,
+                       su=su,sv=sv,d_pix=1.0)
+
 
 
 
