@@ -7,6 +7,11 @@ Created on Mon Jan  5 06:34:23 2026
 """
 
 
+
+import llvmlite.binding as llvm
+llvm.set_option('', '--debug-only=loop-vectorize')
+
+
 def _identity_decorator(func):
     return func
 

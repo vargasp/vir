@@ -14,6 +14,9 @@ import vir.sys_mat.analytic_sino as asino
 from vir.sys_mat.time_testing import benchmark
 
 
+import llvmlite.binding as llvm
+llvm.set_option('', '--debug-only=loop-vectorize')
+
 #Image params - Pixels
 nx, ny, nz = 32, 32, 32
 d_pix = 1.0
@@ -32,9 +35,9 @@ ds_p, ds_z = 1., 1.
  
 
 #Phantom Paramters Sino
-r = 1
-x0 = 2
-y0 = 4
+r = 4
+x0 = 4
+y0 = 2
 z0 = 0
 
 #Create analytic models
@@ -110,7 +113,7 @@ plt.show()
 
 
 
-
+"""
 
 
 
@@ -144,6 +147,9 @@ sinos = (sino1c[0,:,:],sino2c[0,:,:],sino3c[0,:,:],
          sino1s[0,ns_p//2,ns_z//2,:,:],sino2s[0,ns_p//2,ns_z//2,:,:],sino3s[0,ns_p//2,ns_z//2,:,:])
 
 """    
+
+
+"""
 titles = ["DD Circular","SD Circular","JO Circular",
           "DD Square","SD Square","JO Square"]
 
