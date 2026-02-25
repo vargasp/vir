@@ -32,9 +32,9 @@ ds_p, ds_z = 1., 1.
  
 
 #Phantom Paramters Sino
-r = 4
-x0 = 4
-y0 = 0
+r = 1
+x0 = 2
+y0 = 4
 z0 = 0
 
 #Create analytic models
@@ -53,9 +53,9 @@ sino3 = sinoS.copy()
 sino0[...,1:] = 0.0
 sino1[...,0] = 0.0
 sino1[...,2:] = 0.0
-sino2[...,:1] = 0.0
+sino2[...,:2] = 0.0
 sino2[...,3:] = 0.0
-sino3[...,:2] = 0.0
+sino3[...,:3] = 0.0
 
 
 rec0 = dd.dd_bp_square(sino0,(nx,ny,nz), DSO,DSD,
@@ -74,25 +74,30 @@ rec3 = dd.dd_bp_square(sino3,(nx,ny,nz), DSO,DSD,
                        du=du,dv=dv,dsrc_p=ds_p,dsrc_z=ds_z,
                        su=su,sv=sv,d_pix=1.0)
 
+recS = dd.dd_bp_square(sinoS,(nx,ny,nz), DSO,DSD,
+                       du=du,dv=dv,dsrc_p=ds_p,dsrc_z=ds_z,
+                       su=su,sv=sv,d_pix=1.0)
 
-recs = [rec0,rec1,rec2,rec3]
-plt.figure(figsize=(12,16))
+
+
+recs = [rec0,rec1,rec2,rec3,recS]
+plt.figure(figsize=(12,20))
 
 for i, rec in enumerate(recs):
     #Y-Z plane
-    plt.subplot(4,3,(i*3)+1)
+    plt.subplot(5,3,(i*3)+1)
     plt.imshow(rec[int(nx/2+x0),:,:].T, cmap='gray', aspect='auto', origin='lower')
     plt.xlabel("y")
     plt.ylabel("z")
 
     #X-Z plane
-    plt.subplot(4,3,(i*3)+2)
+    plt.subplot(5,3,(i*3)+2)
     plt.imshow(rec[:,int(ny/2+y0),:].T, cmap='gray', aspect='auto', origin='lower')
     plt.xlabel("x")
     plt.ylabel("z")
     
     #X-Y plane
-    plt.subplot(4,3,(i*3)+3)
+    plt.subplot(5,3,(i*3)+3)
     plt.imshow(rec[:,:,int(nz/2+z0)].T, cmap='gray', aspect='auto', origin='lower')
     plt.xlabel("x")
     plt.ylabel("y")
@@ -105,7 +110,7 @@ plt.show()
 
 
 
-"""
+
 
 
 
@@ -138,7 +143,7 @@ sino3s = sino2s
 sinos = (sino1c[0,:,:],sino2c[0,:,:],sino3c[0,:,:],
          sino1s[0,ns_p//2,ns_z//2,:,:],sino2s[0,ns_p//2,ns_z//2,:,:],sino3s[0,ns_p//2,ns_z//2,:,:])
 
-    
+"""    
 titles = ["DD Circular","SD Circular","JO Circular",
           "DD Square","SD Square","JO Square"]
 

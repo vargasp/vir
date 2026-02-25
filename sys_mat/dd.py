@@ -1187,9 +1187,7 @@ def dd_bp_translational(
     # Precompute magnification
     M_arr = DSD / (src_o - o_bnd_arr)
 
-    # --------------------------------------------
-    # Parallel over orthogonal slices
-    # --------------------------------------------
+    # PARALLEL OVER ORTHOGONAL SLICES
     for io in prange(no):
 
         M = M_arr[io]
@@ -1201,7 +1199,14 @@ def dd_bp_translational(
         proj_src_p = M * src_p_arr
         proj_src_z = M * src_z_arr
 
+        # Loop over z slices
         for iz in range(nz):
+
+            # Get 2D volume slice (contiguous in last dim)
+            vol_sliceX = vol[io, iz]
+            vol_sliceXF = vol[no - 1 - io, iz]
+            vol_sliceY = vol[:,iz, io]
+            vol_sliceYF = vol[:,iz, no - 1 - io]
 
             vz_l_arr = proj_z_bnd[iz]     - proj_src_z
             vz_r_arr = proj_z_bnd[iz + 1] - proj_src_z
@@ -1209,19 +1214,12 @@ def dd_bp_translational(
             iv_min_arr = np.clip(((vz_l_arr - v0) * inv_dv).astype(np.int32), 0, nv)
             iv_max_arr = np.clip(((vz_r_arr - v0) * inv_dv).astype(np.int32) + 1, 0, nv)
 
-            # Get 2D volume slice (contiguous in last dim)
-            vol_slice = vol[io, iz]
-
-            # ----------------------------------------
-            # Loop over sources
-            # ----------------------------------------
+            # Loop over parallel source
             for i_sp in range(nsrc_p):
 
                 src_p_val = proj_src_p[i_sp]
 
-                # ----------------------------------------
-                # Loop over voxels in p-direction
-                # ----------------------------------------
+                # Loop over parallel voxels
                 for ip in range(nP):
 
                     p_l = proj_p_bnd[ip]     - src_p_val
@@ -1230,18 +1228,18 @@ def dd_bp_translational(
                     iu_min = int((p_l - u0) * inv_du)
                     iu_max = int((p_r - u0) * inv_du) + 1
 
-                    if iu_min < 0:
-                        iu_min = 0
-                    if iu_max > nu:
-                        iu_max = nu
+                    iu_min = max(0, iu_min)
+                    iu_max = min(nu, iu_max) 
+                        
                     if iu_min >= iu_max:
                         continue
 
-                    voxel_accum = 0.0
+                    voxel_accumX  = np.float32(0.0)
+                    voxel_accumXF = np.float32(0.0)
+                    voxel_accumY  = np.float32(0.0)
+                    voxel_accumYF = np.float32(0.0)
 
-                    # ----------------------------------------
-                    # Integrate over detector u
-                    # ----------------------------------------
+                    # Loop over u detectors
                     for iu in range(iu_min, iu_max):
 
                         left  = p_l if p_l > u_bnd[iu] else u_bnd[iu]
@@ -1258,6 +1256,7 @@ def dd_bp_translational(
 
                             iv_min = iv_min_arr[i_sz]
                             iv_max = iv_max_arr[i_sz]
+                            
                             if iv_min >= iv_max:
                                 continue
 
@@ -1282,15 +1281,19 @@ def dd_bp_translational(
                                     s2 = sino_block[iv, 2, iu]
                                     s3 = sino_block[iv, 3, iu]
 
-                                    voxel_accum += (
-                                        (s0 + s1 + s2 + s3)
-                                        * overlap_u
-                                        * overlap_v
-                                    )
+                                    voxel_accumX  += s0*overlap_u*overlap_v
+                                    voxel_accumY  += s1*overlap_u*overlap_v
+                                    voxel_accumXF += s2*overlap_u*overlap_v
+                                    voxel_accumYF += s3*overlap_u*overlap_v
+                
+
 
                     # accumulate into volume voxel
-                    vol_slice[ip] += voxel_accum          
-                                    
+                    vol_sliceX[ip] += voxel_accumX 
+                    vol_sliceY[nP-1-ip] += voxel_accumY
+                    
+                    vol_sliceXF[nP-1-ip] += voxel_accumXF
+                    vol_sliceYF[ip] += voxel_accumYF                                    
                                     
 
 
