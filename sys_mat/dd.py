@@ -975,7 +975,6 @@ def dd_fp_translational(
 ):
     no, nz, nP = imgY.shape
     nsrc_p, nsrc_z, nv, nu, _ = sino.shape
-
     inv_du = np.float32(1.0) / du
     inv_dv = np.float32(1.0) / dv
 
@@ -1124,8 +1123,10 @@ def dd_bp_square(sino,img_shape,DSO,DSD,
 
     sino = np.ascontiguousarray(sino.transpose(0,1,2,4,3))
 
+    # [no, nz, nP] 
     vol = dd_bp_square_num(img,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,su,sv,d_pix)
-    
+
+    vol = np.ascontiguousarray(vol.transpose(0,2,1))
     return vol
 
 
@@ -1135,7 +1136,7 @@ def dd_bp_square_num(vol,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,su,sv,d_pix):
 
 
     #ns, nsrc_p, nsrc_z, nv, nu = sino.shape    
-    nsrc_p, nsrc_z, nv, nu, ns = sino.shape    
+    nsrc_p, nsrc_z, nv, ns, nu = sino.shape    
   
     # voxel boundaries in parallel (p), orthogonal (o), and vertical (z)
     p_bnd_arr = pf.boundspace(d_pix, np)  # parallel
