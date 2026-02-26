@@ -900,7 +900,7 @@ def dd_p_cone_3d(img,sino,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,bp):
 
 
 
-def dd_fp_square(img,nu,nv,ns_p,ns_z,DSO,DSD,
+def dd_fp_square(img,nu,nv,nsrc_p,nsrc_z,DSO,DSD,
                   du=1.0,dv=1.0,dsrc_p=1.0,dsrc_z=1.0, 
                   su=0.0,sv=0.0,ssrc_p=0.0,ssrc_z=0.0,
                   d_pix=1.0):
@@ -910,26 +910,25 @@ def dd_fp_square(img,nu,nv,ns_p,ns_z,DSO,DSD,
     if nx != ny:
         raise ValueError("nx must equal ny")
 
-    
-    sino = np.zeros([ns_p,ns_z,nv,nu,4], np.float32)
+    sino = np.zeros([nsrc_p,nsrc_z,nv,nu,4], np.float32)
 
     img,DSO,DSD,du,dv,dsrc_p,dsrc_z,ssrc_p,ssrc_z,d_pix = \
         as_float32(img,DSO,DSD,du,dv,dsrc_p,dsrc_z,ssrc_p,ssrc_z,d_pix)
 
 
 
-    #[ny, nz, nx]  (iy contiguous)
+    #[ny, nz, nx]  (ix contiguous)
     imgX = np.ascontiguousarray(img.transpose(1,2,0))
     
     #[nx, nz, ny]  (iy contiguous)
     imgY = np.ascontiguousarray(img.transpose(0,2,1))
     
 
-    sino = dd_fp_square_num(imgX,imgY,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,
+    dd_fp_square_num(imgX,imgY,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,
                             su,sv,ssrc_p,ssrc_z,d_pix)
     
     #return np.ascontiguousarray(sino.transpose(0,1,2,4,3))
-    return sino
+    return sino* (d_pix**2) / (du * dv)
 
 
 @njit(fastmath=True, cache=True)
@@ -940,47 +939,29 @@ def dd_fp_square_num(imgX,imgY,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,
     nsrc_p, nsrc_z, nv, nu, ns = sino.shape    
   
     # voxel boundaries in parallel (p), orthogonal (o), and vertical (z)
-    p_bnd_arr = pf.boundspace(d_pix, np)  # parallel
-    o_bnd_arr = pf.boundspace(d_pix, no)  # orthogonal
-    z_bnd_arr = pf.boundspace(d_pix, nz)  # vertical
+    p_bnd_arr = pf.boundspace(np, d_pix)  # parallel
+    o_bnd_arr = pf.boundspace(no, d_pix)  # orthogonal
+    z_bnd_arr = pf.boundspace(nz, d_pix)  # vertical
 
     # Detector grids  
-    u_bnd_arr = pf.boundspace(du,nu,su)
-    v_bnd_arr = pf.boundspace(dv,nv,sv)
+    u_bnd_arr = pf.boundspace(nu,du,su)
+    v_bnd_arr = pf.boundspace(nv,dv,sv)
 
     # Source coordinates
-    src_p_arr = pf.censpace(dsrc_p,nsrc_p,ssrc_p)
-    src_z_arr = pf.censpace(dsrc_z,nsrc_z,ssrc_z)
+    src_p_arr = pf.censpace(nsrc_p,dsrc_p,ssrc_p)
+    src_z_arr = pf.censpace(nsrc_z,dsrc_z,ssrc_z)
 
-    dd_fp_translational(
-        sino,                # [4,ty, tz, u, v]
-        imgY,imgX,          # [nx, nz, ny] , [ny, nz, nx] 
-        p_bnd_arr, o_bnd_arr, z_bnd_arr, # voxel boundaries
-        u_bnd_arr, v_bnd_arr,du,dv,        # detector boundaries
-        DSO,
-        src_p_arr,        # translation in y
-        src_z_arr,        # translation in z
-        DSD                  # source-detector distance
-    )
-
-    return sino * (d_pix**2) / (du * dv)
+    dd_fp_translational(sino,imgY,imgX,p_bnd_arr,o_bnd_arr,z_bnd_arr,
+                        u_bnd_arr,v_bnd_arr,du,dv,DSO,src_p_arr,src_z_arr,DSD)
 
 
-
-
-                                
-                
 @njit(fastmath=True, parallel=True, cache=True)
-def dd_fp_translational(
-    sino,              # [nsrc_p, nsrc_z, nv, 4, nu]
-    imgY, imgX,        # [no, nz, nP]
-    p_bnd_arr, o_bnd_arr, z_bnd_arr,
-    u_bnd, v_bnd, du, dv,
-    src_o,src_p_arr,src_z_arr,
-    DSD
-):
+def dd_fp_translational(sino,imgY,imgX,p_bnd_arr,o_bnd_arr,z_bnd_arr,
+                        u_bnd,v_bnd,du,dv,src_o,src_p_arr,src_z_arr,DSD):
+    
     no, nz, nP = imgY.shape
     nsrc_p, nsrc_z, nv, nu, _ = sino.shape
+    
     inv_du = np.float32(1.0) / du
     inv_dv = np.float32(1.0) / dv
 
@@ -993,6 +974,9 @@ def dd_fp_translational(
     for io in prange(no):
 
         M = M_arr[io]
+        if M <= 0.0:
+            continue
+
         
         proj_p_bnd_arr = M * p_bnd_arr
         proj_z_bnd_arr = M * z_bnd_arr
@@ -1012,7 +996,7 @@ def dd_fp_translational(
             colXF = imgX[no - 1 - io, iz, :]
             colYF = imgY[no - 1 - io, iz, :]
 
-            vz_l_arr = proj_z_bnd_arr[iz] - proj_src_z_arr
+            vz_l_arr = proj_z_bnd_arr[iz]     - proj_src_z_arr
             vz_r_arr = proj_z_bnd_arr[iz + 1] - proj_src_z_arr
             
             # vz_l_arr and vz_r_arr are arrays of length nsrc_z (float32)
@@ -1067,10 +1051,6 @@ def dd_fp_translational(
                         tmp_u[iu,2] += v2f * overlap_u
                         tmp_u[iu,3] += v3f * overlap_u
 
-
-
-
-
                 # -------- Z integration --------
                 for i_sz in range(nsrc_z):
                     iv_min = iv_min_arr[i_sz]
@@ -1113,73 +1093,56 @@ def dd_fp_translational(
                                     
 def dd_bp_square(sino,img_shape,DSO,DSD,
                   du=1.0,dv=1.0,dsrc_p=1.0,dsrc_z=1.0, 
-                  su=0.0,sv=0.0,d_pix=1.0):
+                  su=0.0,sv=0.0,ssrc_p=0.0,ssrc_z=0.0,
+                  d_pix=1.0):
 
     nx, ny, nz = img_shape
     
     if nx != ny:
         raise ValueError("nx must equal ny")
-
     
     img = np.zeros((nx,nz,ny), dtype=np.float32)
 
-    sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,d_pix = \
-        as_float32(sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,d_pix)
+    sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,ssrc_p,ssrc_z,d_pix = \
+        as_float32(sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,ssrc_p,ssrc_z,d_pix)
 
     sino = np.ascontiguousarray(sino.transpose(0,1,2,4,3))
 
     # [no, nz, nP] 
-    vol = dd_bp_square_num(img,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,su,sv,d_pix)
+    dd_bp_square_num(img,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,
+                           su,sv,ssrc_p,ssrc_z,d_pix)
 
-    vol = np.ascontiguousarray(vol.transpose(0,2,1))
-    return vol
+    img = np.ascontiguousarray(img.transpose(0,2,1))
+    return img
 
 
 @njit(fastmath=True, cache=True)
-def dd_bp_square_num(vol,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,su,sv,d_pix):   
-    no, nz, np = vol.shape
-
-
-    #ns, nsrc_p, nsrc_z, nv, nu = sino.shape    
+def dd_bp_square_num(img,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,
+                     su,sv,ssrc_p,ssrc_z,d_pix):   
+    no, nz, np = img.shape
     nsrc_p, nsrc_z, nv, ns, nu = sino.shape    
   
     # voxel boundaries in parallel (p), orthogonal (o), and vertical (z)
-    p_bnd_arr = pf.boundspace(d_pix, np)  # parallel
-    o_bnd_arr = pf.boundspace(d_pix, no)  # orthogonal
-    z_bnd_arr = pf.boundspace(d_pix, nz)  # vertical
+    p_bnd_arr = pf.boundspace(np, d_pix)  # parallel
+    o_bnd_arr = pf.boundspace(no, d_pix)  # orthogonal
+    z_bnd_arr = pf.boundspace(nz, d_pix)  # vertical
 
-    # Detector grids  
-    u_bnd_arr = pf.boundspace(du,nu,su)
-    v_bnd_arr = pf.boundspace(dv,nv,sv)
+    # Detector grids
+    u_bnd_arr = pf.boundspace(nu,du,su)
+    v_bnd_arr = pf.boundspace(nv,dv,sv)
 
     # Source coordinates
-    src_p_arr = pf.censpace(dsrc_p,nsrc_p)
-    src_z_arr = pf.censpace(dsrc_z,nsrc_z)
+    src_p_arr = pf.censpace(nsrc_p,dsrc_p,ssrc_p)
+    src_z_arr = pf.censpace(nsrc_z,dsrc_z,ssrc_z)
 
-    dd_bp_translational(
-        sino,                # [4,ty, tz, u, v]
-        vol,          # [nx, nz, ny] , [ny, nz, nx] 
-        p_bnd_arr, o_bnd_arr, z_bnd_arr, # voxel boundaries
-        u_bnd_arr, v_bnd_arr,du,dv,        # detector boundaries
-        DSO,
-        src_p_arr,        # translation in y
-        src_z_arr,        # translation in z
-        DSD                  # source-detector distance
-    )
 
-    return vol
-                                    
+    dd_bp_translational(sino,img,p_bnd_arr,o_bnd_arr,z_bnd_arr,
+                        u_bnd_arr,v_bnd_arr,du,dv,DSO,src_p_arr,src_z_arr,DSD)
 
 
 @njit(fastmath=True, parallel=True, cache=True)
-def dd_bp_translational(
-    sino,              # [nsrc_p, nsrc_z, nv, 4, nu]  (INPUT)
-    vol,               # [no, nz, nP]                (OUTPUT)
-    p_bnd_arr, o_bnd_arr, z_bnd_arr,
-    u_bnd, v_bnd, du, dv,
-    src_o, src_p_arr, src_z_arr,
-    DSD
-):
+def dd_bp_translational(sino,vol,p_bnd_arr,o_bnd_arr,z_bnd_arr,
+                        u_bnd,v_bnd,du,dv,src_o,src_p_arr,src_z_arr,DSD):
     no, nz, nP = vol.shape
     nsrc_p, nsrc_z, nv, _, nu = sino.shape
 
@@ -1199,10 +1162,10 @@ def dd_bp_translational(
         if M <= 0.0:
             continue
 
-        proj_p_bnd = M * p_bnd_arr
-        proj_z_bnd = M * z_bnd_arr
-        proj_src_p = M * src_p_arr
-        proj_src_z = M * src_z_arr
+        proj_p_bnd_arr = M * p_bnd_arr
+        proj_z_bnd_arr = M * z_bnd_arr
+        proj_src_p_arr = M * src_p_arr
+        proj_src_z_arr = M * src_z_arr
 
         # Loop over z slices
         for iz in range(nz):
@@ -1213,8 +1176,8 @@ def dd_bp_translational(
             vol_sliceY = vol[:,iz, io]
             vol_sliceYF = vol[:,iz, no - 1 - io]
 
-            vz_l_arr = proj_z_bnd[iz]     - proj_src_z
-            vz_r_arr = proj_z_bnd[iz + 1] - proj_src_z
+            vz_l_arr = proj_z_bnd_arr[iz]     - proj_src_z_arr
+            vz_r_arr = proj_z_bnd_arr[iz + 1] - proj_src_z_arr
 
             iv_min_arr = np.clip(((vz_l_arr - v0) * inv_dv).astype(np.int32), 0, nv)
             iv_max_arr = np.clip(((vz_r_arr - v0) * inv_dv).astype(np.int32) + 1, 0, nv)
@@ -1222,16 +1185,16 @@ def dd_bp_translational(
             # Loop over parallel source
             for i_sp in range(nsrc_p):
 
-                src_p_val = proj_src_p[i_sp]
+                src_p_val = proj_src_p_arr[i_sp]
 
                 # Loop over parallel voxels
                 for ip in range(nP):
 
-                    p_l = proj_p_bnd[ip]     - src_p_val
-                    p_r = proj_p_bnd[ip + 1] - src_p_val
+                    p_l = proj_p_bnd_arr[ip]     - src_p_val
+                    p_r = proj_p_bnd_arr[ip + 1] - src_p_val
 
-                    iu_min = int((p_l - u0) * inv_du)
-                    iu_max = int((p_r - u0) * inv_du) + 1
+                    iu_min = int((p_l - u0)*inv_du)
+                    iu_max = int((p_r - u0)*inv_du) + 1
 
                     iu_min = max(0, iu_min)
                     iu_max = min(nu, iu_max) 
@@ -1246,9 +1209,8 @@ def dd_bp_translational(
 
                     # Loop over u detectors
                     for iu in range(iu_min, iu_max):
-
-                        left  = p_l if p_l > u_bnd[iu] else u_bnd[iu]
-                        right = p_r if p_r < u_bnd[iu+1] else u_bnd[iu+1]
+                        left  = max(p_l,u_bnd[iu])
+                        right = min(p_r,u_bnd[iu+1])
                         overlap_u = right - left
 
                         if overlap_u <= 0.0:
@@ -1271,13 +1233,9 @@ def dd_bp_translational(
                             sino_block = sino[i_sp, i_sz]
 
                             for iv in range(iv_min, iv_max):
-
-                                v_l = v_bnd[iv]
-                                v_r = v_bnd[iv+1]
-
-                                left_v  = vz_l if vz_l > v_l else v_l
-                                right_v = vz_r if vz_r < v_r else v_r
-                                overlap_v = right_v - left_v
+                                left  = max(vz_l,v_bnd[iv])
+                                right = min(vz_r,v_bnd[iv+1])
+                                overlap_v = right - left
 
                                 if overlap_v > 0.0:
                                     # collapse 4 detector channels
