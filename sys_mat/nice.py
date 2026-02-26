@@ -10,6 +10,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import vir.sys_mat.dd as dd
 import time
+import vir.sys_mat.pf as pf
+
+
+
 
 #Half image grid + distacance to front of detector + midpoint of detecot
 #(120m  + 21.38m + .01m)
@@ -20,25 +24,47 @@ du, dv = 2.61381, 2.61381
 
 
 
-
 psino = np.load("C:\\Users\\varga\\Desktop\\sino_spheres_phantom_inter.npy")
 img3d = np.load("C:\\Users\\varga\\Desktop\\phantomSpheres250.npy")
 
 nx, ny, nz = img3d.shape
 nu, nv, ns_p, ns_z, nsides = psino.shape
 d_pix = .96
-ds_p, ds_z = .48, .48
+dsrc_p, dsrc_z = .48, .48
+s_src_z = -155
 
-su, sv = 0.0, 0.0
+su, sv = 0.0, 31.615
+
+z_bnd_arr = pf.boundspace(d_pix, nz)  # vertical
+src_z_arr = pf.censpace(dsrc_z,ns_z,s=s_src_z)
+v_bnd_arr = pf.boundspace(dv,nv,sv)
+
 
 start = time.time()
 
-dsino1 = dd.dd_p_square(img3d,nu,nv,ns_p,ns_z,DSO,DSD,
-                       du=du,dv=dv,dsrc_p=ds_p,dsrc_z=ds_z,
+dsino1 = dd.dd_fp_square(img3d,nu,nv,ns_p,ns_z,DSO,DSD,
+                       du=du,dv=dv,dsrc_p=dsrc_p,dsrc_z=dsrc_z,
                        su=su,sv=sv,d_pix=1.0)
 
 end = time.time()
 print(end - start)
+
+
+
+
+
+
+
+start = time.time()
+recS = dd.dd_bp_square(dsino1,(nx,ny,nz), DSO,DSD,
+                       du=du,dv=dv,dsrc_p=dsrc_p,dsrc_z=dsrc_z,
+                       su=su,sv=sv,d_pix=1.0)
+
+end = time.time()
+print(end - start)
+
+
+
 
 
 

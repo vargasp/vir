@@ -900,9 +900,10 @@ def dd_p_cone_3d(img,sino,ang_arr,DSO,DSD,du,dv,su,sv,d_pix,bp):
 
 
 
-def dd_p_square(img,nu,nv,ns_p,ns_z,DSO,DSD,
+def dd_fp_square(img,nu,nv,ns_p,ns_z,DSO,DSD,
                   du=1.0,dv=1.0,dsrc_p=1.0,dsrc_z=1.0, 
-                  su=0.0,sv=0.0,d_pix=1.0):
+                  su=0.0,sv=0.0,ssrc_p=0.0,ssrc_z=0.0,
+                  d_pix=1.0):
 
     nx, ny, nz = img.shape
     
@@ -912,8 +913,8 @@ def dd_p_square(img,nu,nv,ns_p,ns_z,DSO,DSD,
     
     sino = np.zeros([ns_p,ns_z,nv,nu,4], np.float32)
 
-    img,DSO,DSD,du,dv,dsrc_p,dsrc_z,d_pix = \
-        as_float32(img,DSO,DSD,du,dv,dsrc_p,dsrc_z,d_pix)
+    img,DSO,DSD,du,dv,dsrc_p,dsrc_z,ssrc_p,ssrc_z,d_pix = \
+        as_float32(img,DSO,DSD,du,dv,dsrc_p,dsrc_z,ssrc_p,ssrc_z,d_pix)
 
 
 
@@ -924,18 +925,18 @@ def dd_p_square(img,nu,nv,ns_p,ns_z,DSO,DSD,
     imgY = np.ascontiguousarray(img.transpose(0,2,1))
     
 
-    sino = dd_p_square_num(imgX,imgY,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,su,sv,d_pix)
+    sino = dd_fp_square_num(imgX,imgY,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,
+                            su,sv,ssrc_p,ssrc_z,d_pix)
     
     #return np.ascontiguousarray(sino.transpose(0,1,2,4,3))
     return sino
 
 
 @njit(fastmath=True, cache=True)
-def dd_p_square_num(imgX,imgY,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,su,sv,d_pix):   
+def dd_fp_square_num(imgX,imgY,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,
+                     su,sv,ssrc_p,ssrc_z,d_pix):   
+
     no, nz, np = imgX.shape
-
-
-    #ns, nsrc_p, nsrc_z, nv, nu = sino.shape    
     nsrc_p, nsrc_z, nv, nu, ns = sino.shape    
   
     # voxel boundaries in parallel (p), orthogonal (o), and vertical (z)
@@ -948,8 +949,8 @@ def dd_p_square_num(imgX,imgY,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,su,sv,d_pix):
     v_bnd_arr = pf.boundspace(dv,nv,sv)
 
     # Source coordinates
-    src_p_arr = pf.censpace(dsrc_p,nsrc_p)
-    src_z_arr = pf.censpace(dsrc_z,nsrc_z)
+    src_p_arr = pf.censpace(dsrc_p,nsrc_p,ssrc_p)
+    src_z_arr = pf.censpace(dsrc_z,nsrc_z,ssrc_z)
 
     dd_fp_translational(
         sino,                # [4,ty, tz, u, v]
@@ -1024,7 +1025,7 @@ def dd_fp_translational(
                 #Initialize temp array
                 for iu in range(u_lo, u_hi):
                     for f in range(4):
-                        tmp_u[iu,f] = 0.0
+                        tmp_u[iu,f] = np.float32(0.0)
 
                 u_lo = nu
                 u_hi = 0
@@ -1056,16 +1057,19 @@ def dd_fp_translational(
                     u_hi = max(u_hi,iu_max)
 
                     # Loop over u detectors
-                    for iu in range(iu_min, iu_max):
-                        left  = p_l if p_l > u_bnd[iu] else u_bnd[iu]
-                        right = p_r if p_r < u_bnd[iu+1] else u_bnd[iu+1]
-                        overlap_u = right - left
+                    for iu in range(iu_min, iu_max):                       
+                        left  = max(p_l,u_bnd[iu])
+                        right = min(p_r,u_bnd[iu+1])
+                        overlap_u = max(right - left, 0)
+                        
+                        tmp_u[iu,0] += v0f * overlap_u
+                        tmp_u[iu,1] += v1f * overlap_u
+                        tmp_u[iu,2] += v2f * overlap_u
+                        tmp_u[iu,3] += v3f * overlap_u
 
-                        if overlap_u > 0.0:
-                            tmp_u[iu,0] += v0f * overlap_u
-                            tmp_u[iu,1] += v1f * overlap_u
-                            tmp_u[iu,2] += v2f * overlap_u
-                            tmp_u[iu,3] += v3f * overlap_u
+
+
+
 
                 # -------- Z integration --------
                 for i_sz in range(nsrc_z):
@@ -1093,19 +1097,15 @@ def dd_fp_translational(
                             continue
                     
                         for iv in range(iv_min, iv_max):
-                            v_l = v_bnd[iv]
-                            v_r = v_bnd[iv + 1]
-                    
-                            left  = vz_l if vz_l > v_l else v_l
-                            right = vz_r if vz_r < v_r else v_r
-                            overlap_v = right - left
-                    
-                            if overlap_v > 0.0:                   
-                                # contiguous in last dim (f)
-                                base[iv, iu, 0] += t0 * overlap_v
-                                base[iv, iu, 1] += t1 * overlap_v
-                                base[iv, iu, 2] += t2 * overlap_v
-                                base[iv, iu, 3] += t3 * overlap_v
+                            left  = max(vz_l,v_bnd[iv])
+                            right = min(vz_r,v_bnd[iv+1])
+                            overlap_v = max(right - left, 0)
+        
+                            # contiguous in last dim (f)
+                            base[iv, iu, 0] += t0 * overlap_v
+                            base[iv, iu, 1] += t1 * overlap_v
+                            base[iv, iu, 2] += t2 * overlap_v
+                            base[iv, iu, 3] += t3 * overlap_v
                                     
                                     
                                     
@@ -1121,7 +1121,7 @@ def dd_bp_square(sino,img_shape,DSO,DSD,
         raise ValueError("nx must equal ny")
 
     
-    img = np.zeros(img_shape, dtype=np.float32)
+    img = np.zeros((nx,nz,ny), dtype=np.float32)
 
     sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,d_pix = \
         as_float32(sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,d_pix)

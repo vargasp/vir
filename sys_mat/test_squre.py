@@ -44,7 +44,7 @@ z0 = 0
 img3d= asino.phantom((x0,y0,z0,r),nx,ny,nz,upsample=5)
 
 
-sinoS = dd.dd_p_square(img3d,nu,nv,ns_p,ns_z,DSO,DSD,
+sinoS = dd.dd_fp_square(img3d,nu,nv,ns_p,ns_z,DSO,DSD,
                        du=du,dv=dv,dsrc_p=ds_p,dsrc_z=ds_z,
                        su=su,sv=sv,d_pix=1.0)
 
