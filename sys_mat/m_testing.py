@@ -31,14 +31,14 @@ nsrc_p, nsrc_z = 5,5
 du, dv = 1, 1
 su, sv = 0., 0
 dsrc_p, dsrc_z = 1., 1
-ssrc_p, ssrc_z = 0, -2
+ssrc_p, ssrc_z = 0, 2
 
 o_bnd_arr = pf.boundspace(no,d_pix)  # vertical
 p_bnd_arr = pf.boundspace(nP,d_pix)  # vertical
 z_bnd_arr = pf.boundspace(nz,d_pix)  # vertical
 
 src_z_arr = pf.censpace(nsrc_z,dsrc_z,ssrc_z)
-v_bnd_arr = pf.boundspace(nv,dv,sv) + ssrc_z
+v_bnd_arr = pf.boundspace(nv,dv,sv+ ssrc_z)
 
 M_arr = DSD /(DSO - o_bnd_arr)
 
@@ -56,10 +56,10 @@ for iz in range(nz):
 
     
         proj_z_bnd_arr = M * z_bnd_arr
-        proj_src_z_arr = M * src_z_arr
+        proj_src_z_arr = M * src_z_arr - ssrc_z
     
-        vz_l_arr = proj_z_bnd_arr[iz]     - proj_src_z_arr + ssrc_z
-        vz_r_arr = proj_z_bnd_arr[iz + 1] - proj_src_z_arr + ssrc_z
+        vz_l_arr = proj_z_bnd_arr[iz]     - proj_src_z_arr 
+        vz_r_arr = proj_z_bnd_arr[iz + 1] - proj_src_z_arr 
         vz_arr = (vz_r_arr+vz_l_arr)/2.
         iv_min_arr = np.clip(((vz_l_arr -v0) * inv_dv).astype(np.int32), 0, nv)
 

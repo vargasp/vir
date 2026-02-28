@@ -36,34 +36,18 @@ dsrc_p, dsrc_z = .48, .48
 #ssrc_p, ssrc_z = 0.0, -50.4
 #ssrc_p, ssrc_z = 0.0, -25
 #ssrc_p, ssrc_z = 0.0, -40
-ssrc_p, ssrc_z = 0.0, -74.4*DSO/DSD
+ssrc_p, ssrc_z = 0.0, -74.4 #*DSO/DSD
 
 
 su, sv = 0.0, 158.1355
 su, sv = 0.0, 165
 su, sv = 0.0, 170
-su, sv = 0.0,  158.13554*DSO/DSD
+su, sv = 0.0,  158.13554 #*DSO/DSD
 
 
 z_bnd_arr = pf.boundspace(nz,d_pix)  # vertical
 src_z_arr = pf.censpace(nsrc_z,dsrc_z,ssrc_z)
 v_bnd_arr = pf.boundspace(nv,dv,sv +ssrc_z)
-
-M_arr = DSD /(src_o - o_bnd_arr)
-
-# PARALLEL OVER ORTHOGONAL SLICES
-for io in prange(no):
-
-    M = M_arr[io]
-    if M <= 0.0:
-        continue
-
-    
-    proj_p_bnd_arr = M * p_bnd_arr
-    proj_z_bnd_arr = M * z_bnd_arr
-    proj_src_p_arr = M * src_p_arr
-    proj_src_z_arr = M * src_z_arr
-
 
 
 start = time.time()

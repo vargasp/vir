@@ -943,20 +943,22 @@ def dd_fp_square_num(imgX,imgY,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,
     z_bnd_arr = pf.boundspace(nz, d_pix)  # vertical
 
     # Detector grids  
-    u_bnd_arr = pf.boundspace(nu,du,su)
-    v_bnd_arr = pf.boundspace(nv,dv,sv)
+    u_bnd_arr = pf.boundspace(nu,du,su+ssrc_p)
+    v_bnd_arr = pf.boundspace(nv,dv,sv+ssrc_z)
 
     # Source coordinates
     src_p_arr = pf.censpace(nsrc_p,dsrc_p,ssrc_p)
     src_z_arr = pf.censpace(nsrc_z,dsrc_z,ssrc_z)
 
     dd_fp_translational(sino,imgY,imgX,p_bnd_arr,o_bnd_arr,z_bnd_arr,
-                        u_bnd_arr,v_bnd_arr,du,dv,su,sv,DSO,src_p_arr,src_z_arr,DSD)
+                        u_bnd_arr,v_bnd_arr,src_p_arr,src_z_arr,
+                        du,dv,su,sv,ssrc_p,ssrc_z,DSO,DSD)
 
 
 @njit(fastmath=True, parallel=False, cache=True)
-def dd_fp_translational(sino,imgY,imgX,p_bnd_arr,o_bnd_arr,z_bnd_arr,
-                        u_bnd_arr,v_bnd_arr,du,dv,su,sv,src_o,src_p_arr,src_z_arr,DSD):
+def dd_fp_translational(sino,imgY,imgX,p_bnd_arr,o_bnd_arr,z_bnd_arr, 
+                        u_bnd_arr,v_bnd_arr,src_p_arr,src_z_arr,
+                        du,dv,su,sv,ssrc_p,ssrc_z,src_o,DSD):
     
     no, nz, nP = imgY.shape
     nsrc_p, nsrc_z, nv, nu, _ = sino.shape
@@ -978,9 +980,9 @@ def dd_fp_translational(sino,imgY,imgX,p_bnd_arr,o_bnd_arr,z_bnd_arr,
 
         
         proj_p_bnd_arr = M * p_bnd_arr
-        proj_z_bnd_arr = M * z_bnd_arr
-        proj_src_p_arr = M * src_p_arr
-        proj_src_z_arr = M * src_z_arr
+        proj_z_bnd_arr = M * z_bnd_arr 
+        proj_src_p_arr = M * src_p_arr - ssrc_p
+        proj_src_z_arr = M * src_z_arr - ssrc_z
         
         # Thread-local buffer
         tmp_u = np.zeros((nu,4), dtype=np.float32)
