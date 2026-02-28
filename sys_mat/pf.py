@@ -39,21 +39,18 @@ def as_int32(x):
     return np.asarray(x, dtype=np.int32)
 
 
-
 @njit(inline='always', cache=True)
 def censpace(n, d=1, s=0):
     arr = np.arange(n, dtype=np.float32)
     arr *= d
-    arr += d*(s - (n - 1) * np.float32(0.5))
+    arr += (s - d*((n - 1) * np.float32(0.5)))
     return arr
-
-
 
 
 @njit(inline='always', cache=True)
 def boundspace(n, d=1, s=0):
     arr = np.arange(n + 1, dtype=np.float32)
     arr *= d
-    arr += d*(s - n * np.float32(0.5))
+    arr += (s - d*(n * np.float32(0.5)))
     return arr
 

@@ -923,7 +923,6 @@ def dd_fp_square(img,nu,nv,nsrc_p,nsrc_z,DSO,DSD,
     #[nx, nz, ny]  (iy contiguous)
     imgY = np.ascontiguousarray(img.transpose(0,2,1))
     
-
     dd_fp_square_num(imgX,imgY,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,
                             su,sv,ssrc_p,ssrc_z,d_pix)
     
@@ -952,12 +951,12 @@ def dd_fp_square_num(imgX,imgY,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,
     src_z_arr = pf.censpace(nsrc_z,dsrc_z,ssrc_z)
 
     dd_fp_translational(sino,imgY,imgX,p_bnd_arr,o_bnd_arr,z_bnd_arr,
-                        u_bnd_arr,v_bnd_arr,du,dv,DSO,src_p_arr,src_z_arr,DSD)
+                        u_bnd_arr,v_bnd_arr,du,dv,su,sv,DSO,src_p_arr,src_z_arr,DSD)
 
 
-@njit(fastmath=True, parallel=True, cache=True)
+@njit(fastmath=True, parallel=False, cache=True)
 def dd_fp_translational(sino,imgY,imgX,p_bnd_arr,o_bnd_arr,z_bnd_arr,
-                        u_bnd,v_bnd,du,dv,src_o,src_p_arr,src_z_arr,DSD):
+                        u_bnd_arr,v_bnd_arr,du,dv,su,sv,src_o,src_p_arr,src_z_arr,DSD):
     
     no, nz, nP = imgY.shape
     nsrc_p, nsrc_z, nv, nu, _ = sino.shape
@@ -965,8 +964,8 @@ def dd_fp_translational(sino,imgY,imgX,p_bnd_arr,o_bnd_arr,z_bnd_arr,
     inv_du = np.float32(1.0) / du
     inv_dv = np.float32(1.0) / dv
 
-    u0 = u_bnd[0]
-    v0 = v_bnd[0]
+    u0 = u_bnd_arr[0]
+    v0 = v_bnd_arr[0]
 
     M_arr = DSD /(src_o - o_bnd_arr)
 
@@ -1042,8 +1041,8 @@ def dd_fp_translational(sino,imgY,imgX,p_bnd_arr,o_bnd_arr,z_bnd_arr,
 
                     # Loop over u detectors
                     for iu in range(iu_min, iu_max):                       
-                        left  = max(p_l,u_bnd[iu])
-                        right = min(p_r,u_bnd[iu+1])
+                        left  = max(p_l,u_bnd_arr[iu])
+                        right = min(p_r,u_bnd_arr[iu+1])
                         overlap_u = max(right - left, 0)
                         
                         tmp_u[iu,0] += v0f * overlap_u
@@ -1077,8 +1076,8 @@ def dd_fp_translational(sino,imgY,imgX,p_bnd_arr,o_bnd_arr,z_bnd_arr,
                             continue
                     
                         for iv in range(iv_min, iv_max):
-                            left  = max(vz_l,v_bnd[iv])
-                            right = min(vz_r,v_bnd[iv+1])
+                            left  = max(vz_l,v_bnd_arr[iv])
+                            right = min(vz_r,v_bnd_arr[iv+1])
                             overlap_v = max(right - left, 0)
         
                             # contiguous in last dim (f)

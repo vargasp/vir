@@ -12,11 +12,11 @@ import vir.sys_mat.dd as dd
 import vir.sys_mat.pd as pd
 import vir.sys_mat.analytic_sino as asino
 from vir.sys_mat.time_testing import benchmark
-
+import vir.sys_mat.pf as pf
 
 
 #Image params - Pixels
-nx, ny, nz = 32, 32, 32
+nx, ny, nz = 9, 9, 9
 d_pix = 1.0
 
 #Fan Beam Geometry - Parallel
@@ -25,50 +25,162 @@ DSD = nx
 
 
 #Sino 32 
-nu, nv = 64,64
-ns_p, ns_z = 32,32
+nu, nv = 9,9
+nsrc_p, nsrc_z = 9,9
 du, dv = 1, 1
-su, sv = 0.0, 0.0
-ds_p, ds_z = 1., 1.
- 
+su, sv = 0., 5
+dsrc_p, dsrc_z = 1., .5
+ssrc_p, ssrc_z = 0, -2.5
+
+z_bnd_arr = pf.boundspace(nz,d_pix)  # vertical
+src_z_arr = pf.censpace(nsrc_z,dsrc_z,ssrc_z)
+v_bnd_arr = pf.boundspace(nv,dv,sv + ssrc_z)
+
+
+
 
 #Phantom Paramters Sino
-r = 4
-x0 = 4
-y0 = 2
+r = 1
+x0 = 0
+y0 = 0
 z0 = 0
 
 #Create analytic models
 img3d= asino.phantom((x0,y0,z0,r),nx,ny,nz,upsample=5)
 
 #Conebeam
-sino1c = dd.dd_fp_cone_3d(img3d,np.array([0]),nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
-sino2c = rd.aw_fp_cone_3d(img3d,np.array([0]),nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
-sino3c = rd.aw_fp_cone_3d(img3d,np.array([0]),nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix,joseph=True)
+#sino1c = dd.dd_fp_cone_3d(img3d,np.array([0]),nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
+#sino2c = rd.aw_fp_cone_3d(img3d,np.array([0]),nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
+#sino3c = rd.aw_fp_cone_3d(img3d,np.array([0]),nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix,joseph=True)
 
 
 #Square
-sino1s = dd.dd_fp_square(img3d,nu,nv,ns_p,ns_z,DSO,DSD,
-                       du=du,dv=dv,dsrc_p=ds_p,dsrc_z=ds_z,
-                       su=su,sv=sv,d_pix=1.0)
-sino2s = rd.aw_p_square(img3d,nu,nv,ns_p,ns_z,DSO,DSD,
-                       du=du,dv=dv,ds_p=ds_p,ds_z=ds_z,
-                       su=su,sv=sv,d_pix=1.0,joseph=False)
+sino1s = dd.dd_fp_square(img3d,nu,nv,nsrc_p,nsrc_z,DSO,DSD,
+                       du=du,dv=dv,dsrc_p=dsrc_p,dsrc_z=dsrc_z,
+                       su=su,sv=sv,ssrc_p=ssrc_p,ssrc_z=ssrc_z,d_pix=1.0)
+
+
+#sino2s = rd.aw_p_square(img3d,nu,nv,ns_p,ns_z,DSO,DSD,
+#                       du=du,dv=dv,ds_p=ds_p,ds_z=ds_z,
+ #                      su=su,sv=sv,d_pix=1.0,joseph=False)
 
 
 #[ns_p,np_z,nu,nv,4]
 sino1s = sino1s.transpose([0,1,3,2,4,])
 
 #[ns_p,np_z,nu,nv,4]
-sino2s = sino2s.transpose([1,2,3,4,0])
+#sino2s = sino2s.transpose([1,2,3,4,0])
 
-sino3s = sino2s
+#sino3s = sino2s
 
+
+
+
+plt.figure(figsize=(16,8))
+plt.subplot(2,4,1)
+plt.imshow(sino1s[:,:,nu//2,nv//2,0].T, cmap='gray', aspect='auto', origin='lower')
+plt.title("Side 0")
+plt.ylabel("z srcs")
+plt.xlabel("y srcs")
+
+plt.subplot(2,4,2)
+plt.imshow(sino1s[:,:,nu//2,nv//2,1].T, cmap='gray', aspect='auto', origin='lower')
+plt.title("Side 1")
+plt.ylabel("z srcs")
+plt.xlabel("x srcs")
+
+plt.subplot(2,4,3)
+plt.imshow(sino1s[:,:,nu//2,nv//2,2].T, cmap='gray', aspect='auto', origin='lower')
+plt.title("Side 2")
+plt.ylabel("z srcs")
+plt.xlabel("y srcs")
+
+plt.subplot(2,4,4)
+plt.imshow(sino1s[:,:,nu//2,nv//2,3].T, cmap='gray', aspect='auto', origin='lower')
+plt.title("Side 3")
+plt.ylabel("z srcs")
+plt.xlabel("x srcs")
+
+
+plt.subplot(2,4,5)
+plt.imshow(sino1s[nsrc_p//2,nsrc_z//2,:,:,0].T, cmap='gray', aspect='auto', origin='lower')
+plt.title("Side 0")
+plt.ylabel("v dets")
+plt.xlabel("u dets")
+
+plt.subplot(2,4,6)
+plt.imshow(sino1s[nsrc_p//2,nsrc_z//2,:,:,1].T, cmap='gray', aspect='auto', origin='lower')
+plt.title("Side 1")
+plt.ylabel("v dets")
+plt.xlabel("u dets")
+
+plt.subplot(2,4,7)
+plt.imshow(sino1s[nsrc_p//2,nsrc_z//2,:,:,2].T, cmap='gray', aspect='auto', origin='lower')
+plt.title("Side 2")
+plt.ylabel("v dets")
+plt.xlabel("u dets")
+
+plt.subplot(2,4,8)
+plt.imshow(sino1s[nsrc_p//2,nsrc_z//2,:,:,3].T, cmap='gray', aspect='auto', origin='lower')
+plt.title("Side 3")
+plt.ylabel("v dets")
+plt.xlabel("u dets")
+plt.show
 
 
 """
+Compare forward projection square
+
+sinos = (sino1s[ns_p//2,ns_z//2,:,:,0],sino2s[ns_p//2,ns_z//2,:,:,0],sino3s[ns_p//2,ns_z//2,:,:,0])
+
+titles = ["DD Circular","SD Circular","JO Circular",
+          "DD Square","SD Square","JO Square"]
+
+
+plt.figure(figsize=(12,8))
+for i, (sino,title) in enumerate(zip(sinos,titles)):
+    plt.subplot(2,3,i+1)
+    plt.imshow(sino.T, cmap='gray', aspect='auto', origin='lower')
+    plt.title(title)
+    if i % 3 ==0: 
+        plt.ylabel("v dets")
+    if i > 2:
+        plt.xlabel("u dets")
+plt.show()
+
+titles = ["DD Square","SD Square","JO Square"]
+sinos = (sino1s[:,ns_z//2,:,nv//2,0],sino2s[:,ns_z//2,:,nv//2,0],sino3s[:,ns_z//2,:,nv//2,0],
+         sino1s[:,ns_z//2,:,nv//2,1],sino2s[:,ns_z//2,:,nv//2,1],sino3s[:,ns_z//2,:,nv//2,1],
+         sino1s[:,ns_z//2,:,nv//2,2],sino2s[:,ns_z//2,:,nv//2,2],sino3s[:,ns_z//2,:,nv//2,2],
+         sino1s[:,ns_z//2,:,nv//2,3],sino2s[:,ns_z//2,:,nv//2,3],sino3s[:,ns_z//2,:,nv//2,3])
+
+plt.figure(figsize=(12,16))
+for i, sino in enumerate(sinos):
+    plt.subplot(4,3,i+1)
+    plt.imshow(sino, cmap='gray', aspect='auto', origin='lower')
+    if i < 3:
+        plt.title(titles[i])
+    if i % 3 ==0: 
+        plt.ylabel("x")
+    if i > 7:
+        plt.xlabel("u Bin")
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Compare forward projection conebeam and square
-"""
+
 sinos = (sino1c[0,:,:],sino2c[0,:,:],sino3c[0,:,:],
          sino1s[ns_p//2,ns_z//2,:,:,0],sino2s[ns_p//2,ns_z//2,:,:,0],sino3s[ns_p//2,ns_z//2,:,:,0])
 
@@ -107,10 +219,10 @@ plt.show()
 
 
 
-"""
+
 Examine bacprojection sides
 
-"""
+
 
 sino1s = np.ascontiguousarray(sino1s.transpose([0,1,3,2,4,]))
 
@@ -168,3 +280,4 @@ for i, rec in enumerate(recs):
     plt.ylabel("y")
 plt.show()
 
+"""
