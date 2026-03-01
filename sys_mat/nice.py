@@ -31,34 +31,18 @@ nx, ny, nz = img3d.shape
 nu, nv, nsrc_p, nsrc_z, nsides = psino.shape
 d_pix = .96
 dsrc_p, dsrc_z = .48, .48
-#ssrc_p, ssrc_z = 0.0, -74.4
-#ssrc_p, ssrc_z = 0.0, -100
-#ssrc_p, ssrc_z = 0.0, -50.4
-#ssrc_p, ssrc_z = 0.0, -25
-#ssrc_p, ssrc_z = 0.0, -40
-ssrc_p, ssrc_z = 0.0, -74.4 #*DSO/DSD
-
-
-su, sv = 0.0, 158.1355
-su, sv = 0.0, 165
-su, sv = 0.0, 170
-su, sv = 0.0,  158.13554 #*DSO/DSD
-
-
-z_bnd_arr = pf.boundspace(nz,d_pix)  # vertical
-src_z_arr = pf.censpace(nsrc_z,dsrc_z,ssrc_z)
-v_bnd_arr = pf.boundspace(nv,dv,sv +ssrc_z)
+ssrc_p, ssrc_z = 0.0, -74.4
+su, sv = 0.0,  158.13554
 
 
 start = time.time()
-
 dsino2 = dd.dd_fp_square(img3d,nu,nv,nsrc_p,nsrc_z,DSO,DSD,
                        du=du,dv=dv,dsrc_p=dsrc_p,dsrc_z=dsrc_z,
                        su=su,sv=sv,ssrc_p=ssrc_p,ssrc_z=ssrc_z,
                        d_pix=d_pix)
 
 end = time.time()
-print(end - start)
+print("FP time:", end - start)
 
 
 
@@ -67,12 +51,13 @@ print(end - start)
 
 
 start = time.time()
-recS = dd.dd_bp_square(dsino1,(nx,ny,nz), DSO,DSD,
+recS = dd.dd_bp_square(dsino2,(nx,ny,nz), DSO,DSD,
                        du=du,dv=dv,dsrc_p=dsrc_p,dsrc_z=dsrc_z,
-                       su=su,sv=sv,d_pixd_pix)
+                       su=su,sv=sv,ssrc_p=ssrc_p,ssrc_z=ssrc_z,
+                       d_pix=d_pix)
 
 end = time.time()
-print(end - start)
+print("BP time:", end - start)
 
 
 
