@@ -47,21 +47,15 @@ print("FP time:", end - start)
 
 
 
-
-
-
 start = time.time()
-recS = dd.dd_bp_square(dsino2,(nx,ny,nz), DSO,DSD,
+recS3 = dd.dd_bp_square(dsino2,(nx,ny,nz), DSO,DSD,
                        du=du,dv=dv,dsrc_p=dsrc_p,dsrc_z=dsrc_z,
                        su=su,sv=sv,ssrc_p=ssrc_p,ssrc_z=ssrc_z,
                        d_pix=d_pix)
 
 end = time.time()
 print("BP time:", end - start)
-
-
-
-
+plt.imshow(recS3[:,137,:].T.clip(0,1e7), origin='lower')
 
 
 """
