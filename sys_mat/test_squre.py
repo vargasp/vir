@@ -28,9 +28,9 @@ DSD = nx
 nu, nv = 9,9
 nsrc_p, nsrc_z = 9,9
 du, dv = 1, 1
-su, sv = 0., 5
-dsrc_p, dsrc_z = 1., .5
-ssrc_p, ssrc_z = 0, -2.5
+su, sv = 0., 0.
+dsrc_p, dsrc_z = 1., 1.
+ssrc_p, ssrc_z = 0., 0.
 
 z_bnd_arr = pf.boundspace(nz,d_pix)  # vertical
 src_z_arr = pf.censpace(nsrc_z,dsrc_z,ssrc_z)
@@ -57,12 +57,12 @@ img3d= asino.phantom((x0,y0,z0,r),nx,ny,nz,upsample=5)
 #Square
 sino1s = dd.dd_fp_square(img3d,nu,nv,nsrc_p,nsrc_z,DSO,DSD,
                        du=du,dv=dv,dsrc_p=dsrc_p,dsrc_z=dsrc_z,
-                       su=su,sv=sv,ssrc_p=ssrc_p,ssrc_z=ssrc_z,d_pix=1.0)
+                       su=su,sv=sv,ssrc_p=ssrc_p,ssrc_z=ssrc_z,d_pix=d_pix)
 
 
 #sino2s = rd.aw_p_square(img3d,nu,nv,ns_p,ns_z,DSO,DSD,
 #                       du=du,dv=dv,ds_p=ds_p,ds_z=ds_z,
- #                      su=su,sv=sv,d_pix=1.0,joseph=False)
+#                       su=su,sv=sv,d_pix=1.0,joseph=False)
 
 
 #[ns_p,np_z,nu,nv,4]
@@ -104,25 +104,21 @@ plt.xlabel("x srcs")
 
 plt.subplot(2,4,5)
 plt.imshow(sino1s[nsrc_p//2,nsrc_z//2,:,:,0].T, cmap='gray', aspect='auto', origin='lower')
-plt.title("Side 0")
 plt.ylabel("v dets")
 plt.xlabel("u dets")
 
 plt.subplot(2,4,6)
 plt.imshow(sino1s[nsrc_p//2,nsrc_z//2,:,:,1].T, cmap='gray', aspect='auto', origin='lower')
-plt.title("Side 1")
 plt.ylabel("v dets")
 plt.xlabel("u dets")
 
 plt.subplot(2,4,7)
 plt.imshow(sino1s[nsrc_p//2,nsrc_z//2,:,:,2].T, cmap='gray', aspect='auto', origin='lower')
-plt.title("Side 2")
 plt.ylabel("v dets")
 plt.xlabel("u dets")
 
 plt.subplot(2,4,8)
 plt.imshow(sino1s[nsrc_p//2,nsrc_z//2,:,:,3].T, cmap='gray', aspect='auto', origin='lower')
-plt.title("Side 3")
 plt.ylabel("v dets")
 plt.xlabel("u dets")
 plt.show
@@ -217,10 +213,11 @@ for i, sino in enumerate(sinos):
         plt.xlabel("u Bin")
 plt.show()
 
+"""
 
 
+#Examine bacprojection sides
 
-Examine bacprojection sides
 
 
 
@@ -238,24 +235,26 @@ sino2[...,3:] = 0.0
 sino3[...,:3] = 0.0
 
 rec0 = dd.dd_bp_square(sino0,(nx,ny,nz), DSO,DSD,
-                       du=du,dv=dv,dsrc_p=ds_p,dsrc_z=ds_z,
-                       su=su,sv=sv,d_pix=1.0)
+                       du=du,dv=dv,dsrc_p=dsrc_p,dsrc_z=dsrc_z,
+                       su=su,sv=sv,ssrc_p=ssrc_p,ssrc_z=ssrc_z,d_pix=d_pix)
 
 rec1 = dd.dd_bp_square(sino1,(nx,ny,nz), DSO,DSD,
-                       du=du,dv=dv,dsrc_p=ds_p,dsrc_z=ds_z,
-                       su=su,sv=sv,d_pix=1.0)
+                       du=du,dv=dv,dsrc_p=dsrc_p,dsrc_z=dsrc_z,
+                       su=su,sv=sv,ssrc_p=ssrc_p,ssrc_z=ssrc_z,d_pix=d_pix)
 
 rec2 = dd.dd_bp_square(sino2,(nx,ny,nz), DSO,DSD,
-                       du=du,dv=dv,dsrc_p=ds_p,dsrc_z=ds_z,
-                       su=su,sv=sv,d_pix=1.0)
+                       du=du,dv=dv,dsrc_p=dsrc_p,dsrc_z=dsrc_z,
+                       su=su,sv=sv,ssrc_p=ssrc_p,ssrc_z=ssrc_z,d_pix=d_pix)
 
 rec3 = dd.dd_bp_square(sino3,(nx,ny,nz), DSO,DSD,
-                       du=du,dv=dv,dsrc_p=ds_p,dsrc_z=ds_z,
-                       su=su,sv=sv,d_pix=1.0)
+                       du=du,dv=dv,dsrc_p=dsrc_p,dsrc_z=dsrc_z,
+                       su=su,sv=sv,ssrc_p=ssrc_p,ssrc_z=ssrc_z,d_pix=d_pix)
 
 recS = dd.dd_bp_square(sino1s,(nx,ny,nz), DSO,DSD,
-                       du=du,dv=dv,dsrc_p=ds_p,dsrc_z=ds_z,
-                       su=su,sv=sv,d_pix=1.0)
+                       du=du,dv=dv,dsrc_p=dsrc_p,dsrc_z=dsrc_z,
+                       su=su,sv=sv,ssrc_p=ssrc_p,ssrc_z=ssrc_z,d_pix=d_pix)
+
+
 
 recs = [rec0,rec1,rec2,rec3,recS]
 plt.figure(figsize=(12,20))
@@ -280,4 +279,3 @@ for i, rec in enumerate(recs):
     plt.ylabel("y")
 plt.show()
 
-"""
