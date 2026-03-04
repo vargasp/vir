@@ -1108,7 +1108,14 @@ def dd_bp_square(sino,img_shape,DSO,DSD,
     if nx != ny:
         raise ValueError("nx must equal ny")
     
-    img = np.zeros((nx,nz,ny), dtype=np.float32)
+    #[ny, nz, nx]  (ix contiguous)
+    imgX = np.zeros((ny,nz,nx), dtype=np.float32)
+
+    #[nx, nz, ny]  (iy contiguous)
+    imgY = np.zeros((nx,nz,ny), dtype=np.float32)
+
+
+    
 
     sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,ssrc_p,ssrc_z,d_pix = \
         as_float32(sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,ssrc_p,ssrc_z,d_pix)
@@ -1116,17 +1123,19 @@ def dd_bp_square(sino,img_shape,DSO,DSD,
     #sino = np.ascontiguousarray(sino.transpose(0,1,2,4,3))
 
     # [no, nz, nP] 
-    dd_bp_square_num(img,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,
+    dd_bp_square_num(imgX,imgY, sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,
                            su,sv,ssrc_p,ssrc_z,d_pix)
 
-    img = np.ascontiguousarray(img.transpose(0,2,1))
-    return img
+    imgX = imgX.transpose(0,2,1)    
+    imgY = imgY.transpose(2,0,1)
+
+    return np.ascontiguousarray(imgX+imgY)
 
 
 @njit(fastmath=True, cache=True)
-def dd_bp_square_num(img,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,
+def dd_bp_square_num(imgX,imgY, sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,
                      su,sv,ssrc_p,ssrc_z,d_pix):   
-    no, nz, nP = img.shape
+    no, nz, nP = imgX.shape
     nsrc_p, nsrc_z, nv, nu, _ = sino.shape
   
     # voxel boundaries in parallel (p), orthogonal (o), and vertical (z)
@@ -1143,19 +1152,18 @@ def dd_bp_square_num(img,sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,
     src_z_arr = pf.censpace(nsrc_z,dsrc_z,ssrc_z)
 
 
-    dd_bp_translational(sino,img,p_bnd_arr,o_bnd_arr,z_bnd_arr,
+    dd_bp_translational(imgX,imgY,sino,p_bnd_arr,o_bnd_arr,z_bnd_arr,
                         u_bnd_arr,v_bnd_arr,src_p_arr,src_z_arr,
                         du,dv,su,sv,ssrc_p,ssrc_z,DSO,DSD)
 
 
 @njit(fastmath=True, parallel=True, cache=True)
-def dd_bp_translational(sino,img,p_bnd_arr,o_bnd_arr,z_bnd_arr,
+def dd_bp_translational(imgX,imgY,sino,p_bnd_arr,o_bnd_arr,z_bnd_arr,
                         u_bnd_arr,v_bnd_arr,src_p_arr,src_z_arr,
                         du,dv,su,sv,ssrc_p,ssrc_z,src_o,DSD):
     
     print("Just det")
-    no, nz, nP = img.shape
-    #nsrc_p, nsrc_z, nv, _, nu = sino.shape
+    no, nz, nP = imgX.shape
     nsrc_p, nsrc_z, nv, nu, _ = sino.shape
 
     inv_du = np.float32(1.0) / du
@@ -1245,10 +1253,15 @@ def dd_bp_translational(sino,img,p_bnd_arr,o_bnd_arr,z_bnd_arr,
 
             
                 # Get 2D volume slice (contiguous in last dim)
-                vol_sliceX = img[io, iz]
-                vol_sliceXF = img[no - 1 - io, iz]
-                vol_sliceY = img[:,iz, io]
-                vol_sliceYF = img[:,iz, no - 1 - io]
+                #vol_sliceX = img[io, iz]
+                #vol_sliceXF = img[no - 1 - io, iz]
+                #vol_sliceY = img[:,iz, io]
+                #vol_sliceYF = img[:,iz, no - 1 - io]
+
+                vol_sliceX = imgX[io, iz]
+                vol_sliceXF = imgX[no - 1 - io, iz]
+                vol_sliceY = imgY[io, iz]
+                vol_sliceYF = imgY[no - 1 - io,iz]
 
                 # Loop over parallel voxels
                 for ip in range(nP):

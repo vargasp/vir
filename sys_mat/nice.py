@@ -24,11 +24,12 @@ du, dv = 2.61381, 2.61381
 
 
 
-psino = np.load("C:\\Users\\varga\\Desktop\\sino_spheres_phantom_inter.npy")
-img3d = np.load("C:\\Users\\varga\\Desktop\\phantomSpheres250.npy")
+#psino = np.load("C:\\Users\\varga\\Desktop\\sino_spheres_phantom_inter.npy")
+#img3d = np.load("C:\\Users\\varga\\Desktop\\phantomSpheres250.npy")
+img3d = np.load("/Users/pvargas21/Desktop/phantomSpheres250.npy")
 
 nx, ny, nz = img3d.shape
-nu, nv, nsrc_p, nsrc_z, nsides = psino.shape
+nu, nv, nsrc_p, nsrc_z, nsides = 961, 121, 650, 10, 4
 d_pix = .96
 dsrc_p, dsrc_z = .48, .48
 ssrc_p, ssrc_z = 0.0, -74.4
@@ -43,19 +44,22 @@ dsino2 = dd.dd_fp_square(img3d,nu,nv,nsrc_p,nsrc_z,DSO,DSD,
 
 end = time.time()
 print("FP time:", end - start)
-
+#plt.imshow(dsino2[325,0,:,:,0], origin='lower')
 
 
 
 start = time.time()
-recS3 = dd.dd_bp_square(dsino2,(nx,ny,nz), DSO,DSD,
+recS = dd.dd_bp_square(dsino2,(nx,ny,nz), DSO,DSD,
                        du=du,dv=dv,dsrc_p=dsrc_p,dsrc_z=dsrc_z,
                        su=su,sv=sv,ssrc_p=ssrc_p,ssrc_z=ssrc_z,
                        d_pix=d_pix)
 
 end = time.time()
 print("BP time:", end - start)
-plt.imshow(recS3[:,137,:].T.clip(0,1e7), origin='lower')
+plt.imshow(recS[:,137,:].T.clip(0,1e7), origin='lower')
+
+
+
 
 
 """
