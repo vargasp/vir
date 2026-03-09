@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Mar  9 10:36:46 2026
+
+@author: varga
+"""
+
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -72,29 +79,30 @@ def sirt(sino,W_sino,W_img,gem_prms,img_prms,src_prms,det_prms,srt_prms):
 
 
 #Phantom/Rec Parameters
-img3d = np.load("/Users/pvargas21/Desktop/phantomSpheres250.npy").astype(np.float32)
-img3d = np.load("C:\\Users\\varga\\Desktop\\phantomSpheres250.npy").astype(np.float32)
 
-nx, ny, nz = img3d.shape
-d_pix = .96
+nx, ny, nz = 64,64,64
+img3d = np.zeros([nx,ny,nz])
+img3d[24:40,24:40,24:40] = 1
+
+d_pix = 1
 
 
 #Geometric Parameters
-DSO, DSD = 141.381, 261.381
-nu, nv = 961, 121
-du, dv = 2.61381, 2.61381
-su, sv = 0.0,  158.13554
-su, sv = 0.24,  158.13554
+DSO, DSD = 40, 72
+nu, nv = 129, 64
+du, dv = 1, 1
+su, sv = 0.0, 32
 
 
-nsrc_p, nsrc_z, = 650, 10
-dsrc_p, dsrc_z = .48, .48
-ssrc_p, ssrc_z = 0.0, -74.4
+
+nsrc_p, nsrc_z, = 96, 10
+dsrc_p, dsrc_z = .5, .5
+ssrc_p, ssrc_z = 0.0, -27
 nsides = 4
 
 #SIRT Parameters
 gamma = 1
-iters = 5
+iters = 50
 
 
 gem_prms = (DSO, DSD)

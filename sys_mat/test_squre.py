@@ -16,7 +16,7 @@ import vir.sys_mat.pf as pf
 
 
 #Image params - Pixels
-nx, ny, nz = 9, 9, 9
+nx, ny, nz = 65, 65, 65
 d_pix = 1.0
 
 #Fan Beam Geometry - Parallel
@@ -25,10 +25,10 @@ DSD = nx
 
 
 #Sino 32 
-nu, nv = 9,9
-nsrc_p, nsrc_z = 9,9
+nu, nv = 129,129
+nsrc_p, nsrc_z = 129,129
 du, dv = 1, 1
-su, sv = 0., 0.
+su, sv = 0, 0.
 dsrc_p, dsrc_z = 1., 1.
 ssrc_p, ssrc_z = 0., 0.
 
@@ -40,13 +40,13 @@ v_bnd_arr = pf.boundspace(nv,dv,sv + ssrc_z)
 
 
 #Phantom Paramters Sino
-r = 1
+r = 5
 x0 = 0
 y0 = 0
 z0 = 0
 
 #Create analytic models
-img3d= asino.phantom((x0,y0,z0,r),nx,ny,nz,upsample=5)
+img3d= asino.phantom((x0,y0,z0,r),nx*3,ny*3,nz*3,upsample=5)
 
 #Conebeam
 #sino1c = dd.dd_fp_cone_3d(img3d,np.array([0]),nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
@@ -122,6 +122,10 @@ plt.imshow(sino1s[nsrc_p//2,nsrc_z//2,:,:,3].T, cmap='gray', aspect='auto', orig
 plt.ylabel("v dets")
 plt.xlabel("u dets")
 plt.show
+
+plt.plot(sino1s[nsrc_p//2,nsrc_z//2,52:77,nv//2,:])
+plt.plot(sino1s[nsrc_p//2,58:71,nu//2,nv//2,:])
+
 
 
 """
@@ -250,32 +254,77 @@ rec3 = dd.dd_bp_square(sino3,(nx,ny,nz), DSO,DSD,
                        du=du,dv=dv,dsrc_p=dsrc_p,dsrc_z=dsrc_z,
                        su=su,sv=sv,ssrc_p=ssrc_p,ssrc_z=ssrc_z,d_pix=d_pix)
 
-recS = dd.dd_bp_square(sino1s,(nx,ny,nz), DSO,DSD,
+recS2 = dd.dd_bp_square(sino1s,(nx,ny,nz), DSO,DSD,
                        du=du,dv=dv,dsrc_p=dsrc_p,dsrc_z=dsrc_z,
                        su=su,sv=sv,ssrc_p=ssrc_p,ssrc_z=ssrc_z,d_pix=d_pix)
 
 
 
 recs = [rec0,rec1,rec2,rec3,recS]
-plt.figure(figsize=(12,20))
+titles = ["Side 0","Side 1","Side 2","Side 3","All sides"]
+plt.figure(figsize=(20,12))
 
-for i, rec in enumerate(recs):
+for i, rec in enumerate(recs):       
     #Y-Z plane
-    plt.subplot(5,3,(i*3)+1)
+    plt.subplot(3,5,i+1)
     plt.imshow(rec[int(nx/2+x0),:,:].T, cmap='gray', aspect='auto', origin='lower')
+    plt.title(titles[i])
     plt.xlabel("y")
     plt.ylabel("z")
 
+for i, rec in enumerate(recs):       
     #X-Z plane
-    plt.subplot(5,3,(i*3)+2)
+    plt.subplot(3,5,5 + i+1)
     plt.imshow(rec[:,int(ny/2+y0),:].T, cmap='gray', aspect='auto', origin='lower')
     plt.xlabel("x")
     plt.ylabel("z")
-    
+
+for i, rec in enumerate(recs):       
     #X-Y plane
-    plt.subplot(5,3,(i*3)+3)
+    plt.subplot(3,5,10+i+1)
     plt.imshow(rec[:,:,int(nz/2+z0)].T, cmap='gray', aspect='auto', origin='lower')
     plt.xlabel("x")
     plt.ylabel("y")
 plt.show()
+
+
+
+
+su_s = np.array([0,.25,.52,.75,1])
+
+prof_x = np.zeros((nx, su_s.size))
+prof_y = np.zeros((nx, su_s.size))
+prof_z = np.zeros((nx, su_s.size))
+
+for i, su in enumerate(su_s):
+    sino1s = dd.dd_fp_square(img3d,nu,nv,nsrc_p,nsrc_z,DSO,DSD,
+                           du=du,dv=dv,dsrc_p=dsrc_p,dsrc_z=dsrc_z,
+                           su=su,sv=sv,ssrc_p=ssrc_p,ssrc_z=ssrc_z,d_pix=d_pix)
+    
+    
+    recS = dd.dd_bp_square(sino1s,(nx,ny,nz), DSO,DSD,
+                           du=du,dv=dv,dsrc_p=dsrc_p,dsrc_z=dsrc_z,
+                           su=su,sv=sv,ssrc_p=ssrc_p,ssrc_z=ssrc_z,d_pix=d_pix)
+
+    prof_x[:,i] = recS[:,int(ny/2+y0),int(nz/2+z0)]
+    prof_y[:,i] = recS[int(nx/2+x0),:,int(nz/2+z0)]
+    prof_z[:,i] = recS[int(nx/2+x0),int(ny/2+y0),:]
+
+
+
+
+
+plt.plot(prof_x[5:-5])
+         
+
+
+         t="x-axis")
+plt.plot(rec[int(nx/2+x0),:,int(nz/2+z0)],label="y-axis")
+plt.plot(rec[int(nx/2+x0),int(ny/2+y0),:],label="z-axis")
+plt.legend()
+
+
+
+
+
 
