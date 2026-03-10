@@ -1070,7 +1070,7 @@ def dd_fp_translational(sino,imgY,imgX,p_bnd_arr,o_bnd_arr,z_bnd_arr,
                     vz_r = vz_r_arr[i_sz]
                     
                     base = sino[i_sp, i_sz]  # hoist partial indexing
-                    basef = sino[nsrc_p-1-i_sp, i_sz]  # hoist partial indexing
+                    #basef = sino[nsrc_p-1-i_sp, i_sz]  # hoist partial indexing
 
                     for iu in range(u_lo, u_hi):
                     
@@ -1091,8 +1091,10 @@ def dd_fp_translational(sino,imgY,imgX,p_bnd_arr,o_bnd_arr,z_bnd_arr,
         
                             # contiguous in last dim (f)
                             base[iv, iu, 0] += t0 * overlap_v
-                            basef[iv, iu, 1] += t1 * overlap_v
-                            basef[iv, iu, 2] += t2 * overlap_v
+                            #basef[iv, iu, 1] += t1 * overlap_v
+                            #basef[iv, iu, 2] += t2 * overlap_v
+                            base[iv, iu, 1] += t1 * overlap_v
+                            base[iv, iu, 2] += t2 * overlap_v
                             base[iv, iu, 3] += t3 * overlap_v
                                     
                                     
@@ -1158,10 +1160,11 @@ def dd_bp_square_num(imgX,imgY, sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,
                         du,dv,su,sv,ssrc_p,ssrc_z,DSO,DSD)
 
 
-@njit(fastmath=True, parallel=True, cache=True)
+@njit(fastmath=True, parallel=False, cache=True)
 def dd_bp_translational(imgX,imgY,sino,p_bnd_arr,o_bnd_arr,z_bnd_arr,
                         u_bnd_arr,v_bnd_arr,src_p_arr,src_z_arr,
                         du,dv,su,sv,ssrc_p,ssrc_z,src_o,DSD):
+    
     
     no, nz, nP = imgX.shape
     nsrc_p, nsrc_z, nv, nu, _ = sino.shape
@@ -1307,4 +1310,4 @@ def dd_bp_translational(imgX,imgY,sino,p_bnd_arr,o_bnd_arr,z_bnd_arr,
                     vol_sliceY[nP-1-ip] += voxel_accumY
                     
                     vol_sliceXF[nP-1-ip] += voxel_accumXF
-                    vol_sliceYF[ip] += voxel_accumYF         
+                    vol_sliceYF[ip] += voxel_accumYF     

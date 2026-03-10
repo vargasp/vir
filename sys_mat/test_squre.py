@@ -16,7 +16,7 @@ import vir.sys_mat.pf as pf
 
 
 #Image params - Pixels
-nx, ny, nz = 65, 65, 65
+nx, ny, nz = 33, 33, 33
 d_pix = 1.0
 
 #Fan Beam Geometry - Parallel
@@ -25,8 +25,8 @@ DSD = nx
 
 
 #Sino 32 
-nu, nv = 129,129
-nsrc_p, nsrc_z = 129,129
+nu, nv = 65,65
+nsrc_p, nsrc_z = 65,65
 du, dv = 1, 1
 su, sv = 0, 0.
 dsrc_p, dsrc_z = 1., 1.
@@ -46,7 +46,10 @@ y0 = 0
 z0 = 0
 
 #Create analytic models
-img3d= asino.phantom((x0,y0,z0,r),nx*3,ny*3,nz*3,upsample=5)
+#img3d= asino.phantom((x0,y0,z0,r),nx*3,ny*3,nz*3,upsample=5)
+img3d= asino.sphere_phantom_exact((x0,y0,z0,r),nx,ny,nz)
+
+
 
 #Conebeam
 #sino1c = dd.dd_fp_cone_3d(img3d,np.array([0]),nu,nv,DSO,DSD,du=du,dv=dv,su=su,sv=sv,d_pix=d_pix)
@@ -66,7 +69,7 @@ sino1s = dd.dd_fp_square(img3d,nu,nv,nsrc_p,nsrc_z,DSO,DSD,
 
 
 #[ns_p,np_z,nu,nv,4]
-sino1s = sino1s.transpose([0,1,3,2,4,])
+sino1s = sino1s.transpose([0,1,3,2,4])
 
 #[ns_p,np_z,nu,nv,4]
 #sino2s = sino2s.transpose([1,2,3,4,0])
@@ -128,9 +131,9 @@ plt.plot(sino1s[nsrc_p//2,58:71,nu//2,nv//2,:])
 
 
 
-"""
-Compare forward projection square
 
+#Compare forward projection square
+"""
 sinos = (sino1s[ns_p//2,ns_z//2,:,:,0],sino2s[ns_p//2,ns_z//2,:,:,0],sino3s[ns_p//2,ns_z//2,:,:,0])
 
 titles = ["DD Circular","SD Circular","JO Circular",
@@ -179,7 +182,7 @@ plt.show()
 
 
 
-Compare forward projection conebeam and square
+#Compare forward projection conebeam and square
 
 sinos = (sino1c[0,:,:],sino2c[0,:,:],sino3c[0,:,:],
          sino1s[ns_p//2,ns_z//2,:,:,0],sino2s[ns_p//2,ns_z//2,:,:,0],sino3s[ns_p//2,ns_z//2,:,:,0])
@@ -223,9 +226,7 @@ plt.show()
 #Examine bacprojection sides
 
 
-
-
-sino1s = np.ascontiguousarray(sino1s.transpose([0,1,3,2,4,]))
+sino1s = sino1s.transpose([0,1,3,2,4])
 
 sino0 = sino1s.copy()
 sino1 = sino1s.copy()
@@ -254,7 +255,7 @@ rec3 = dd.dd_bp_square(sino3,(nx,ny,nz), DSO,DSD,
                        du=du,dv=dv,dsrc_p=dsrc_p,dsrc_z=dsrc_z,
                        su=su,sv=sv,ssrc_p=ssrc_p,ssrc_z=ssrc_z,d_pix=d_pix)
 
-recS2 = dd.dd_bp_square(sino1s,(nx,ny,nz), DSO,DSD,
+recS = dd.dd_bp_square(sino1s,(nx,ny,nz), DSO,DSD,
                        du=du,dv=dv,dsrc_p=dsrc_p,dsrc_z=dsrc_z,
                        su=su,sv=sv,ssrc_p=ssrc_p,ssrc_z=ssrc_z,d_pix=d_pix)
 
@@ -311,7 +312,7 @@ for i, su in enumerate(su_s):
     prof_z[:,i] = recS[int(nx/2+x0),int(ny/2+y0),:]
 
 
-
+"""
 
 
 plt.plot(prof_x[5:-5])
@@ -324,7 +325,7 @@ plt.plot(rec[int(nx/2+x0),int(ny/2+y0),:],label="z-axis")
 plt.legend()
 
 
-
+"""
 
 
 
