@@ -2,7 +2,8 @@ import numpy as np
 
 
 def ramp_filter(nu, du=1.0, cutoff=0.5, zero_pad=True,
-                half_spectrum=True, real_space=True):
+                half_spectrum=True, real_space=True,
+                return_freq=False):
     """
     Construct a ramp (Ram-Lak) filter for filtered backprojection (FBP); The
     ramp filter is H(f) = |f|.
@@ -50,6 +51,8 @@ def ramp_filter(nu, du=1.0, cutoff=0.5, zero_pad=True,
             - (n//2 + 1,) if half_spectrum=True
             - (n,) otherwise
         Units: [1 / length]
+        
+    f : frequencies (physical units: cycles per length)
     """
 
     # Determine FFT length (zero-padding improves frequency sampling)
@@ -57,6 +60,13 @@ def ramp_filter(nu, du=1.0, cutoff=0.5, zero_pad=True,
         nfu = int(2**np.ceil(np.log2(2 * nu)))
     else:
         nfu = nu
+
+
+    # Frequency axis (physical units: cycles per length)
+    if half_spectrum:
+        f = np.fft.rfftfreq(nfu, d=du)
+    else:
+        f = np.fft.fftfreq(nfu, d=du)
 
     # Sampling and Nyquist frequencies
     f_s = 1.0 / du          # sampling frequency [1 / length]
@@ -83,20 +93,12 @@ def ramp_filter(nu, du=1.0, cutoff=0.5, zero_pad=True,
 
         # Transform to frequency domain
         if half_spectrum:
-            f = np.fft.rfftfreq(nfu, d=du)   # frequencies [1 / length]
             H = du * np.real(np.fft.rfft(h)) # scale by du (integral approximation)
         else:
-            f = np.fft.fftfreq(nfu, d=du)
             H = du * np.real(np.fft.fft(h))
 
     # --- FREQUENCY-DOMAIN CONSTRUCTION ---
     else:
-        # Frequency axis (physical units: cycles per length)
-        if half_spectrum:
-            f = np.fft.rfftfreq(nfu, d=du)
-        else:
-            f = np.fft.fftfreq(nfu, d=du)
-
         # Ramp filter: H(f) = |f|
         H = np.abs(f)
 
@@ -104,70 +106,136 @@ def ramp_filter(nu, du=1.0, cutoff=0.5, zero_pad=True,
     # cutoff * f_s → actual cutoff frequency
     H[np.abs(f) > cutoff * f_s] = 0.0
 
-    return H
+    if return_freq:
+        return H, f
+    else:
+        return H
 
 
-def window_filter(H, f, filter_type, sigma=0.5):
+def window_filter(H, f, du=1.0, filter_type="ramp", cutoff=0.5, sigma=0.5):
+    """
+    Apply a window function to a ramp filter in the frequency domain.
 
-    # --- Window functions ---
-    if filter_type == "ram-lak":
-        pass
+    This function modifies a precomputed ramp filter H(f) by applying a
+    frequency window W(f), producing a band-limited filter used in
+    filtered backprojection (FBP).
 
+    All window functions are defined in terms of *physical frequency* and
+    are properly normalized with respect to the cutoff frequency, ensuring
+    consistent behavior when the detector spacing `du` changes.
+
+    Parameters
+    ----------
+    H : ndarray
+        Input ramp filter evaluated at frequencies `f`.
+        Typically H(f) = |f| or a discretized equivalent.
+        Units: [1 / length]
+
+    f : ndarray
+        Frequency axis corresponding to H.
+        Must be in physical units: cycles per unit length (e.g., 1/mm).
+
+    du : float, optional
+        Detector spacing (sample spacing in projection domain).
+        Defines the sampling frequency: f_s = 1 / du.
+
+    filter_type : str, optional
+        Type of window to apply. Options:
+        - "ramp" or "ram-lak" : no window (pure ramp filter)
+        - "hann"              : Hann window
+        - "hamming"           : Hamming window
+        - "blackman"          : Blackman window
+        - "shepp-logan"       : Shepp-Logan (sinc) window
+        - "cosine"            : Cosine window
+        - "gaussian"          : Gaussian window (no hard cutoff)
+
+    cutoff : float, optional
+        Cutoff frequency as a fraction of the sampling frequency f_s.
+        The physical cutoff is f_c = cutoff * f_s.
+        Typical range: (0, 0.5].
+
+    sigma : float, optional
+        Standard deviation for the Gaussian window in *physical frequency units*.
+        Only used if filter_type == "gaussian".
+
+    Returns
+    -------
+    H_windowed : ndarray
+        The windowed filter H(f) * W(f), same shape as input H.
+
+    Notes
+    -----
+    - All windows except Gaussian are band-limited to |f| <= f_c.
+    - Window functions are defined in terms of normalized frequency:
+          f_norm = f / f_c
+    - The Shepp–Logan window uses:
+          W(f) = sinc(f / (2 f_c))
+      and does NOT go to zero at the cutoff.
+    - Gaussian window does not enforce a hard cutoff.
+    """
+
+    # Sampling frequency (cycles per unit length)
+    f_s = 1.0 / du
+
+    # Physical cutoff frequency
+    f_c = cutoff * f_s
+
+    # Normalize frequency to cutoff (dimensionless)
+    f_norm = f / f_c
+
+    # Mask of frequencies within cutoff band
+    valid = np.abs(f) <= f_c
+
+    # Initialize window
+    W = np.zeros_like(f)
+
+    # --- No window (pure ramp) ---
+    if filter_type == "ram-lak" or filter_type == "ramp":
+        return H
+
+    # --- Hann window ---
+    # W(f) = 0.5 + 0.5 cos(pi f / f_c)
     elif filter_type == "hann":
-        # Hann window: 0.5 + 0.5 cos(pi f)
-        W = np.zeros_like(f)
-        mask = f <= 1
-        W[mask] = 0.5 + 0.5 * np.cos(np.pi * f[mask])
-        H *= W
+        W[valid] = 0.5 + 0.5 * np.cos(np.pi * f_norm[valid])
 
+    # --- Hamming window ---
+    # W(f) = 0.54 + 0.46 cos(pi f / f_c)
+    elif filter_type == "hamming":
+        W[valid] = 0.54 + 0.46 * np.cos(np.pi * f_norm[valid])
+
+    # --- Blackman window ---
+    # W(f) = 0.42 + 0.5 cos(pi f / f_c) + 0.08 cos(2π f / f_c)
+    elif filter_type == "blackman":
+        W[valid] = (
+            0.42
+            + 0.5 * np.cos(np.pi * f_norm[valid])
+            + 0.08 * np.cos(2 * np.pi * f_norm[valid])
+        )
+
+    # --- Shepp-Logan window ---
+    # W(f) = sinc(f / (2 f_c)) = sin(pi f / (2 f_c)) / (pi f / (2 f_c))
+    # Does NOT go to zero at f = f_c
     elif filter_type == "shepp-logan":
-        # sinc window: sin(pi f) / (pi f)
-        W = np.ones_like(f)
-        mask = f > 0
-        W[mask] = np.sin(np.pi * f[mask]) / (np.pi * f[mask])
-        W[f > 1] = 0
-        H *= W
+        W[0] = 1.0  # limit as f -> 0
+        m = valid & (f != 0)
+        W[m] = np.sin(np.pi * f[m] / (2 * f_c)) / (np.pi * f[m] / (2 * f_c))
 
+    # --- Cosine window ---
+    # W(f) = cos(pi f / (2 f_c))
     elif filter_type == "cosine":
-        W = np.zeros_like(f)
-        mask = f <= 1
-        W[mask] = np.cos(np.pi * f[mask] / 2)
-        H *= W
+        W[valid] = np.cos(np.pi * f_norm[valid] / 2.0)
 
+    # --- Gaussian window ---
+    # W(f) = exp(-f^2 / (2 sigma^2))
+    # Note: no hard cutoff applied here
     elif filter_type == "gaussian":
         W = np.exp(-0.5 * (f / sigma) ** 2)
-        W[f > 1] = 0
-        H *= W
 
     else:
         raise ValueError(f"Unknown filter type: {filter_type}")
-        
-    return H
 
-
-
-def gaussian_filter(n, sigma=0.68):
-
-    h = np.zeros([n])
-    if sigma == 0:
-        h[0] = 1.0
-    else:
-        h[0:n/2] = np.exp(-1.0*(.5/sigma**2)*np.arange(n/2)**2)
-    
-    h[n/2+1:] = h[1:n/2][::-1]
-    h /= h.sum()
-
-    return np.fft.fft(h)
-
-
-def hann_filter(n, cutoff=0.5):
-    
-    freq = np.fft.fftfreq(n)
-    H = np.zeros_like(freq)
-    mask = np.abs(freq) <= cutoff
-    H[mask] = 0.5 + 0.5 * np.cos(np.pi * freq[mask] / cutoff)
-    
-    return H
+    # Apply window to ramp filter
+    return H * W
     
 
 def filter_sino(sino, du=1.0, filter_name='ramp', filter_params=None):
