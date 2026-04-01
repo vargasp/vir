@@ -75,7 +75,7 @@ H_g = H_g[ind]
 H_b = H_b[ind]
 
 plt.title(f"n: {n:d}, du: {du:1.2f}, cutoff: {cutoff:1.2f}")
-plt.plot(f,H, label='Ramp')
+plt.plot(f,H, label='ramp')
 plt.plot(f,H_r, label='ram-lak')
 plt.plot(f,H_hn, label='hann')
 plt.plot(f,H_hm, label='hamming')

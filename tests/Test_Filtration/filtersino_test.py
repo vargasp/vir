@@ -27,15 +27,19 @@ theta = np.linspace(0.0, 180.0,na, endpoint=False)
 sino = radon(image, theta=theta)
 nu, _ = sino.shape
 
-fsino = filt.filter_sino(sino.T, filter_name='ramp' ).T
+fsino = filt.filter_sino(sino.T, filter_type='cosine' ).T
 
 
 bp = iradon(sino, theta=theta, filter_name=None)
-rec1 = iradon(sino, theta=theta, filter_name='ramp')
+rec1 = iradon(sino, theta=theta, filter_name='cosine')
 rec2 = iradon(fsino, theta=theta, filter_name=None)
 
 
 plt.plot(rec1[:,80])
 plt.plot(rec2[:,80])
+plt.show()
+         
+
+plt.plot((rec1 - rec2)[:,80])
 plt.show()
          

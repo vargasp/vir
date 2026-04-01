@@ -206,11 +206,8 @@ def window_filter(H, f, du=1.0, filter_type="ramp", cutoff=0.5, sigma=0.5):
     # --- Blackman window ---
     # W(f) = 0.42 + 0.5 cos(pi f / f_c) + 0.08 cos(2π f / f_c)
     elif filter_type == "blackman":
-        W[valid] = (
-            0.42
-            + 0.5 * np.cos(np.pi * f_norm[valid])
-            + 0.08 * np.cos(2 * np.pi * f_norm[valid])
-        )
+        W[valid] = (0.42 + 0.5 * np.cos(np.pi * f_norm[valid])
+                    + 0.08 * np.cos(2 * np.pi * f_norm[valid]))
 
     # --- Shepp-Logan window ---
     # W(f) = sinc(f / (2 f_c)) = sin(pi f / (2 f_c)) / (pi f / (2 f_c))
@@ -238,7 +235,7 @@ def window_filter(H, f, du=1.0, filter_type="ramp", cutoff=0.5, sigma=0.5):
     return H * W
     
 
-def filter_sino(sino, du=1.0, filter_name='ramp', filter_params=None):
+def filter_sino(sino, du=1.0, filter_type='ramp', cutoff=0.5):
     """
     Apply a 1D frequency-domain filter to the projections (sinogram) along the last axis.
 
@@ -286,7 +283,7 @@ def filter_sino(sino, du=1.0, filter_name='ramp', filter_params=None):
       reconstruction matches standard implementations
     """
 
-    if filter_name == None:
+    if filter_type == None:
         return sino
     
     nu = sino.shape[-1]
@@ -294,23 +291,11 @@ def filter_sino(sino, du=1.0, filter_name='ramp', filter_params=None):
     # FFT size
     z = int(2**np.ceil(np.log2(2*nu)))
 
-    #Create vector of the filter (n = zpbins)
-    if filter_params == None:
-        cutoff = 0.5
-            
-    #H = ramp_filter_old(nu, du=du, cutoff=cutoff, zero_pad=True)
- 
-    H = ramp_filter(nu, du=du, cutoff=cutoff, zero_pad=True,
-                    half_spectrum=True, real_space=True)
- 
+    H, f = ramp_filter(nu, du=du, cutoff=cutoff, zero_pad=True,
+                       half_spectrum=True, real_space=True,return_freq=True)
+   
+    H = window_filter(H, f, du=du, filter_type=filter_type, cutoff=cutoff)
     
-    if filter_name == 'gaus':
-        H *= gaussian_filter(z, sigma=0.68)
-
-    elif filter_name == 'hann':
-        H *= hann_filter(z, cutoff=0.5)
-    
-                 
     # Compute rFFT of sino directly (half-spectrum)
     fft_sino = np.fft.rfft(sino, axis=-1, n=z)
         
@@ -325,132 +310,8 @@ def filter_sino(sino, du=1.0, filter_name='ramp', filter_params=None):
     
 
 
-def astra_filter(n, du=1.0, filter_type="ram-lak", cutoff=1.0, param=None):
-    """
-    Create ASTRA-style FBP filters in the frequency domain (rFFT form).
-
-    Parameters
-    ----------
-    n : int
-        FFT length (after zero-padding).
-    du : float, optional
-        Detector spacing.
-    filter_type : str
-        One of:
-        - 'ram-lak'      : pure ramp
-        - 'hann'         : ramp * Hann window
-        - 'shepp-logan'  : ramp * sinc window
-        - 'cosine'       : ramp * cosine window
-        - 'gaussian'     : ramp * Gaussian window
-    cutoff : float, optional
-        Fraction of Nyquist (0 < cutoff ≤ 1). ASTRA uses this as scaling.
-    param : float or None
-        Optional parameter (used for Gaussian sigma, etc.)
-
-    Returns
-    -------
-    H : ndarray
-        Real-valued frequency response (length n//2 + 1 for rFFT)
-    """
-
-    # rFFT frequencies (cycles per unit length)
-    freq = np.fft.rfftfreq(n, d=du)
-
-    # Nyquist frequency
-    f_nyq = 1.0 / (2.0 * du)
-
-    # Normalize frequency to [0, 1] relative to cutoff
-    f = freq / (cutoff * f_nyq)
-
-    # --- Ramp (Ram-Lak) ---
-    H = np.abs(freq)
-
-    # --- Window functions ---
-    if filter_type == "ram-lak":
-        pass
-
-    elif filter_type == "hann":
-        # Hann window: 0.5 + 0.5 cos(pi f)
-        W = np.zeros_like(f)
-        mask = f <= 1
-        W[mask] = 0.5 + 0.5 * np.cos(np.pi * f[mask])
-        H *= W
-
-    elif filter_type == "shepp-logan":
-        # sinc window: sin(pi f) / (pi f)
-        W = np.ones_like(f)
-        mask = f > 0
-        W[mask] = np.sin(np.pi * f[mask]) / (np.pi * f[mask])
-        W[f > 1] = 0
-        H *= W
-
-    elif filter_type == "cosine":
-        W = np.zeros_like(f)
-        mask = f <= 1
-        W[mask] = np.cos(np.pi * f[mask] / 2)
-        H *= W
-
-    elif filter_type == "gaussian":
-        sigma = param if param is not None else 0.5
-        W = np.exp(-0.5 * (f / sigma) ** 2)
-        W[f > 1] = 0
-        H *= W
-
-    else:
-        raise ValueError(f"Unknown filter type: {filter_type}")
-
-    # Zero out beyond cutoff (safety, though windows already enforce it)
-    H[f > 1] = 0.0
-
-    # Scale (ASTRA includes factor ~2 for ramp symmetry)
-    H *= 2.0
-
-    return H
 
 
-
-
-def ramp_filter_old(nu, du=1.0, cutoff=0.5, zero_pad=True):
-    """
-    Computers a ramp filter based on AC Kak, M Slaney, "Principles of
-    Computerized Tomographic Imaging", IEEE Press 1988.
-           
-    Parameters
-    ----------
-    nu : int
-        The number of detector columns
-    du : float, optional
-        The sampling interval between detecros [distance].  Default is 1.0
-    cutoff : float
-        cutoff is fraction of Nyquist (0 < cutoff ≤ 0.5)
-    zero_pad : boolean
-        If true zero-pads the filter to the smallest power of 2 that is greater
-        or equal to (2*nbins) to eliminate the interperiod interference
-        artifacts inherent to periodic convolution. Default is True
-
-    Returns
-    -------
-    H: (nfu) ndarray
-        The computed ramp filter.
-    """
-    
-    if zero_pad:
-        nfu = int(2**np.ceil(np.log2(2*nu)))
-    else:
-        nfu = nu
-
-    v = np.fft.fftfreq(nfu,d=1.0/nfu)
-                          
-    h = np.zeros(nfu)
-    h[0] = 1./(4.0*du**2)
-    h[1::2] = -1.0/(du*np.pi*v[1::2])**2
-
-    H = 2 * np.real(np.fft.fft(h))
-
-    if cutoff < 0.5:        
-        H[np.abs(v) > cutoff *  nfu / 2] = 0.0
-    
-    return H
 
 
 
