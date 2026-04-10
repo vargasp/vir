@@ -235,7 +235,7 @@ def window_filter(H, f, du=1.0, filter_type="ramp", cutoff=0.5, sigma=0.5):
     return H * W
     
 
-def filter_sino(sino, du=1.0, filter_type='ramp', cutoff=0.5):
+def filter_sino(sino, du=1.0, filter_type='ramp', cutoff=0.5,real_space=True):
     """
     Apply a 1D frequency-domain filter to the projections (sinogram) along the last axis.
 
@@ -292,7 +292,7 @@ def filter_sino(sino, du=1.0, filter_type='ramp', cutoff=0.5):
     z = int(2**np.ceil(np.log2(2*nu)))
 
     H, f = ramp_filter(nu, du=du, cutoff=cutoff, zero_pad=True,
-                       half_spectrum=True, real_space=True,return_freq=True)
+                       half_spectrum=True, real_space=real_space,return_freq=True)
    
     H = window_filter(H, f, du=du, filter_type=filter_type, cutoff=cutoff)
     
