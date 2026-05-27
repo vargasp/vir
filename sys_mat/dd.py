@@ -1160,7 +1160,7 @@ def dd_bp_square_num(imgX,imgY, sino,DSO,DSD,du,dv,dsrc_p,dsrc_z,
                         du,dv,su,sv,ssrc_p,ssrc_z,DSO,DSD)
 
 
-@njit(fastmath=True, parallel=False, cache=True)
+@njit(fastmath=True, parallel=True, cache=True)
 def dd_bp_translational(imgX,imgY,sino,p_bnd_arr,o_bnd_arr,z_bnd_arr,
                         u_bnd_arr,v_bnd_arr,src_p_arr,src_z_arr,
                         du,dv,su,sv,ssrc_p,ssrc_z,src_o,DSD):
