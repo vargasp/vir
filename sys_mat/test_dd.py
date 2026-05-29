@@ -49,8 +49,8 @@ for i, theta in enumerate(angles):
     sino[i] = 2 * np.sqrt((r**2 - s**2).clip(0))
 
 
-sino1p = dd.dd_fp_par_2d(img, angles, nDets, d_pix=d_pix, d_det=dDet)
-sino1f = dd.dd_fp_fan_2d(img, angles, nDets, DSO, DSD, d_pix=d_pix, d_det=dDet)
+sino1p = dd.dd_fp_par_2d(img, angles, nDets, d_pix=d_pix, du=dDet)
+sino1f = dd.dd_fp_fan_2d(img, angles, nDets, DSO, DSD, d_pix=d_pix, du=dDet)
 
 plt.figure(figsize=(4,2))
 plt.subplot(1,2,1)
@@ -64,8 +64,8 @@ plt.title("DD Fanbean")
 plt.tight_layout()
 plt.show()
 
-sino1p = dd.dd_fp_par_2d(img, angles, nDets, d_pix=d_pix, d_det=dDet)
-sino1f = dd.dd_fp_fan_2d(img, angles, nDets, DSO, DSD, d_pix=d_pix, d_det=dDet)
+sino1p = dd.dd_fp_par_2d(img, angles, nDets, d_pix=d_pix, du=dDet)
+sino1f = dd.dd_fp_fan_2d(img, angles, nDets, DSO, DSD, d_pix=d_pix, du=dDet)
 
 plt.figure(figsize=(4,2))
 plt.subplot(1,2,1)
@@ -92,8 +92,8 @@ sino = np.zeros((1, nDets))
 sino[0,10:-10] = 1
 angles = np.array([10*np.pi/180])
 
-rec1p = dd.dd_bp_par_2d(sino, angles, nX, nY, d_pix=d_pix, d_det=dDet)
-rec1f = dd.dd_bp_fan_2d(sino, angles, nX, nY, DSO, DSD, d_pix=d_pix, d_det=dDet)
+rec1p = dd.dd_bp_par_2d(sino, angles, (nX, nY), d_pix=d_pix, du=dDet)
+rec1f = dd.dd_bp_fan_2d(sino, angles, (nX, nY), DSO, DSD, d_pix=d_pix, du=dDet)
 # plt.imshow(rec)
 
 print("Par Rec Max:", rec1p.max())

@@ -133,7 +133,7 @@ plt.plot(sino1s[nsrc_p//2,58:71,nu//2,nv//2,:])
 
 
 #Compare forward projection square
-"""
+
 sinos = (sino1s[ns_p//2,ns_z//2,:,:,0],sino2s[ns_p//2,ns_z//2,:,:,0],sino3s[ns_p//2,ns_z//2,:,:,0])
 
 titles = ["DD Circular","SD Circular","JO Circular",
@@ -220,7 +220,7 @@ for i, sino in enumerate(sinos):
         plt.xlabel("u Bin")
 plt.show()
 
-"""
+
 
 
 #Examine bacprojection sides

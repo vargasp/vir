@@ -53,7 +53,7 @@ y0 = 0
 z0 = 0
 
 #Create analytic models
-img3d = asino.phantom((x0,y0,z0,r),nx,ny,nz,upsample=5)
+img3d = asino.sphere_phantom_upsample((x0,y0,z0,r),nx,ny,nz,upsample=5)
 img2d = img3d[:,:,int(nz/2)]
 
 sinoPi = asino.analytic_circle_sino_par_2d((x0,y0,r,1),ang_arr,u_arr)
@@ -62,6 +62,9 @@ sinoFi = asino.analytic_circle_sino_fan_2d((x0,y0,r,1), ang_arr, u_arr, DSO, DSD
 sinoF = asino.analytic_circle_sino_fan_2d((x0,y0,r,1), ang_arr_lets, u_arr_lets, DSO, DSD).mean(3).mean(1)
 sinoCi = asino.analytic_sphere_sino_cone_3d((x0,y0,z0,r,1), ang_arr, u_arr, v_arr,DSO, DSD)
 sinoC = asino.analytic_sphere_sino_cone_3d((x0,y0,z0,r,1), ang_arr_lets, u_arr_lets, v_arr_lets,DSO, DSD).mean(5).mean(3).mean(1)
+
+
+
 
 
 """
