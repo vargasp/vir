@@ -20,12 +20,12 @@ nx, ny, nz = 32, 32, 32
 d_pix = 1.0
 
 #Fan Beam Geometry - Parallel
-DSO = 1e4
-DSD = 1e4 + max(nx,ny)/2
+#DSO = 1e4
+#DSD = 1e4 + max(nx,ny)/2
 
 #Fan Beam Geometry - Fanbeam
-#DSO = max(nx,ny)*np.sqrt(2)/2 
-#DSD = DSO*2
+DSO = max(nx,ny)*np.sqrt(2)/2 +1
+DSD = DSO*2
 
 #Sino 32 
 na = 64

@@ -8,106 +8,276 @@ Created on Wed Feb  4 10:03:35 2026
 import numpy as np
 
 
-def sphere_phantom_upsample(s,nx,ny,nz, upsample=1):
-    
-    x0_u, y0_u, z0_u, r_u = s[0]*upsample, s[1]*upsample, s[2]*upsample, s[3]*upsample
-    nx_u, ny_u, nz_u = nx*upsample, ny*upsample, nz*upsample
-    
-    
-    x,y,z = np.indices((nx_u,ny_u,nz_u)) + 0.5
-    
-
-    a = (x - nx_u/2. - x0_u)**2 + (y - ny_u/2. - y0_u)**2 + (z - nz_u/2. - z0_u)**2 < r_u**2
-    #return a*1
-
-    a = a*1
-    shp = (nx,ny,nz)
-    
-    factors = (np.array(a.shape)/np.asanyarray(shp)).astype(int)
-    sh = np.column_stack([a.shape//factors, factors]).ravel()
-    return a.reshape(sh).mean(tuple(range(1, 2*a.ndim, 2)))
-    
-
-    
-
-def sphere_phantom_approx(s, nx, ny, nz):
-
-    x0, y0, z0, r = s
-
-    x = np.arange(nx)[:,None,None] + 0.5 - nx/2 - x0
-    y = np.arange(ny)[None,:,None] + 0.5 - ny/2 - y0
-    z = np.arange(nz)[None,None,:] + 0.5 - nz/2 - z0
-
-    d = np.sqrt(x*x + y*y + z*z) - r
-
-    # voxel diagonal gives transition width
-    w = np.sqrt(3)/2
-
-    occ = np.clip(0.5 - d/w, 0, 1)
-
-    return occ.astype(np.float32)
-
-
-def sphere_cube_volume(x0,x1,y0,y1,z0,z1,r,ns=8):
+def _discretized_sphere_exact_voxel(x0,x1,y0,y1,z0,z1,r,ns=8):
     """
-    Exact volume via high-order Gaussian quadrature.
-    ns = quadrature order (8–12 gives machine precision)
+    Compute the volume of intersection between a sphere and an axis-aligned cube
+    (voxel) using Gauss-Legendre quadrature.
+
+    The sphere is assumed to be centered at the origin:
+        x^2 + y^2 + z^2 <= r^2
+
+    and the cube is defined by the Cartesian bounds:
+        x0 <= x <= x1
+        y0 <= y <= y1
+        z0 <= z <= z1
+
+    The method performs numerical integration over the x-y plane and computes
+    the exact z-overlap analytically for each quadrature sample point.
+
+    Parameters
+    ----------
+    x0, x1 : float
+        Lower and upper x-bounds of the cube.
+
+    y0, y1 : float
+        Lower and upper y-bounds of the cube.
+
+    z0, z1 : float
+        Lower and upper z-bounds of the cube.
+
+    r : float
+        Sphere radius.
+
+    ns : int, optional
+        Order of Gauss-Legendre quadrature.
+        Typical values:
+            4  -> moderate accuracy
+            8  -> very accurate
+            12 -> near machine precision
+
+    Returns
+    -------
+    vol : float
+        Volume of the sphere contained inside the cube.
+
+    Notes
+    -----
+    The sphere equation is:
+        x^2 + y^2 + z^2 = r^2
+
+    For fixed (x,y), the sphere spans:
+        -sqrt(r^2 - x^2 - y^2) <= z <= sqrt(r^2 - x^2 - y^2)
+
+    The algorithm integrates this z-overlap over the cube cross-section.
     """
 
-    # Gauss-Legendre nodes
+    # Obtain Gauss-Legendre quadrature nodes and weights on [-1,1]
     xs, ws = np.polynomial.legendre.leggauss(ns)
 
-    # map to interval
-    xs = 0.5*(xs+1)*(x1-x0)+x0
-    wx = ws*(x1-x0)/2
+    # Map quadrature nodes from [-1,1] -> [x0,x1]
+    # Standard affine transform:
+    #   x_mapped = 0.5*(x+1)*(b-a) + a
+    # Weights scale by interval length / 2.
+    xs = 0.5 * (xs + 1) * (x1 - x0) + x0
+    wx = ws * (x1 - x0) / 2
 
-    ys = 0.5*(xs*0 + np.polynomial.legendre.leggauss(ns)[0]+1)*(y1-y0)+y0
-    wy = np.polynomial.legendre.leggauss(ns)[1]*(y1-y0)/2
+    # Generate quadrature nodes and weights for y integration
+    ys = 0.5 * (
+        xs * 0 + np.polynomial.legendre.leggauss(ns)[0] + 1
+    ) * (y1 - y0) + y0
 
+    wy = np.polynomial.legendre.leggauss(ns)[1] * (y1 - y0) / 2
+
+    # Accumulator for total intersection volume
     vol = 0.0
 
-    for i,x in enumerate(xs):
-        for j,y in enumerate(ys):
+    # Perform 2D quadrature over x-y plane
+    for i, x in enumerate(xs):
+        for j, y in enumerate(ys):
 
-            d2 = x*x + y*y
-            if d2 >= r*r:
+            # Squared radial distance from sphere center
+            d2 = x * x + y * y
+
+            # If outside sphere cross-section, skip
+            if d2 >= r * r:
                 continue
 
-            z = np.sqrt(r*r - d2)
+            # Sphere z extent at this (x,y):
+            #     z = ±sqrt(r^2 - x^2 - y^2)
+            z = np.sqrt(r * r - d2)
 
+            # Compute overlap between:
+            # sphere interval : [-z, +z]
+            # voxel interval  : [z0, z1]
+            # using interval clipping.
             zlo = max(z0, -z)
             zhi = min(z1,  z)
 
+            # Positive overlap contributes volume
             if zhi > zlo:
-                vol += wx[i]*wy[j]*(zhi-zlo)
+
+                # Quadrature contribution:
+                #   weight_x * weight_y * overlap_height
+                vol += wx[i] * wy[j] * (zhi - zlo)
 
     return vol
 
 
-def sphere_phantom_exact(s, nx, ny, nz):
+def discretized_sphere_exact(s, nx, ny, nz):
+    """
+    Generate a voxelized sphere phantom using exact sphere-voxel intersection
+    volumes.
 
-    x0,y0,z0,r = s
+    Each voxel value equals the fraction of voxel volume occupied by the sphere.
+    This produces an anti-aliased sphere phantom with highly accurate boundary
+    representation.
 
-    out = np.zeros((nx,ny,nz),dtype=float)
+    Parameters
+    ----------
+    s : array-like
+        Sphere parameters:
 
+            [x0, y0, z0, r]
+
+        where:
+            x0, y0, z0 : float
+                Sphere center in voxel coordinates.
+
+            r : float
+                Sphere radius in voxel units.
+
+    nx, ny, nz : int
+        Number of voxels along x, y, and z dimensions.
+
+    Returns
+    -------
+    out : ndarray
+        3D array of shape (nx, ny, nz) containing voxel occupancy values.
+
+    Notes
+    -----
+    The volume grid is centered at:
+
+        (nx/2, ny/2, nz/2)
+
+    so voxel coordinates are shifted relative to the sphere center before
+    computing intersection volumes.
+    """
+
+    # Sphere center and radius
+    x0, y0, z0, r = s
+
+    # Output phantom volume
+    out = np.zeros((nx, ny, nz), dtype=float)
+
+    # Iterate over every voxel in the 3D grid
     for i in range(nx):
         for j in range(ny):
             for k in range(nz):
-
-                xlo = i - nx/2 - x0
+                # Compute voxel bounds in sphere-centered coordinates
+                # Each voxel spans one unit:
+                #   [i, i+1]
+                #
+                # shifted so that the image center corresponds to zero.
+                xlo = i - nx / 2 - x0
                 xhi = xlo + 1
 
-                ylo = j - ny/2 - y0
+                ylo = j - ny / 2 - y0
                 yhi = ylo + 1
 
-                zlo = k - nz/2 - z0
+                zlo = k - nz / 2 - z0
                 zhi = zlo + 1
 
-                out[i,j,k] = sphere_cube_volume(
-                    xlo,xhi,ylo,yhi,zlo,zhi,r
+                # Compute exact sphere-volume overlap for this voxel
+                out[i, j, k] = _discretized_sphere_exact_voxel(
+                    xlo, xhi,
+                    ylo, yhi,
+                    zlo, zhi,
+                    r
                 )
 
     return out
+
+
+def discretized_sphere_approx(s, nx, ny, nz):
+
+    """
+    Generate an approximate voxelized sphere using a smooth occupancy model.
+
+    Unlike an exact sphere voxelization based on sphere-voxel intersection
+    volumes, this method estimates voxel occupancy using the signed distance
+    from voxel centers to the sphere surface.
+
+    The result is a smooth anti-aliased sphere representation where:
+        occ = 1   -> voxel fully inside sphere
+        occ = 0   -> voxel fully outside sphere
+        0 < occ < 1 -> partial occupancy near boundary
+
+    Parameters
+    ----------
+    s : array-like
+        Sphere parameters:
+            [x0, y0, z0, r]
+
+        where:
+            x0, y0, z0 : float
+                Sphere center in voxel coordinates.
+
+            r : float
+                Sphere radius in voxel units.
+
+    nx, ny, nz : int
+        Number of voxels along x, y, and z dimensions.
+
+    Returns
+    -------
+    occ : ndarray
+        Array of shape (nx, ny, nz) containing approximate occupancy
+        values in the range [0,1].
+
+    Notes
+    -----
+    The approximation is based on a linear ramp around the sphere boundary
+    using the signed distance field:
+
+        d = ||x|| - r
+
+    where:
+        d < 0 : inside sphere
+        d > 0 : outside sphere
+
+    The transition width is chosen as half the voxel diagonal:
+        sqrt(3)/2
+
+    which produces a smooth subvoxel boundary approximation.
+    """
+
+    # Sphere center and radius
+    x0, y0, z0, r = s
+
+    # Generate voxel-center coordinate grids.
+    # The +0.5 places coordinates at voxel centers.
+    # Coordinates are shifted so that:
+    #   image center -> (0,0,0)
+    #
+    # and then translated relative to the sphere center.
+    x = np.arange(nx)[:, None, None] + 0.5 - nx / 2 - x0
+    y = np.arange(ny)[None, :, None] + 0.5 - ny / 2 - y0
+    z = np.arange(nz)[None, None, :] + 0.5 - nz / 2 - z0
+
+    # Signed distance from voxel centers to sphere surface.
+    #   d < 0 : inside sphere
+    #   d = 0 : on surface
+    #   d > 0 : outside sphere
+    d = np.sqrt(x * x + y * y + z * z) - r
+
+    # Transition width used for soft occupancy interpolation.
+    # Half the voxel diagonal:
+    #   sqrt(1^2 + 1^2 + 1^2) / 2 = sqrt(3)/2
+    #
+    # This approximates subvoxel partial-volume effects.
+    w = np.sqrt(3) / 2
+
+    # Convert signed distance into occupancy fraction.
+    # Interior voxels approach 1.
+    # Exterior voxels approach 0.
+    #
+    # Boundary voxels transition linearly across width w.
+    occ = np.clip(0.5 - d / w, 0, 1)
+
+    # Store as float32 to reduce memory usage
+    return occ.astype(np.float32)
+
 
 def analytic_circle_sino_par_2d(s,ang,u):
     '''
