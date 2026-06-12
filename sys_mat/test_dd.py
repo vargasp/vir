@@ -6,6 +6,14 @@ Created on Thu Jan  8 20:27:09 2026
 """
 
 
+import os
+import sys
+
+print("PYTHONPATH =", os.environ.get("PYTHONPATH"))
+print("sys.path[:10] =")
+for p in sys.path[:10]:
+    print(" ", p)
+
 
 import matplotlib.pyplot as plt
 import numpy as np
