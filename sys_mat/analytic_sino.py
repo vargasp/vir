@@ -8,6 +8,18 @@ Created on Wed Feb  4 10:03:35 2026
 import numpy as np
 
 
+from itertools import combinations
+from scipy.spatial import ConvexHull,QhullError
+from scipy.integrate import lebedev_rule
+
+
+EPS = 1e-9
+
+
+#########################################
+#Numercial Phantoms - Discretized Spheres
+#########################################
+
 def _discretized_sphere_exact_voxel(x0,x1,y0,y1,z0,z1,r,ns=8):
     """
     Compute the volume of intersection between a sphere and an axis-aligned cube
@@ -279,7 +291,11 @@ def discretized_sphere_approx(s, nx, ny, nz):
     return occ.astype(np.float32)
 
 
-def analytic_circle_sino_par_2d(s,ang,u):
+##########################################################
+#Analytic Sinograms - Line Integration - Circles / Spheres
+##########################################################
+
+def analytic_sino_circle_par(s,ang,u):
     '''
     Calculates the intersection length or linear attenuation for a sphere in
     parallel beam geometry for 
@@ -314,9 +330,7 @@ def analytic_circle_sino_par_2d(s,ang,u):
     return 2.*np.sqrt((r**2 - p**2).clip(0))
 
 
-
-
-def analytic_circle_sino_fan_2d(s, ang, u, DSO, DSD):
+def analytic_sino_circle_fan(s, ang, u, DSO, DSD):
     '''
     Analytic fan-beam sinogram of a circle (flat detector)
     Output shape: (len(ang), len(u))
@@ -328,7 +342,6 @@ def analytic_circle_sino_fan_2d(s, ang, u, DSO, DSD):
     x0, y0, r = s[0], s[1], s[2]
 
     # fan angle (1, nU)
-    #gamma = np.arctan(u/DSD)[None, :]
     gamma = np.arctan(u/DSD)
     gamma = gamma.reshape((1,)*ang.ndim + u.shape)
     
@@ -342,23 +355,11 @@ def analytic_circle_sino_fan_2d(s, ang, u, DSO, DSD):
 
     # parallel-beam distance evaluated along fan rays
     p = x0*np.sin(phi) - y0*np.cos(phi) + xi
-    
-    """    
-        # Source position along tangent (tangent vector)
-    t_x = -np.sin(phi)
-    t_y =  np.cos(phi)
-    
-    x_s = -DSO*np.cos(ang)[:, None] + focal_offset * t_x
-    y_s = -DSO*np.sin(ang)[:, None] + focal_offset * t_y
-    
-    # Parallel-beam distance
-    p = (x0 - x_s)*np.sin(phi) - (y0 - y_s)*np.cos(phi) + xi
-    """
 
     return 2.0 * np.sqrt((r**2 - p**2).clip(0))
 
 
-def analytic_sphere_sino_cone_3d(s, ang, u, v, DSO, DSD):
+def analytic_sino_sphere_cone(s, ang, u, v, DSO, DSD):
     '''
     Analytic cone-beam sinogram of a sphere (flat panel)
 
@@ -400,7 +401,7 @@ def analytic_sphere_sino_cone_3d(s, ang, u, v, DSO, DSD):
     return 2.0 * np.sqrt((r**2 - d2).clip(0))
 
 
-def analytic_sphere_sino_cone_3d0(s, ang, u, v, DSO, DSD):
+def analytic_sino_sphere_cone0(s, ang, u, v, DSO, DSD):
     '''
     Analytic cone-beam sinogram of a sphere (flat panel)
 
@@ -439,7 +440,7 @@ def analytic_sphere_sino_cone_3d0(s, ang, u, v, DSO, DSD):
 
 
 
-def sphere_projection(src, det, sphere, rho=1.0):
+def analytic_sino_sphere_gen(src, det, sphere, rho=1.0):
     """
     Vectorized, broadcastable ray-sphere path length.
 
@@ -478,7 +479,106 @@ def sphere_projection(src, det, sphere, rho=1.0):
     return proj
 
 
-def sphere_projection_gauss(
+
+##################################################
+#Analytic Sinograms - Line Integration - Polyedron
+##################################################
+
+def analytic_sino_polyhedron_cone(planes, ang, u, v, DSO, DSD):    
+    src0 = np.array([DSO,0,0])
+    det0 = np.array([-(DSD-DSO),0,0])
+
+    det_cnts, src_cnts, u_hats, v_hats = circular_detector_geometry(ang, det0, src0)    
+    proj = np.empty([ang.size,u.size,v.size])
+ 
+    for i, (src_cnt,det_cnt,u_hat,v_hat) in enumerate(zip(src_cnts,det_cnts,u_hats,v_hats)):
+        dets = detector_grid(det_cnt, u, v, u_hat=u_hat, v_hat=v_hat)
+        proj[i,:,:] = analytic_sino_polyhedron_gen(src_cnt, dets, u, v, u_hat, v_hat, planes)
+
+    return proj
+
+
+def analytic_sino_polyhedron_gen(src, det, u_cnt, v_cnt, u_hat, v_hat, planes):
+    """
+    Compute line-segment intersection lengths between
+    src->trgs rays and a convex cube defined by planes.
+
+    Parameters
+    ----------
+    trgs : (..., 3) ndarray
+        Ray endpoints.
+    src : (3,) ndarray
+        Common source point.
+    planes : (6, 4) ndarray
+        Plane coefficients [a,b,c,d].
+        Interior must satisfy:
+            ax + by + cz + d <= 0
+
+    Returns
+    -------
+    lengths : (...) ndarray
+        Length of segment inside cube.
+    """
+
+    src = np.asarray(src, dtype=float)
+    planes = np.asarray(planes, dtype=float)
+
+    uv = detector_grid(det, u_cnt, v_cnt, u_hat=u_hat, v_hat=v_hat)
+    d = uv - src                     # ray direction
+    ray_len = np.linalg.norm(d, axis=-1)
+
+    t_enter = np.zeros(ray_len.shape)
+    t_exit = np.ones(ray_len.shape)
+
+    for plane in planes:
+        n = plane[:3]
+        c = plane[3]
+
+        num = -(src @ n - c)
+        den = np.sum(d * n, axis=-1)
+
+        parallel = np.abs(den) < EPS
+
+        # Parallel and outside -> reject
+        outside = parallel & ((src @ n + c) > 0)
+
+        t = np.divide(num,den,out=np.zeros_like(den),where=~parallel)
+
+        t_enter = np.where(den < 0,np.maximum(t_enter, t),t_enter)
+        t_exit = np.where(den > 0,np.minimum(t_exit, t),t_exit)
+
+        t_enter[outside] = 1
+        t_exit[outside] = 0
+
+    valid = (t_exit > t_enter)
+
+    return np.where(valid,(t_exit - t_enter) * ray_len,0.0)
+
+
+
+
+############################################################
+#Analytic Sinograms - Volume Integration - Circles / Spheres
+############################################################
+def analytic_sino_sphere_cone_vol(s, ang, u, v, DSO, DSD):
+    
+    du = u[1] - u[0]
+    dv = v[1] - v[0]
+    
+    src0 = np.array([DSO,0,0])
+    det0 = np.array([-(DSD-DSO),0,0])
+
+    det_cnts, src_cnts, u_hats, v_hats = circular_detector_geometry(ang, det0, src0)    
+    proj = np.empty([ang.size,u.size,v.size])
+ 
+    for i, (src_cnt,det_cnt,u_hat,v_hat) in enumerate(zip(src_cnts,det_cnts,u_hats,v_hats)):
+        dets = detector_grid(det_cnt, u, v, u_hat=u_hat, v_hat=v_hat)
+        proj[i,:,:] = analytic_sino_sphere_gen_vol(src_cnt, dets, u_hat, v_hat,\
+                                                   du, dv, s)
+
+    return proj
+
+def analytic_sino_sphere_gen_vol(
         src_centers,      # (...,3) array of source positions with arbitrary leading dimensions
         det_centers,      # (Nu,Nv,3) detector pixel centers
         eu, ev,           # detector basis vectors (3,)
@@ -486,7 +586,7 @@ def sphere_projection_gauss(
         sphere,
         src_size=(0,0),   # focal spot size (sy, sz)
         src_nodes=2,      # Gaussian nodes for source/focal spot
-        det_nodes=2,      # Gaussian nodes per detector pixel
+        det_nodes=4,      # Gaussian nodes per detector pixel
         rho=1.0
     ):
     """
@@ -517,7 +617,7 @@ def sphere_projection_gauss(
     U, V = np.meshgrid(gu, gv, indexing='ij')
     det_offsets = 0.5*du*U[...,None]*eu + 0.5*dv*V[...,None]*ev
     det_offsets = det_offsets.reshape(-1,3)  # (det_nodes^2,3)
-    det_w = np.outer(wu,wv).ravel()          # detector quadrature weights
+    det_w = np.outer(wu,wv).ravel()   # detector quadrature weights
 
     # --- Source/focal spot offsets ---
     SY, SZ = np.meshgrid(gs, gs, indexing='ij')
@@ -535,11 +635,14 @@ def sphere_projection_gauss(
     # --- Main quadrature loops (over quadrature nodes only, small loops) ---
     for i, doff in enumerate(det_offsets):
         det_batch = det_flat + doff  # apply detector offset
+        
+        
         for j, soff in enumerate(src_offsets):
             src_batch = src_flat + soff[None,:]  # apply source/focal spot offset
+
             # Broadcasted ray-sphere intersection
             # returns shape (Nsrc, Nu*Nv)
-            p = sphere_projection(src_batch[:,None,:], det_batch[None,:,:], sphere, rho=rho)
+            p = analytic_sino_sphere_gen(src_batch[:,None,:], det_batch[None,:,:], sphere, rho=rho)
             proj += det_w[i] * src_w[j] * p
 
     # Normalize by total quadrature weight
@@ -550,7 +653,698 @@ def sphere_projection_gauss(
 
 
 
+############################################################
+#Analytic Sinograms - Volume Integration - Polyhedron
+############################################################
 
+# Convex hull volume
+def convex_polyhedron_volume(vertices):
+    if len(vertices) < 4:
+        return 0.0
+    
+    try:
+        return ConvexHull(vertices).volume
+    except QhullError:
+        return 0.0
+
+
+def analytic_sino_polyhedron_gen_vol(src,det,u_bnd,v_bnd,u_hat,v_hat,planes_polyhedron):
+    
+    Nu = len(u_bnd) - 1
+    Nv = len(v_bnd) - 1
+    nfaces = planes_polyhedron.shape[0]
+
+    # Detector boundary coordinates
+    uv = detector_grid(det, u_bnd, v_bnd, u_hat=u_hat, v_hat=v_hat)
+    u_coord_bot = uv[:, 0, :]
+    u_coord_top = uv[:, -1, :]
+    v_coord_lft = uv[0, :, :]
+    v_coord_rgt = uv[-1, :, :]
+    
+    # Frustum planes
+    ref_u = src + np.array([0,1,0])
+    ref_v = src + np.array([0,0,1])
+    planes_u = plane_from_pts(src,u_coord_bot,u_coord_top,ref_u)
+    planes_v = plane_from_pts(src,v_coord_lft,v_coord_rgt,ref_v)
+
+    planes_uv = plane_from_pts(u_coord_bot[0],u_coord_top[0],u_coord_bot[-1],src)
+    
+    planes = np.empty([nfaces+5,4],dtype=float)
+    planes[5:,:] = planes_polyhedron
+    planes[4,:] = planes_uv
+    
+    proj = np.empty((Nu, Nv))    
+    for i in range(Nu):
+        planes[0,:] = planes_u[i,:]
+        planes[1,:] = -planes_u[i+1,:]
+        
+        for j in range(Nv):
+            planes[2,:] = planes_v[j,:]
+            planes[3,:] = -planes_v[j+1,:]
+            verts = intersection_vertices(planes)
+            
+            proj[i,j] = convex_polyhedron_volume(verts)
+
+    return proj
+
+
+def analytic_sino_polyhedron_cone_vol(planes_polyhedron, ang, u_bnd, v_bnd, DSO, DSD):
+    
+    
+    src0 = np.array([DSO,0,0])
+    det0 = np.array([-(DSD-DSO),0,0])
+
+    det_cnts, src_cnts, u_hats, v_hats = circular_detector_geometry(ang, det0, src0)    
+    proj = np.empty([ang.size,u_bnd.size-1,v_bnd.size-1])
+ 
+    for i, (src_cnt,det_cnt,u_hat,v_hat) in enumerate(zip(src_cnts,det_cnts,u_hats,v_hats)):
+        proj[i,:,:] =  analytic_sino_polyhedron_gen_vol(src_cnt,det_cnt,u_bnd,v_bnd,u_hat,v_hat,planes_polyhedron)
+
+
+    return proj
+
+
+
+##################
+#Utility Functions
+##################
+
+def detector_grid(det_center, u_arr, v_arr, u_hat=[1.,0.,0.], v_hat=[0.,0.,1.]):
+    """
+    Calculate detector pixel-center coordinates.
+
+    Parameters
+    ----------
+    det_center : (3,) array_like
+        Detector center position.
+    u_arr : (m,) array_like
+        Pixel-center offsets along u direction.
+    v_arr : (n,) array_like
+        Pixel-center offsets along v direction.
+    u_hat : (3,) array_like
+        Unit vector along detector u axis.
+    v_hat : (3,) array_like
+        Unit vector along detector v axis.
+
+    Returns
+    -------
+    coords : (m, n, 3) ndarray
+        XYZ coordinates of each detector pixel center.
+    """
+    det_center = np.asarray(det_center)
+    u_arr = np.asarray(u_arr)
+    v_arr = np.asarray(v_arr)
+    u_hat = np.asarray(u_hat)
+    v_hat = np.asarray(v_hat)
+
+    return det_center[None, None, :] + \
+             u_arr[:, None, None] * u_hat[None, None, :] + \
+             v_arr[None, :, None] * v_hat[None, None, :]
+
+
+def detector_grid_quadrature(det_center,u_arr,v_arr,du=None,dv=None,det_nodes=(2,2),\
+                             u_hat=[1.,0.,0.],v_hat=[0.,0.,1.]):
+
+    det_center = np.asarray(det_center)
+    u_arr = np.asarray(u_arr)
+    v_arr = np.asarray(v_arr)
+    u_hat = np.asarray(u_hat)
+    v_hat = np.asarray(v_hat)
+
+    
+    if du is None:
+        du = u_arr[1] - u_arr[0]
+
+    if dv is None:
+        dv = v_arr[1] - v_arr[0]
+
+    gu, wu = np.polynomial.legendre.leggauss(det_nodes[0])
+    gv, wv = np.polynomial.legendre.leggauss(det_nodes[1])
+
+    Uq, Vq = np.meshgrid(gu, gv, indexing='ij')
+
+    uq = (0.5 * du * Uq).ravel()
+    vq = (0.5 * dv * Vq).ravel()
+
+    wq = np.outer(wu, wv).ravel()
+
+    Nq = len(wq)
+
+    det_positions = np.empty((len(u_arr), len(v_arr), Nq, 3))
+
+    
+    det_positions = det_center[None, None, None, :] + \
+        + (u_arr[:, None, None] + uq[None, None, :])[..., None] * u_hat + \
+        + (v_arr[None, :, None] + vq[None, None, :])[..., None] * v_hat
+    
+
+    return det_positions, wq
+
+
+
+def circular_detector_geometry(angles, det_center0, src_center0, isocenter=(0.0, 0.0, 0.0)):
+    """
+    Circular detector trajectory about the z-axis.
+
+    Parameters
+    ----------
+    angles : (n,) array_like
+        Projection angles [rad].
+    det_center0 : (3,) array_like
+        Detector center at angle=0.
+    isocenter : (3,) array_like
+        Center of rotation.
+
+    Returns
+    -------
+    det_center : (n, 3)
+    u_hat : (n, 3)
+    v_hat : (n, 3)
+    """
+
+    angles = np.asarray(angles)
+    det_center0 = np.asarray(det_center0, dtype=float)
+    src_center0 = np.asarray(src_center0, dtype=float)
+    isocenter = np.asarray(isocenter, dtype=float)
+
+    # Detector center relative to isocenter
+    r0 = det_center0 - isocenter
+    r1 = src_center0 - isocenter
+
+    c = np.cos(angles)
+    s = np.sin(angles)
+
+    # Rotate about z-axis
+    det_center = np.column_stack([c * r0[0] - s * r0[1],
+                                  s * r0[0] + c * r0[1],
+                                  np.full_like(c, r0[2]),
+                                  ]) + isocenter
+
+    src_center = np.column_stack([c * r1[0] - s * r1[1],
+                                  s * r1[0] + c * r1[1],
+                                  np.full_like(c, r1[2]),
+                                  ]) + isocenter
+
+    # Detector normal points toward isocenter
+    n_hat = isocenter - det_center
+    n_hat /= np.linalg.norm(n_hat, axis=1, keepdims=True)
+
+    # Vertical direction fixed along z
+    v_hat = np.tile([0.0, 0.0, 1.0], (len(angles), 1))
+
+    # Horizontal detector direction
+    u_hat = np.cross(v_hat, n_hat)
+    u_hat /= np.linalg.norm(u_hat, axis=1, keepdims=True)
+
+    return det_center, src_center, u_hat, v_hat
+
+
+def cube_planes(center, side_lengths):
+    center = np.asarray(center, dtype=float)
+    sx, sy, sz = side_lengths
+
+    mins = center - np.array([sx, sy, sz]) / 2.
+    maxs = center + np.array([sx, sy, sz]) / 2.
+    
+    planes = np.zeros((6,4))
+    planes[0,:] = [1.,0.,0.,maxs[0]]
+    planes[1,:] = [-1.,0.,0.,-mins[0]]
+    planes[2,:] = [0.,1.,0.,maxs[1]]
+    planes[3,:] = [0.,-1.,0.,-mins[1]]
+    planes[4,:] = [0.,0.,1.,maxs[2]]
+    planes[5,:] = [0.,0.,-1.,-mins[2]]
+    
+    return planes
+
+
+def plane_from_pts(p0, p1, p2, reference_point):
+    """
+    Compute plane coefficients from three points.
+
+    The plane equation is
+
+        nx*x + ny*y + nz*z = d
+
+    and is returned as
+
+        [nx, ny, nz, d]
+
+    Parameters
+    ----------
+    p0 : (3,) or (N, 3) ndarray
+        First point on the plane.
+    p1 : (3,) or (N, 3) ndarray
+        Second point on the plane.
+    p2 : (3,) or (N, 3) ndarray
+        Third point on the plane.
+    reference_point : (3,) or (N, 3) ndarray
+        Point used to orient the plane normal. The returned plane
+        is flipped if necessary so that the reference point lies on
+        the negative side of the plane.
+
+    Returns
+    -------
+    plane : (4,) or (N, 4) ndarray
+        Plane coefficients [nx, ny, nz, d].
+
+        If a single plane is computed, shape is (4,).
+
+        If multiple planes are computed, shape is (N, 4).
+
+    Notes
+    -----
+    The normal vector is normalized to unit length.
+
+    The function supports NumPy broadcasting. For example:
+
+        p0.shape == (3,)
+        p1.shape == (N, 3)
+        p2.shape == (N, 3)
+
+    computes N planes that all share the same p0.
+    """
+
+    # Compute (unnormalized) plane normals.
+    # Result shape is either (3,) or (N, 3).
+    n = np.cross(p1 - p0, p2 - p0)
+
+    # Normalize the normals to unit length.
+    n /= np.linalg.norm(n, axis=-1, keepdims=True)
+
+    # Compute plane offsets:
+    #
+    #     n · x = d
+    #
+    # For batched inputs this performs a row-wise dot product.
+    d = np.sum(n * p0, axis=-1)
+
+    # Combine [nx, ny, nz] and d into a single array.
+    #
+    # d[..., None] converts:
+    #   scalar -> (1,)
+    #   (N,)   -> (N, 1)
+    plane = np.concatenate((n, d[..., None]), axis=-1)
+
+    # Determine which planes need to be flipped so that the
+    # reference point lies on the negative side.
+    side = np.sum(n * reference_point, axis=-1)
+    flip = side > d
+
+    # Flip planes individually when processing batches.
+    plane = np.where(flip[..., None], -plane, plane)
+
+    return plane
+
+
+def intersection_vertices(planes):
+    verts = []
+
+    for idx in combinations(range(len(planes)), 3):
+        A = planes[idx,:3]
+
+        if abs(np.linalg.det(A)) < EPS:
+            continue
+
+        x = np.linalg.solve(A, planes[idx,3])
+
+        if np.all(planes[:, :3] @ x <= planes[:, 3] + EPS):
+            verts.append(x)
+
+    return np.unique(np.round(np.asarray(verts), 8), axis=0)
+
+
+
+
+#########
+##TESTING
+#########
+def sphere_clip_volume0(planes, center, radius,dirs, weights):
+    """
+    Volume of
+
+        sphere(center,radius) ∩ {x : n·x <= d}
+
+    Parameters
+    ----------
+    planes : (M,4)
+        Plane coefficients [nx,ny,nz,d].
+
+    center : (3,)
+        Sphere center.
+
+    radius : float
+        Sphere radius.
+
+    dirs : (Nq,3)
+        Unit Lebedev directions.
+
+    weights : (Nq,)
+        Lebedev weights summing to 4*pi.
+
+    Returns
+    -------
+    volume : float
+    """
+
+    volume = 0.0
+
+    center = np.asarray(center, dtype=float)
+
+    for w, wt in zip(dirs, weights):
+
+        rmin = 0
+        rmax = radius
+
+        valid = True
+
+        for plane in planes:
+
+            n = plane[:3]
+            d = plane[3]
+
+            a = np.dot(n, w)
+            b = d - np.dot(n, center)
+
+            if abs(a) < EPS:
+
+                if b < 0:
+                    valid = False
+                    break
+
+            elif a > 0:
+
+                rmax = min(rmax, b / a)
+
+            else:
+
+                rmin = max(rmin, b / a)
+
+            if rmax <= rmin:
+                valid = False
+                break
+
+        if valid:
+            volume += wt * (rmax**3 - rmin**3)
+
+    return volume / 3.0
+
+
+
+
+def sphere_clip_volume_precomp(A, b, radius, weights):
+    """
+    Parameters
+    ----------
+    A : (Nq,M)
+        A[k,j] = dirs[k] · normals[j]
+
+    b : (M,)
+        b[j] = d_j - normals[j] · center
+
+    radius : float
+
+    weights : (Nq,)
+
+    Returns
+    -------
+    volume : float
+    """
+
+    volume = 0.0
+
+    Nq, M = A.shape
+
+    for k in range(Nq):
+
+        rmin = 0.0
+        rmax = radius
+        valid = True
+
+        for j in range(M):
+
+            a = A[k, j]
+            bj = b[j]
+
+            if abs(a) < EPS:
+                if bj < 0.0:
+                    valid = False
+                    break
+
+            elif a > 0.0:
+                t = bj / a
+
+                if t < rmax:
+                    rmax = t
+
+            else:
+                t = bj / a
+
+                if t > rmin:
+                    rmin = t
+
+            if rmax <= rmin:
+                valid = False
+                break
+
+        if valid:
+            volume += weights[k] * (rmax**3 - rmin**3)
+
+    return volume / 3.0
+
+
+
+
+
+def analytic_sino_sphere(
+        src,
+        det,
+        u_bnd,
+        v_bnd,
+        u_hat,
+        v_hat,
+        center,
+        radius,
+        rho=1.0):
+
+    
+    dirs, weights = lebedev_rule(131)
+    dirs = dirs.T
+
+    
+    Nu = len(u_bnd) - 1
+    Nv = len(v_bnd) - 1
+
+    uv = detector_grid(
+        det,
+        u_bnd,
+        v_bnd,
+        u_hat=u_hat,
+        v_hat=v_hat
+    )
+
+    u_coord_bot = uv[:, 0, :]
+    u_coord_top = uv[:, -1, :]
+
+    v_coord_lft = uv[0, :, :]
+    v_coord_rgt = uv[-1, :, :]
+
+    ref_u = src + np.array([0, 1, 0])
+    ref_v = src + np.array([0, 0, 1])
+
+    planes_u = plane_from_pts(
+        src,
+        u_coord_bot,
+        u_coord_top,
+        ref_u
+    )
+
+    planes_v = plane_from_pts(
+        src,
+        v_coord_lft,
+        v_coord_rgt,
+        ref_v
+    )
+
+    planes_uv = plane_from_pts(
+        u_coord_bot[0],
+        u_coord_top[0],
+        u_coord_bot[-1],
+        src
+    )
+
+    proj = np.zeros((Nu, Nv), dtype=float)
+
+    planes = np.empty((5, 4), dtype=float)
+
+    planes[4] = planes_uv
+
+    for i in range(Nu):
+
+        planes[0] = planes_u[i]
+        planes[1] = -planes_u[i + 1]
+
+        for j in range(Nv):
+
+            planes[2] = planes_v[j]
+            planes[3] = -planes_v[j + 1]
+            
+
+            vol = sphere_clip_volume0(planes,center,radius,dirs,weights)
+
+            proj[i, j] = rho * vol
+
+    return proj
+
+
+
+
+def analytic_sino_sphere2(
+        src,
+        det,
+        u_bnd,
+        v_bnd,
+        u_hat,
+        v_hat,
+        center,
+        radius,
+        rho=1):
+
+    dirs, weights = lebedev_rule(131)
+    dirs = dirs.T
+
+    
+    
+    Nu = len(u_bnd) - 1
+    Nv = len(v_bnd) - 1
+
+    uv = detector_grid(
+        det,
+        u_bnd,
+        v_bnd,
+        u_hat=u_hat,
+        v_hat=v_hat
+    )
+
+    u_coord_bot = uv[:, 0, :]
+    u_coord_top = uv[:, -1, :]
+
+    v_coord_lft = uv[0, :, :]
+    v_coord_rgt = uv[-1, :, :]
+
+    ref_u = src + np.array([0.0, 1.0, 0.0])
+    ref_v = src + np.array([0.0, 0.0, 1.0])
+
+    planes_u = plane_from_pts(
+        src,
+        u_coord_bot,
+        u_coord_top,
+        ref_u
+    )
+    
+
+    planes_v = plane_from_pts(
+        src,
+        v_coord_lft,
+        v_coord_rgt,
+        ref_v
+    )
+
+    planes_uv = plane_from_pts(
+        u_coord_bot[0],
+        u_coord_top[0],
+        u_coord_bot[-1],
+        src
+    )
+
+    proj = np.zeros((Nu, Nv), dtype=float)
+
+    #
+    # ---------------------------------------------------------
+    # PRECOMPUTE ALL DIR·NORMAL PRODUCTS
+    # ---------------------------------------------------------
+    #
+
+    Au = dirs @ planes_u[:, :3].T          # (Nq, Nu+1)
+
+    Av = dirs @ planes_v[:, :3].T          # (Nq, Nv+1)
+
+    Auv = dirs @ planes_uv[:3]             # (Nq,)
+
+    #
+    # ---------------------------------------------------------
+    # PRECOMPUTE ALL b = d - n·center TERMS
+    # ---------------------------------------------------------
+    #
+
+    bu = planes_u[:, 3] - planes_u[:, :3] @ center
+    bv = planes_v[:, 3] - planes_v[:, :3] @ center
+    buv = planes_uv[3] - planes_uv[:3] @ center
+
+    #
+    # Reusable work arrays
+    #
+
+    A = np.empty((len(weights), 5), dtype=float)
+    b = np.empty(5, dtype=float)
+
+    for i in range(Nu):
+
+        #
+        # u planes
+        #
+
+        A[:, 0] = Au[:, i]
+        A[:, 1] = -Au[:, i + 1]
+
+        b[0] = bu[i]
+        b[1] = -bu[i + 1]
+
+        for j in range(Nv):
+
+            #
+            # v planes
+            #
+
+            A[:, 2] = Av[:, j]
+            A[:, 3] = -Av[:, j + 1]
+
+            b[2] = bv[j]
+            b[3] = -bv[j + 1]
+
+            #
+            # detector plane
+            #
+
+            A[:, 4] = Auv
+            b[4] = buv
+
+            #
+            # quick reject:
+            # sphere completely outside any half-space
+            #
+
+            reject = False
+
+            for p in range(5):
+
+                # signed distance to plane
+                if -b[p] > radius:
+                    reject = True
+                    break
+
+            if reject:
+                continue
+
+            vol = sphere_clip_volume_precomp(
+                A,
+                b,
+                radius,
+                weights
+            )
+
+            proj[i, j] = rho * vol
+
+    return proj
 
 
 

@@ -52,8 +52,9 @@ x0 = 5
 y0 = 0
 z0 = 0
 
+
 #Create analytic models
-img3d = asino.sphere_phantom_upsample((x0,y0,z0,r),nx,ny,nz,upsample=5)
+img3d = asino.discretized_sphere_exact((x0,y0,z0,r),nx,ny,nz)
 img2d = img3d[:,:,int(nz/2)]
 
 sinoPi = asino.analytic_circle_sino_par_2d((x0,y0,r,1),ang_arr,u_arr)
