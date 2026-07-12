@@ -253,8 +253,8 @@ def createSinoLets5(g,d,s,p,beamlet_ave=True):
 
             #Loops over objects in the phantom
             for sphere_idx, sphere in enumerate(Spheres[idx]):
-                temp = inter.AnalyticSinoParSphere2(sphere[:4],view,zv[z_idx[0]:(z_idx[-1]+1)],W_lets)*sphere[4]
-                lin_atten[view_idx,z_idx[0]:(z_idx[-1]+1),:] += inter.AnalyticSinoParSphere2(sphere[:4],view,zv[z_idx[0]:(z_idx[-1]+1)],W_lets)*sphere[4]
+                temp = inter.AnalyticSinoParSphere3D(sphere[:4],view,zv[z_idx[0]:(z_idx[-1]+1)],W_lets)*sphere[4]
+                lin_atten[view_idx,z_idx[0]:(z_idx[-1]+1),:] += inter.AnalyticSinoParSphere3D(sphere[:4],view,zv[z_idx[0]:(z_idx[-1]+1)],W_lets)*sphere[4]
 
                 #print(idx,zv[z_idx[0]],zv[z_idx[-1]],lin_atten[view_idx,:,:].max(), sphere[:4])        
 
@@ -386,6 +386,9 @@ def createParSinoClassInt(g,d,s,p):
 
 
 def bp(sino, theta, d, nPixels=512, dPixel=1.0):
+    """
+    Interpolation pixel-driven back-projection
+    """
 
     nViews, nBins = sino.shape
 
