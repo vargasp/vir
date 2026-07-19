@@ -108,7 +108,7 @@ v_bnd = vir.boundspace(nv)
 #Sphere
 x,y,z = (0.5,0.0,0.001)
 r = 3.9
-rho = 1.0
+harho = 1.0
 s = (x,y,z,r)
 
 #Cube
@@ -119,7 +119,7 @@ cube_planes = asino.cube_planes(cube_center, cube_size)
 
 
 src0 = np.array([DSO,0.0,0.0])
-det0 = np.array([-(DSD-DSO),0.0,0.0])
+det0 = np.array([DSO - DSD,0.0,0.0])
 u_hat0 = np.array([0.0,1.0,0.0])
 v_hat0 = np.array([0.0,0.0,1.0])
 du = u[1] - u[0]
@@ -131,14 +131,27 @@ dets0 = asino.detector_grid(det0, u, v, u_hat=u_hat0, v_hat=v_hat0)
 
 
 
-#test1=asino.analytic_sino_sphere(src0,det0,u_bnd,v_bnd,u_hat0,v_hat0,\
-#                                (0.0,0.0,0.0),r)
+test1=asino.analytic_sino_sphere(src0,det0,u_bnd,v_bnd,u_hat0,v_hat0,\
+                                (0.0,0.0,0.0),r)
 
-test2=asino.analytic_sino_sphere2(src0,det0,u_bnd,v_bnd,u_hat0,v_hat0,\
-                                (0.01,0.01,0.01),r)
+    
+    
+test2=asino.analytic_sino_sphere(src0,det0,u_bnd,v_bnd,u_hat0,v_hat0,\
+                                (0.00001,0.00001,0.00001),r)
+
+print("Centered sphere hemisphere volume", test1)
+print("Centered sphere total volume:", test1.sum())
+print("Centered sphere hemisphere volume", test2)
+print("Shifted sphere total volume:", test2.sum())
+print("Analytic volume:",r**3 *np.pi*4/3)
+    
+
+    
+#test2=asino.analytic_sino_sphere2(src0,det0,u_bnd,v_bnd,u_hat0,v_hat0,\
+#                                (0.01,0.01,0.01),r)
 
 
-#print(test1.sum())
+print(test1.sum())
 print(test2.sum())
 print(r**3 *np.pi*4/3)
     

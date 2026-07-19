@@ -34,9 +34,9 @@ def AnalyticSinoParSphere2D(S,view,xi):
         Intersection length
     '''
 
-    u = np.add.outer(np.linalg.norm(S[:2])*np.cos(np.arctan2(S[0], S[1]) - view),xi)
+    u = np.add.outer(np.hypot(S[0],S[1])*np.cos(np.arctan2(S[0], S[1]) - view),xi)
 
-    return 2.*np.sqrt((S[2]**2 - u**2).clip(0))
+    return 2.*np.sqrt((S[2] * S[2] - u*u).clip(0))
 
 
 def AnalyticSinoParSphere3D(Sphere,Views,Rows,Cols):
@@ -63,32 +63,36 @@ def AnalyticSinoParSphere3D(Sphere,Views,Rows,Cols):
     Views = np.array(Views)
     Cols = np.array(Cols)
     Rows = np.array(Rows)[np.newaxis]
-
-    if Rows.ndim == 1:
-        Rows = Rows[np.newaxis]        
+     
 
     #Calculates planes at the row z postiions 
-    P = np.hstack([np.tile([0,0,1],(Rows.size,1)), -1*Rows.T])
+    P = np.empty((Rows.size,4))
+    P[:,0] = 0
+    P[:,1] = 0
+    P[:,2] = 1
+    P[:,3] = -Rows
 
     #Calculates the circle parameters at the row z postiions 
     C = ag.sphere_plane_inter(P,Sphere)
     
-    if C.ndim == 1:
-        C = C[np.newaxis]
 
-    #Calculates the intersection distances
-    #u = np.add.outer(np.linalg.norm(C[:,:2],axis=1)* \
-    #        np.cos(np.subtract.outer(np.arctan2(C[:,0], C[:,1]),Views).T),Rows)
+    #u = np.add.outer(np.hypot(C[:,0],C[:,1])* \
+    #        np.cos(np.subtract.outer(Views,np.arctan2(C[:,0], C[:,1]))),Cols)
 
-
-    u = np.add.outer(np.linalg.norm(C[:,:2],axis=1)* \
-            np.cos(np.subtract.outer(Views,np.arctan2(C[:,0], C[:,1]))),Cols)
+    phi = np.arctan2(C[:,0], C[:,1])
+    rho = np.hypot(C[:,0], C[:,1])
+    
+    angles = np.subtract.outer(Views, phi)
+    np.cos(angles, out=angles)
+    angles *= rho
+    
+    u = np.add.outer(angles, Cols)
 
 
     if Cols.ndim == 1:
         return 2.*np.sqrt((C[:,3][np.newaxis].T**2 - u**2).clip(0))
     else:
-        return 2.*np.sqrt((C[:,3]**2 - u**2).clip(0))
+        return 2.*np.sqrt((C[:,3]*C[:,3] - u*u).clip(0))
 
 
 def AnalyticSinoParSphere(Sphere,Views,Cols,Rows=None):
@@ -345,3 +349,42 @@ def sphere_int_proj2d(X,Y,x0=0,y0=0,r=10):
             return V_array
     else:        
         return V_array
+    
+    
+def SpherePlaneIntersection(P,S):
+    """
+    Calculates the parameters of a circle defined by the intersection of a
+    sphere and plane(s)
+        
+    Parameters
+    ----------
+    P : (4) or (nPlanes,4) array_like
+        The coeficents [A,B,C,D] of a plane in the general equation form:
+        Ax + By + Cz = D 
+    S : (4) array_like
+        The center of the sphere and radius (x0,y0,z0,r)
+ 
+    Returns
+    -------
+    C : (4) or (nPlanes,4) array_like
+        The circle parameters (x0,y0,z0,r) if there is no intersection returns
+        the point the sphere is tangent to the plane an r = 0
+    """
+    
+    P = np.array(P)
+    S = np.array(S)
+    
+    if P.ndim == 1:
+        P = P[np.newaxis]
+    
+    Pt = np.sum(P[:,:3]*S[:3],axis=1)+P[:,3]
+    N = np.sum(P[:,:3]**2,axis=1)
+
+    d = np.abs(Pt) / np.sqrt(N)
+
+    with np.errstate(invalid='ignore'):
+        r = np.sqrt(S[3]**2 - d**2)
+
+    r = np.nan_to_num(r) 
+    
+    return np.squeeze(np.hstack((S[:3] -P[:,:3]*(Pt/N)[:,np.newaxis], r[np.newaxis].T)))

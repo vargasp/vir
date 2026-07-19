@@ -92,7 +92,6 @@ def createSinoLets(g,d,s,p,beamlet_ave=True):
     Spheres = p.S
     
     I0 = 1.0
-    nEnergies = 1
         
     lin_atten = np.zeros([nViews,nRows*nRow_lets,nCols*nCol_lets])
     
@@ -104,13 +103,76 @@ def createSinoLets(g,d,s,p,beamlet_ave=True):
             S_2d = inter.SpherePlaneIntersection((0,0,1,z),sphere[:4])[[0,1,3]]
         
             if S_2d[2] != 0.0:
-                lin_atten[:,row_idx,:] += inter.AnalyticSinoParSphere(np.append(S_2d,sphere[4]),Views,W_lets)
+                lin_atten[:,row_idx,:] += inter.AnalyticSinoParSphere2D(np.append(S_2d,sphere[4]),Views,W_lets)
                                                                  
     if beamlet_ave:
         return I0*np.exp(-lin_atten).reshape(nViews,nRows,nRow_lets,nCols,nCol_lets).mean(4).mean(2)
     else:
         return I0*np.exp(-lin_atten)
 
+
+def createSinoLets_new(g,d,s,p,beamlet_ave=True):
+
+    Views = g.Views
+
+    nViews = g.nViews
+    nRows = d.nH
+    nCols = d.nW
+    nRow_lets = d.nH_lets
+    nCol_lets = d.nW_lets
+
+    H_lets = d.H_lets
+    W_lets = d.W_lets
+
+    Spheres = p.S
+
+    lin_atten = np.zeros((nViews, nRows * nRow_lets,nCols * nCol_lets),dtype=float)
+
+    for sphere in Spheres:
+        x, y, z0, R, mu = sphere
+
+        # Quantities that never change for this sphere
+        rho = np.hypot(x, y)
+        phi = np.arctan2(x, y)
+        R2 = R * R
+
+        # Projection coordinate for every view
+        u0 = rho * np.cos(phi - Views)
+
+        zmin = -z0 - R
+        zmax = -z0 + R
+        
+        first = np.searchsorted(H_lets, zmin) 
+        last  = np.searchsorted(H_lets, zmax, side="right")+1
+        
+        for row_idx in range(first, last):
+            z =  H_lets[row_idx]
+            
+            dz = z0 + z
+            r2 = R2 - dz * dz
+
+            if r2 <= 0.0:
+                continue
+
+            r = np.sqrt(r2)
+            u = np.add.outer(u0, W_lets)
+
+            atten = r*r - u*u
+            np.maximum(atten, 0.0, out=atten)
+            np.sqrt(atten, out=atten)
+
+            lin_atten[:, row_idx, :] += 2.0 * mu * atten
+
+    if beamlet_ave:
+        return np.exp(-lin_atten).reshape(
+            nViews,
+            nRows,
+            nRow_lets,
+            nCols,
+            nCol_lets,
+        ).mean(4).mean(2)
+
+    return np.exp(-lin_atten)
 
 
 def createSinoLets2(g,d,s,p,beamlet_ave=True):
@@ -128,13 +190,12 @@ def createSinoLets2(g,d,s,p,beamlet_ave=True):
     Spheres = p.S
     
     I0 = 1.0
-    nEnergies = 1
         
     lin_atten = np.zeros([nViews,nRows*nRow_lets,nCols*nCol_lets])
     
     #Loops over objects in the phantom
     for sphere_idx, sphere in enumerate(Spheres):        
-        lin_atten += inter.AnalyticSinoParSphere2(sphere[:4],Views,H_lets,W_lets)*sphere[4]
+        lin_atten += inter.AnalyticSinoParSphere3D(sphere[:4],Views,H_lets,W_lets)*sphere[4]
                                                                  
     if beamlet_ave:
         return I0*np.exp(-lin_atten).reshape(nViews,nRows,nRow_lets,nCols,nCol_lets).mean(4).mean(2)
@@ -159,7 +220,6 @@ def createSinoLets3(g,d,s,p,beamlet_ave=True):
     Spheres = p.S
     
     I0 = 1.0
-    nEnergies = 1
         
     lin_atten = np.zeros([nViews,nRows*nRow_lets,nCols*nCol_lets])
     
@@ -168,7 +228,7 @@ def createSinoLets3(g,d,s,p,beamlet_ave=True):
     
         #Loops over objects in the phantom
         for sphere_idx, sphere in enumerate(Spheres):        
-            lin_atten[view_idx,:,:] += inter.AnalyticSinoParSphere2(sphere[:4],view,H_lets + zp[view_idx],W_lets)*sphere[4]
+            lin_atten[view_idx,:,:] += inter.AnalyticSinoParSphere3D(sphere[:4],view,H_lets + zp[view_idx],W_lets)*sphere[4]
 
     if beamlet_ave:
         return I0*np.exp(-lin_atten).reshape(nViews,nRows,nRow_lets,nCols,nCol_lets).mean(4).mean(2)
@@ -194,20 +254,18 @@ def createSinoLets4(g,d,s,p,beamlet_ave=True):
     Spheres = p.S
     
     I0 = 1.0
-    nEnergies = 1
         
     lin_atten = np.zeros([nViews,nRows*nRow_lets,nCols*nCol_lets])
     
     #Loops over the views
     for view_idx, view in enumerate(Views):
-        print(view)
         zv = H_lets + zp[view_idx]
         idx = np.where( (Spheres[:,2] + Spheres[:,3] > zv[0]) & \
                        (Spheres[:,2] - Spheres[:,3] < zv[-1]) )
     
         #Loops over objects in the phantom
         for sphere_idx, sphere in enumerate(Spheres[idx]):
-            lin_atten[view_idx,:,:] += inter.AnalyticSinoParSphere2(sphere[:4],view,zv,W_lets)*sphere[4]
+            lin_atten[view_idx,:,:] += inter.AnalyticSinoParSphere3D(sphere[:4],view,zv,W_lets)*sphere[4]
 
     if beamlet_ave:
         return I0*np.exp(-lin_atten).reshape(nViews,nRows,nRow_lets,nCols,nCol_lets).mean(4).mean(2)
@@ -231,32 +289,27 @@ def createSinoLets5(g,d,s,p,beamlet_ave=True):
     Spheres = p.S
     
     I0 = 1.0
-    nEnergies = 1
-
-    if d.nW_lets == 1 & d.nH_lets == 1: 
+    
+    if d.nW_lets == 1 and d.nH_lets == 1: 
         beamlet_ave = False
         
     lin_atten = np.zeros([nViews,nRows*nRow_lets,nCols*nCol_lets])
     
     #Loops over the views
     for view_idx, view in enumerate(Views):
-        #print(view, view_idx,zp[view_idx])
         zv = H_lets + zp[view_idx]
         idx = np.where( (Spheres[:,2] + Spheres[:,3] > zv[0]) & \
                        (Spheres[:,2] - Spheres[:,3] < zv[-1]) )
         
 
-        if idx[0].size!= 0:
+        if idx[0].size != 0:
             s_min = max(min(Spheres[idx][:,2] - Spheres[idx][:,3]), zv[0])
             s_max = min(max(Spheres[idx][:,2] + Spheres[idx][:,3]), zv[-1]) 
             z_idx = np.searchsorted(zv, (s_min, s_max))
 
             #Loops over objects in the phantom
             for sphere_idx, sphere in enumerate(Spheres[idx]):
-                temp = inter.AnalyticSinoParSphere3D(sphere[:4],view,zv[z_idx[0]:(z_idx[-1]+1)],W_lets)*sphere[4]
                 lin_atten[view_idx,z_idx[0]:(z_idx[-1]+1),:] += inter.AnalyticSinoParSphere3D(sphere[:4],view,zv[z_idx[0]:(z_idx[-1]+1)],W_lets)*sphere[4]
-
-                #print(idx,zv[z_idx[0]],zv[z_idx[-1]],lin_atten[view_idx,:,:].max(), sphere[:4])        
 
             
     if beamlet_ave:

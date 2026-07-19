@@ -948,7 +948,7 @@ def plane_from_pts(p0, p1, p2, reference_point):
     # Determine which planes need to be flipped so that the
     # reference point lies on the negative side.
     side = np.sum(n * reference_point, axis=-1)
-    flip = side > d
+    flip = side > d + EPS
 
     # Flip planes individually when processing batches.
     plane = np.where(flip[..., None], -plane, plane)
@@ -972,6 +972,113 @@ def intersection_vertices(planes):
 
     return np.unique(np.round(np.asarray(verts), 8), axis=0)
 
+
+def unique_vertices(vertices, tol=1e-10):
+    """
+    Remove duplicate vertices within a Euclidean tolerance.
+    """
+    vertices = np.asarray(vertices, dtype=float)
+
+    unique = []
+
+    for v in vertices:
+        if not any(np.linalg.norm(v - u) < tol for u in unique):
+            unique.append(v)
+
+    return np.asarray(unique)
+
+def clipped_sphere_vertices(planes, center, radius):
+
+    v1 = intersection_vertices(planes)
+
+    v2 = plane_plane_sphere_vertices(
+        planes,
+        center,
+        radius
+    )
+
+    if len(v1)==0:
+        return v2
+
+    if len(v2)==0:
+        return v1
+
+    return unique_vertices(
+        np.vstack([v1,v2])
+    )
+
+
+
+def plane_plane_sphere_vertices(planes, center, radius, eps=EPS):
+
+    center = np.asarray(center, dtype=float)
+
+    verts = []
+
+    for i, j in combinations(range(len(planes)), 2):
+
+        n1 = planes[i, :3]
+        d1 = planes[i, 3]
+
+        n2 = planes[j, :3]
+        d2 = planes[j, 3]
+
+        # line direction
+        u = np.cross(n1, n2)
+
+        nu = np.linalg.norm(u)
+
+        # parallel planes
+        if nu < eps:
+            continue
+
+        # normalize direction
+        u = u / nu
+
+
+        # point on line closest to origin
+        A = np.vstack([n1, n2, u])
+        b = np.array([d1, d2, 0.0])
+
+        x0 = np.linalg.solve(A, b)
+
+
+        # line-sphere intersection
+
+        q = x0 - center
+
+        a = np.dot(u, u)
+        bb = 2*np.dot(u, q)
+        cc = np.dot(q, q) - radius**2
+
+        disc = bb*bb - 4*a*cc
+
+        if disc < -eps:
+            continue
+
+        if disc < 0:
+            disc = 0
+
+        sqrt_disc = np.sqrt(disc)
+
+        for t in [
+            (-bb + sqrt_disc)/(2*a),
+            (-bb - sqrt_disc)/(2*a)
+        ]:
+
+            x = x0 + t*u
+
+            # must satisfy all clipping planes
+            if np.all(
+                planes[:,:3] @ x <= planes[:,3] + eps
+            ):
+                verts.append(x)
+
+
+    if len(verts)==0:
+        return np.empty((0,3))
+
+    return np.asarray(verts)
 
 
 
@@ -1005,6 +1112,7 @@ def sphere_clip_volume0(planes, center, radius,dirs, weights):
     -------
     volume : float
     """
+    EPS=0
 
     volume = 0.0
 
@@ -1049,7 +1157,101 @@ def sphere_clip_volume0(planes, center, radius,dirs, weights):
     return volume / 3.0
 
 
+def sphere_clip_volume1(planes, center, radius, dirs, weights, eps=1e-12):
+    """
+    Compute the volume of
 
+        sphere(center, radius) ∩ {x : n·x <= d}
+
+    using radial integration over Lebedev directions.
+
+    Parameters
+    ----------
+    planes : (M,4) array_like
+        Plane coefficients [nx, ny, nz, d].
+
+    center : (3,) array_like
+        Sphere center.
+
+    radius : float
+        Sphere radius.
+
+    dirs : (N,3) array_like
+        Unit Lebedev directions.
+
+    weights : (N,) array_like
+        Lebedev weights (should sum to 4*pi).
+
+    eps : float, optional
+        Numerical tolerance.
+
+    Returns
+    -------
+    float
+        Clipped sphere volume.
+    """
+
+    center = np.asarray(center, dtype=float)
+    volume = 0.0
+
+
+    for w, wt in zip(dirs, weights):
+
+        rmin = -np.inf
+        rmax = np.inf
+        valid = True
+
+        for plane in planes:
+
+            n = plane[:3]
+            d = plane[3]
+
+            a = np.dot(n, w)
+            b = d - np.dot(n, center)
+
+            print("w:",w,"wt:",wt,"a:",a ,"b:",b, end="")
+            # Relative tolerance for detecting parallel rays
+            atol = eps * max(1.0, np.linalg.norm(n))
+
+            if abs(a) <= 0:
+                # Ray is effectively parallel to plane
+                print()
+
+                if b < 0:
+                    valid = False
+                    print("b<0 - Not valid")
+                    break
+                continue
+
+            t = b / a
+            if a > 0:
+                rmax = min(rmax, t)
+            else:
+                rmin = max(rmin, t)
+            print(" t:", t,"rmax:",rmax,"rmin:",rmin)
+
+
+
+            # Reject only if interval is definitely empty
+            if rmax < rmin:
+                print("rmax < rmin - Not valid","rmax:",rmax,"rmin:",rmin, "t:", t)
+                valid = False
+                break
+
+        if not valid:
+            continue
+
+        # Restrict to the sphere
+        rmin = max(rmin, 0.0)
+        rmax = min(rmax, radius)
+
+        if rmax > rmin :
+            print("Add to volume:","rmax:",rmax,"rmin:",rmin,"contribution:",wt * (rmax**3 - rmin**3)/3)
+            volume += wt * (rmax**3 - rmin**3)
+        else:
+            print("rmax < rmin +ATOL - Not valid","rmax:",rmax,"rmin:",rmin)
+
+    return volume / 3.0
 
 def sphere_clip_volume_precomp(A, b, radius, weights):
     """
@@ -1074,6 +1276,10 @@ def sphere_clip_volume_precomp(A, b, radius, weights):
 
     Nq, M = A.shape
 
+    parallel = 0
+    upper = 0
+    lower = 0
+
     for k in range(Nq):
 
         rmin = 0.0
@@ -1083,10 +1289,18 @@ def sphere_clip_volume_precomp(A, b, radius, weights):
         for j in range(M):
 
             a = A[k, j]
+            
+            if abs(a) < EPS:
+                parallel += 1
+            elif a > 0:
+                upper += 1
+            else:
+                lower += 1
+            
             bj = b[j]
 
             if abs(a) < EPS:
-                if bj < 0.0:
+                if bj <= 0.0:
                     valid = False
                     break
 
@@ -1109,89 +1323,105 @@ def sphere_clip_volume_precomp(A, b, radius, weights):
         if valid:
             volume += weights[k] * (rmax**3 - rmin**3)
 
+    print("Parallel:", parallel,"Upper:", upper,"Lower:", lower)
     return volume / 3.0
 
 
+"""
+def direction_inside(planes, center, w, eps=1e-12):
+    for plane in planes:
+        a = np.dot(n, w)
+        b = d - np.dot(n, center)
+
+        atol = eps
+
+        if abs(a) <= atol:
+            if b < -atol:
+                return False
+            continue
+
+        t = b / a
+
+        if a > 0:
+            if t < 0:
+                return False
+
+    return True
+"""
 
 
-
-def analytic_sino_sphere(
-        src,
-        det,
-        u_bnd,
-        v_bnd,
-        u_hat,
-        v_hat,
-        center,
-        radius,
-        rho=1.0):
+def analytic_sino_sphere(src,det,u_bnd,v_bnd,u_hat,v_hat,
+                         center,radius,rho=1.0):
 
     
+    #Lebedav direcctions and weights
     dirs, weights = lebedev_rule(131)
     dirs = dirs.T
-
+    
+    #MNumber of detector elements
     
     Nu = len(u_bnd) - 1
     Nv = len(v_bnd) - 1
 
-    uv = detector_grid(
-        det,
-        u_bnd,
-        v_bnd,
-        u_hat=u_hat,
-        v_hat=v_hat
-    )
+    #Detector grid intersections
+    uv = detector_grid(det,u_bnd,v_bnd,u_hat=u_hat,v_hat=v_hat)
 
-    u_coord_bot = uv[:, 0, :]
-    u_coord_top = uv[:, -1, :]
-
-    v_coord_lft = uv[0, :, :]
-    v_coord_rgt = uv[-1, :, :]
-
+    #Calculate u planes from the top and bottoms intersection points    
     ref_u = src + np.array([0, 1, 0])
+    planes_u = plane_from_pts(src,uv[:,0,:],uv[:,-1,:],ref_u)
+
+    #Calculate v planes from the left and right intersection points    
     ref_v = src + np.array([0, 0, 1])
+    planes_v = plane_from_pts(src,uv[0,:,:],uv[-1,:,:],ref_v)
 
-    planes_u = plane_from_pts(
-        src,
-        u_coord_bot,
-        u_coord_top,
-        ref_u
-    )
+    #Calc detector plane
+    planes_uv = plane_from_pts(uv[0, 0,:],uv[0,-1,:],uv[-1,0,:],src)
 
-    planes_v = plane_from_pts(
-        src,
-        v_coord_lft,
-        v_coord_rgt,
-        ref_v
-    )
-
-    planes_uv = plane_from_pts(
-        u_coord_bot[0],
-        u_coord_top[0],
-        u_coord_bot[-1],
-        src
-    )
-
-    proj = np.zeros((Nu, Nv), dtype=float)
 
     planes = np.empty((5, 4), dtype=float)
-
     planes[4] = planes_uv
 
-    for i in range(Nu):
 
+    proj = np.zeros((2), dtype=float)
+
+    planes[0] = planes_u[0]
+    planes[1] = -planes_u[32]
+
+    planes[2] = planes_v[0]
+    planes[3] = -planes_v[16]
+    
+    print("Hemisphere 1")
+    
+    
+    #vol = sphere_clip_volume1(planes_v[16:17],center,radius,dirs,weights)
+
+    #proj[0] = rho * vol
+
+
+    planes[2] = planes_v[16]
+    planes[3] = -planes_v[32]
+    print("Hemisphere 2")
+    
+    #vol = sphere_clip_volume1(-planes_v[16:17],center,radius,dirs,weights)
+
+    #proj[1] = rho * vol
+
+
+    print(plane_plane_sphere_vertices(planes_v[16:17], center, radius, eps=EPS))
+    """
+    proj = np.zeros((Nu, Nv), dtype=float)
+    for i in range(Nu):
         planes[0] = planes_u[i]
         planes[1] = -planes_u[i + 1]
 
         for j in range(Nv):
-
             planes[2] = planes_v[j]
             planes[3] = -planes_v[j + 1]
-            
 
-            vol = sphere_clip_volume0(planes,center,radius,dirs,weights)
+            vol = sphere_clip_volume1(planes,center,radius,dirs,weights)
 
             proj[i, j] = rho * vol
+    """
 
     return proj
 
@@ -1345,6 +1575,4 @@ def analytic_sino_sphere2(
             proj[i, j] = rho * vol
 
     return proj
-
-
 

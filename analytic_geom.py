@@ -233,7 +233,7 @@ def sphere_plane_inter(P,S):
     ----------
     P : (4) or (nPlanes,4) array_like
         The coeficents [A,B,C,D] of a plane in the general equation form:
-        Ax + By + Cz = D 
+        Ax + By + Cz + D = 0 
     S : (4) array_like
         The center of the sphere and radius (x0,y0,z0,r)
  
