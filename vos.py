@@ -40,16 +40,6 @@ def file_path(fname, box_root=False):
         relative\\path
     """
 
-    if box_root==True and BOX_ROOT is None:
-        raise FileNotFoundError("Could not locate the user's Box folder.")
-
-
-    if posix.parts[0].lower() == "box":
-        if BOX_ROOT is None:
-            raise FileNotFoundError("Could not locate the user's Box folder.")
-
-
-
 
     home = Path.home()
 
@@ -57,21 +47,34 @@ def file_path(fname, box_root=False):
     normalized = fname.replace("\\", "/")
     posix = PurePosixPath(normalized)
 
+    if box_root==True and BOX_ROOT is None:
+        raise FileNotFoundError("Could not locate the user's Box cloud folder.")
+
+
     if posix.parts[0].lower() == "box":
         if BOX_ROOT is None:
-            raise FileNotFoundError("Could not locate the user's Box folder.")
-        return str(BOX_ROOT.joinpath(*posix.parts[1:]))
+            raise FileNotFoundError("Could not locate the user's Box cloud folder.")
 
 
-    if normalized.startswith("~"):
-        return str(Path(normalized).expanduser())
+    targets = {"box", "box-box", "box sync"}
+    idx = next((i for i, part in enumerate(posix.parts, start=1) if part.lower() in targets), None)
+    if idx:
+        #if box_root is False:
+        #    print("Box folder in path, but BOX_ROOT=False")
+
+        return str(BOX_ROOT.joinpath(*posix.parts[idx:]))
 
     # box/...
-    if box_root==True:
+    if box_root:
+        print("here")
+        print("BOX_ROOT:", BOX_ROOT,posix)
         if BOX_ROOT is None:
             raise FileNotFoundError("Could not locate the user's Box folder.")
         return str(BOX_ROOT.joinpath(*posix.parts))
 
+
+    if normalized.startswith("~"):
+        return str(Path(normalized).expanduser())
 
 
     # /home/<user>/...
