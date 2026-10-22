@@ -1,0 +1,12 @@
+name: vir
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - spyder-kernels
+  - ipykernel
+  - pip
+  - numpy
+  - matplotlib
+  - scipy
+  - scikit-image
