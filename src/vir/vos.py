@@ -25,7 +25,7 @@ def find_box_root():
 BOX_ROOT = find_box_root()
 
 
-def file_path(fname, box_root=False):
+def native_path(fname, box_root=False):
     """
     Convert a path to one appropriate for the current operating system.
 
