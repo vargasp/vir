@@ -45,8 +45,8 @@ from functools import lru_cache
 
 import numpy as np
 
-from vir import rd, pd, dd
-from vir import analytic_sino as asino
+from vir.proj import rd, pd, dd
+from vir.proj import analytic_sino as asino
 
 SIZE = os.environ.get("VIR_TEST_SIZE", "small")
 

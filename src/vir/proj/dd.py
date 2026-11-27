@@ -20,8 +20,8 @@ See vir.sys_mat.pf for geometry, scaling and naming conventions.
 """
 
 import numpy as np
-import vir.sys_mat.pf as pf
-from vir.sys_mat.pf import njit, prange
+import vir.proj.pf as pf
+from vir.proj.pf import njit, prange
 
 
 # ----------------------------------------------------------------------------
@@ -428,8 +428,9 @@ def dd_bp_translational(img_yrow, img_xrow, sino, p_bnd_arr, o_arr, z_bnd_arr,
     for i_pair in prange((n_orth + 1)//2):
         tmp_v = np.zeros((nu, 4), dtype=np.float32)
         for k_pair in range(2):
-            io = i_pair if k_pair == 0 else n_orth - 1 - i_pair
-            if k_pair == 1 and io == i_pair:
+            i_lo = np.int64(i_pair)
+            io = i_lo if k_pair == 0 else n_orth - 1 - i_lo
+            if k_pair == 1 and io == i_lo:
                 break
             mag = mag_arr[io]
             if mag <= 0.0:

@@ -10,8 +10,8 @@ See vir.sys_mat.pf for geometry, scaling and naming conventions.
 """
 
 import numpy as np
-import vir.sys_mat.pf as pf
-from vir.sys_mat.pf import njit
+import vir.proj.pf as pf
+from vir.proj.pf import njit
 
 
 # Joseph sampling step as a fraction of d_pix.  The actual step is shortened
